@@ -49,6 +49,33 @@ Scaffolded the Next.js client with Tailwind CSS v4.
 - Renamed the default branch `master` → `main`
 - Committed as `chore: initialize next.js client with tailwind css` and pushed to `origin` (https://github.com/mercera/devstash.git)
 
+### Mock Data Layer — Completed (2026-08-25)
+
+Added the single source of truth for dashboard mock data.
+
+- Created `src/types/index.ts` with `User`, `ItemType`, `Collection`, `Item` and
+  the joined view types (`ItemWithRelations`, `CollectionWithCount`, …)
+- Created `src/lib/mock-data.ts` with 7 system item types, 6 collections,
+  16 items and a mock current user
+- Added derived getters for the sidebar, collection cards, pinned/recent
+  sections and search
+- `npm run build` and `npm run lint` pass
+
+Design decisions carried forward:
+
+- `src/types/index.ts` mirrors the Prisma draft in `context/project-overview.md`
+- The UI reads through the getters (`getItemTypesWithCounts`,
+  `getCollectionsWithCounts`, `getPinnedItems`, `getRecentItems`, `searchItems`, …),
+  never the raw arrays
+- Counts are **derived** from the `items` array rather than hardcoded, so the
+  sidebar and collection cards stay consistent as mock items are added
+- Tags are flattened to `string[]` on `Item`. The database will model these
+  through `Tag`/`ItemTag`, but the UI only ever renders names
+- `color` on types and collections is a semantic name (`"blue"`, `"purple"`, …)
+  that the UI maps to Tailwind classes — no inline styles
+- Swapping to Prisma later should be a one-file change: the getters already
+  return the joined shapes the UI expects
+
 ### Dashboard UI — Phase 1 — Completed (2026-08-26)
 
 Built the dashboard shell: ShadCN setup, `/dashboard` route, top bar, and sidebar/main placeholders. Branch `feature/dashboard-phase-1`.
@@ -62,7 +89,6 @@ Built the dashboard shell: ShadCN setup, `/dashboard` route, top bar, and sideba
 - Added `src/components/dashboard/Sidebar.tsx` — fixed-width `aside` with the `Sidebar` placeholder, hidden below `md` until the phase 2 drawer lands
 - `npm run build` and `npm run lint` pass; `/dashboard` prerenders as static
 
-Open items carried into phase 2:
-
-- `context/screenshots/dashboard-ui-main.png` does not exist yet, so the layout follows the project overview rather than the intended design — worth reviewing
-- `src/lib/mock-data.ts` does not exist yet and is needed for phase 2
+Built before `origin/main` was pulled, so the reference screenshots and the design
+principles in `context/project-overview.md` were not available at the time. The
+shell was reviewed against them after the merge — see the review notes below.

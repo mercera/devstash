@@ -234,6 +234,26 @@ model ItemTag {
 - Syntax highlighting for code
 - Inspired by **Notion, Linear, Raycast**
 
+## Design Principles
+
+- **Modern & Minimal**
+Developer focused aesthetic
+- **Dark Mode Default**
+Light mode optional
+- **Clean Typograpghy**
+Generous whitespace
+- **Sutble Accents**
+Borders and shadows used sparingly
+- **Syntax Highlighting**
+For all code blocks
+
+## Screenshots
+
+Refer to the screenshots below as a base design for the dashboard ui. Use it as a visual queue and reference.
+
+@context/screenshots/dashboard-ui-drawer.png
+@context/screenshots/dashboard-ui-main.png
+
 ### Layout
 
 - **Collapsible sidebar** with filters & collections
