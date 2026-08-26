@@ -9,6 +9,7 @@
 import type {
   Collection,
   CollectionWithCount,
+  DashboardStats,
   Item,
   ItemType,
   ItemTypeWithCount,
@@ -662,6 +663,18 @@ export function searchItems(query: string): ItemWithRelations[] {
         .includes(needle),
     )
     .sort(byUpdatedAtDesc);
+}
+
+/** Headline counts for the dashboard stat cards. */
+export function getDashboardStats(): DashboardStats {
+  return {
+    itemCount: items.length,
+    collectionCount: collections.length,
+    favoriteItemCount: items.filter((item) => item.isFavorite).length,
+    favoriteCollectionCount: collections.filter(
+      (collection) => collection.isFavorite,
+    ).length,
+  };
 }
 
 /** Every distinct tag name, alphabetically. */

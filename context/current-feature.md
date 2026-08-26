@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Dashboard UI — Phase 2
+Dashboard UI — Phase 3
 
 ## Status
 
@@ -14,29 +14,33 @@ Completed
 
 <!-- Goals & requirements -->
 
-Phase 2 of 3 for the dashboard UI layout. Fill in the sidebar with real (mock)
-data — the main area stays a placeholder until phase 3.
+Phase 3 of 3 for the dashboard UI layout. Build out the main area to the right
+of the sidebar, replacing the `Main` placeholder in `src/app/dashboard/page.tsx`.
 
-- Collapsible sidebar
-- Item types list, each linking to `/items/[type]` (e.g. `/items/snippets`)
-- Favorite collections section
-- Most recent collections section
-- User avatar area pinned to the bottom of the sidebar
-- Drawer icon in the top bar opens/closes the sidebar (wire up the phase 1
-  `PanelLeft` placeholder)
-- Always a drawer on mobile view
+- The main area to the right
+- 4 stats cards at the top — total items, collections, favorite items and
+  favorite collections (not in the screenshot)
+- Recent collections
+- Pinned items
+- 10 recent items
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/dashboard-phase-2-spec.md
+- Full spec: @context/features/dashboard-phase-3-spec.md
 - Target look: @context/screenshots/dashboard-ui-main.png, @context/screenshots/dashboard-ui-drawer.png
 - Mock data: @src/lib/mock-data.ts — read through the getters
-  (`getItemTypesWithCounts`, `getCollectionsWithCounts`, …), never the raw arrays
-- Previous phase: @context/features/dashboard-phase-1-spec.md — next: @context/features/dashboard-phase-3-spec.md
+  (`getCollectionsWithCounts`, `getRecentCollections`, `getPinnedItems`,
+  `getRecentItems`, `getFavoriteItems`, …), never the raw arrays.
+  The spec links `mock-data.js`; the file is TypeScript
+- Previous phases: @context/features/dashboard-phase-1-spec.md, @context/features/dashboard-phase-2-spec.md
 - Tailwind v4 — theme config goes in `src/app/globals.css` via `@theme`, no `tailwind.config` file
-- The `/items/[type]` routes don't exist yet; links can point at them ahead of the pages
+- The stats cards have no counterpart in the screenshot, so their look has to be
+  derived from the rest of the design
+- `src/lib/icons.ts` already maps type icon names and accent colors — reuse it
+  for the card accents and item rows rather than adding new mappings
+- The dashboard page can stay a server component; only the sidebar needs `"use client"`
 
 ## History
 
@@ -166,3 +170,43 @@ Decisions worth carrying forward:
   icon mode, which also avoids needing a `TooltipProvider`
 - `/items/[slug]` and `/collections/[slug]` pages do not exist yet — the sidebar
   links point ahead of them
+
+### Dashboard UI — Phase 3 — Completed (2026-08-26)
+
+Built the main dashboard area, replacing the `Main` placeholder. Branch `feature/dashboard-phase-3`.
+
+- Installed the ShadCN `card` and `badge` components
+- `src/app/dashboard/page.tsx` now composes four sections under the
+  `Dashboard` / "Your developer knowledge hub" header: stats, collections,
+  pinned items and recent items. It stays a server component
+- Added `src/components/dashboard/StatCard.tsx` — tinted icon tile, tabular
+  number and muted label; the page renders four (items, collections, favorite
+  items, favorite collections)
+- Added `src/components/dashboard/CollectionCard.tsx` — accent left edge, name
+  linking to `/collections/[slug]`, star when favorited, item count,
+  description and a row of type icons in their own accent colors
+- Added `src/components/dashboard/ItemCard.tsx` — shared by the Pinned and
+  Recent sections: accent left edge, type icon tile, title with pin/star,
+  description, tag badges and the date on the right
+- Added `src/components/dashboard/TypeIcon.tsx` — resolves the lucide icon named
+  on an item type through `createElement`
+- Extended `src/lib/icons.ts` with `getAccentBorderClass` (card left edge) and
+  `getAccentTileClass` (tinted icon square)
+- Added `getDashboardStats()` to `src/lib/mock-data.ts` and the matching
+  `DashboardStats` type to `src/types/index.ts`
+- Added `src/lib/format.ts` with `formatShortDate` for the `Jan 15` date column
+- `npm run build` and `npm run lint` pass; `/dashboard` still prerenders as static
+
+Decisions worth carrying forward:
+
+- Item rows show `updatedAt`, not the `createdAt` the screenshot displays. Our
+  mock data has the two dates diverge, so created dates made the Recent column
+  read as unsorted; `updatedAt` is what both sections sort by. The screenshot's
+  data appears to have had them identical
+- `const Icon = getIcon(...)` followed by `<Icon />` trips
+  `react-hooks/static-components`, hence `TypeIcon`. The sidebar was switched to
+  it as well so the pattern lives in one place
+- The Collections grid shows up to 6 cards from `getRecentCollections(6)` with a
+  "View all" link to `/collections`, which does not exist yet
+- Item titles are not links — an item detail route has not been specced, and
+  phase 3 asks only for the listing

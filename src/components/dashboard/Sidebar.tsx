@@ -26,7 +26,8 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { getAccentTextClass, getIcon } from "@/lib/icons";
+import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { getAccentTextClass } from "@/lib/icons";
 import {
   currentUser,
   getFavoriteCollections,
@@ -69,7 +70,6 @@ export function Sidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {itemTypes.map((type) => {
-                const Icon = getIcon(type.icon);
                 const href = `/items/${type.slug}`;
 
                 return (
@@ -79,7 +79,10 @@ export function Sidebar() {
                       isActive={pathname === href}
                     >
                       <Link href={href}>
-                        <Icon className={getAccentTextClass(type.color)} />
+                        <TypeIcon
+                          type={type}
+                          className={getAccentTextClass(type.color)}
+                        />
                         <span>{type.name}</span>
                       </Link>
                     </SidebarMenuButton>
