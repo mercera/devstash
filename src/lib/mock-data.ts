@@ -592,6 +592,12 @@ export function getFavoriteCollections(): CollectionWithCount[] {
   return getCollectionsWithCounts().filter((collection) => collection.isFavorite);
 }
 
+/** Collections, most recently updated first — the sidebar and dashboard lists. */
+export function getRecentCollections(limit?: number): CollectionWithCount[] {
+  const recent = getCollectionsWithCounts().sort(byUpdatedAtDesc);
+  return limit ? recent.slice(0, limit) : recent;
+}
+
 /** Pinned items, newest first — the dashboard "Pinned" section. */
 export function getPinnedItems(): ItemWithRelations[] {
   return items
@@ -663,6 +669,6 @@ export function getAllTags(): string[] {
   return [...new Set(items.flatMap((item) => item.tags))].sort();
 }
 
-function byUpdatedAtDesc(a: Item, b: Item): number {
+function byUpdatedAtDesc<T extends { updatedAt: Date }>(a: T, b: T): number {
   return b.updatedAt.getTime() - a.updatedAt.getTime();
 }
