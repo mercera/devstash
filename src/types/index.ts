@@ -87,6 +87,22 @@ export interface CollectionWithCount extends Collection {
   typeIds: string[];
 }
 
+/**
+ * A collection ready for the dashboard card. `accentColor` and `types` are
+ * derived from the collection's items (most-used type first) rather than the
+ * collection's own stored `color`.
+ */
+export interface CollectionCardData {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isFavorite: boolean;
+  itemCount: number;
+  accentColor: AccentColor;
+  types: ItemType[];
+}
+
 /** Headline counts for the dashboard stat cards. */
 export interface DashboardStats {
   itemCount: number;

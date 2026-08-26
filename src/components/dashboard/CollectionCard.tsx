@@ -10,20 +10,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getAccentBorderClass, getAccentTextClass } from "@/lib/icons";
-import { getItemType } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
-import type { CollectionWithCount } from "@/types";
+import type { CollectionCardData } from "@/types";
 
 export function CollectionCard({
   collection,
 }: {
-  collection: CollectionWithCount;
+  collection: CollectionCardData;
 }) {
   return (
     <Card
       className={cn(
         "border-l-4 transition-colors hover:bg-accent/30",
-        getAccentBorderClass(collection.color),
+        getAccentBorderClass(collection.accentColor),
       )}
     >
       <CardHeader>
@@ -51,19 +50,14 @@ export function CollectionCard({
         )}
 
         <div className="flex items-center gap-2">
-          {collection.typeIds.map((typeId) => {
-            const type = getItemType(typeId);
-            if (!type) return null;
-
-            return (
-              <TypeIcon
-                key={typeId}
-                type={type}
-                label={type.name}
-                className={cn("size-4", getAccentTextClass(type.color))}
-              />
-            );
-          })}
+          {collection.types.map((type) => (
+            <TypeIcon
+              key={type.id}
+              type={type}
+              label={type.name}
+              className={cn("size-4", getAccentTextClass(type.color))}
+            />
+          ))}
         </div>
       </CardContent>
     </Card>

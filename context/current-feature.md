@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Seed Data
+Dashboard Collections — Live Data
 
 ## Status
 
@@ -14,44 +14,100 @@ Completed
 
 <!-- Goals & requirements -->
 
-Write `prisma/seed.ts` to populate the Neon dev database with sample data for
-development and demos.
+Replace the dashboard's collection cards (the "recent collections" grid on
+the right side of the main area) with real data from the Neon database via
+Prisma, instead of `src/lib/mock-data.ts`. Item cards underneath stay out of
+scope for this pass.
 
-- Seed a demo `User` (demo@devstash.io, password hashed with bcryptjs at 12
-  rounds, `isPro: false`, `emailVerified` set to now)
-- Seed the 7 system `ItemType` rows (snippet, prompt, command, note, file,
-  image, link) with their Lucide icon names and hex colors, `isSystem: true`
-- Seed 5 `Collection`s owned by the demo user: React Patterns, AI Workflows,
-  DevOps, Terminal Commands, Design Resources
-- Seed the `Item`s per collection (mixed types — snippets, prompts, commands,
-  links — per @context/features/seed-spec.md), linked to the right
-  `Collection` and `ItemType`
-- Wire the script to run via `prisma db seed` / a `db:seed` package script
+- Add `src/lib/db/collections.ts` with the data-fetching functions the
+  dashboard needs (recent collections with item counts and per-collection
+  type icons)
+- Fetch collections directly in the server component (`src/app/dashboard/page.tsx`)
+  — no client-side fetch, no API route
+- Collection card's left-edge accent color is derived from the most-used
+  content type in that collection, not the collection's own stored `color`
+- Card still shows small icons for every distinct item type present in the
+  collection
+- Update the dashboard stat cards that read collection counts to the live data
+- Visual result should be unchanged from the current mock-data version —
+  6 cards, same layout — check against @context/screenshots/dashboard-ui-main.png
+  if unsure
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/seed-spec.md
-- No `prisma/seed.ts` or seed script exists yet anywhere in the repo — nothing
-  to clear from a prior attempt, this is a from-scratch script
-- `bcryptjs` is not yet a dependency — install it (plus `@types/bcryptjs` if
-  needed) before hashing the demo password
-- Prisma 7 does not run seeds automatically on `migrate dev` — the seed
-  command and its entry in `prisma.config.ts` (or `package.json`'s
-  `prisma.seed`) need to be set up explicitly; confirm the current config
-  syntax against the Prisma 7 docs before wiring it up
-- Design/DevOps links should be real, working URLs per the spec (docs sites,
-  component libraries, design systems, icon libraries)
-- Item content should be realistic enough to demo well — real-looking code
-  snippets, prompts and commands, not lorem-ipsum placeholders
-- This seeds the database only; the dashboard keeps reading
-  `src/lib/mock-data.ts` until the getters are swapped to Prisma in a later
-  feature
+- Full spec: @context/features/dashboard-collections-spec.md
+- This only swaps the **collections** section. Pinned/recent **items** and the
+  sidebar keep reading `src/lib/mock-data.ts` until a later feature covers them
+- Currently `CollectionCard` colors from `collection.color` (the stored
+  semantic color) — see `src/components/dashboard/CollectionCard.tsx` and
+  `getAccentBorderClass` in `src/lib/icons.ts`. The spec asks for the border
+  to instead be derived from the most-used `ItemType` among the collection's
+  items, so the accent now depends on item data, not just the collection row
+- `getCollectionsWithCounts()` / `getRecentCollections()` in `mock-data.ts` are
+  the current shape to match — `itemCount` and `typeIds` — so the new
+  `src/lib/db/collections.ts` functions should return a compatible shape the
+  component doesn't need to change to consume, modulo the accent-color source
+- Demo data to query against already exists: seeded in the previous feature
+  (5 collections, 18 items owned by demo@devstash.io) — see
+  @context/features/seed-spec.md and the Seed Data history entry below
+- No auth/session wiring exists yet, so "the current user" isn't reachable
+  from a session. Decided: hardcode the seeded demo user
+  (demo@devstash.io / `seed-user-demo`) in the query for now — will need to
+  change once auth lands
+- Follow `coding-standards.md`'s file organization: `src/lib/db/[feature].ts`
+  for Prisma data-fetching modules
 
 ## History
 
 <!-- Keep this updated. Earliest to latest -->
+
+### Dashboard Collections — Live Data — Completed (2026-08-26)
+
+Swapped the dashboard's "Collections" grid and its two stat cards from
+`src/lib/mock-data.ts` to live Neon/Prisma queries. Branch
+`feature/dashboard-collections`.
+
+- Added `src/lib/db/collections.ts` — `getRecentCollections(limit)` and
+  `getCollectionStats()`, both scoped to the hardcoded seeded demo user
+  (`seed-user-demo`)
+- Added `CollectionCardData` to `src/types/index.ts` — `accentColor` and
+  `types: ItemType[]` (full objects, most-used first) replace the old
+  `color` / `typeIds: string[]` pairing `CollectionWithCount` used
+- Rewrote `CollectionCard.tsx` to consume `CollectionCardData` directly
+  instead of looking up `typeIds` against `mock-data.ts`'s `getItemType`
+- `dashboard/page.tsx` is now an async server component; fetches
+  `getRecentCollections` and `getCollectionStats` via `Promise.all`
+  alongside the still-mock `getPinnedItems`/`getRecentItems`/`getDashboardStats`
+- Added `export const dynamic = "force-dynamic"` to the dashboard page —
+  without it Next prerenders the route at build time and serves that frozen
+  snapshot, defeating the point of live data (caught in the build output:
+  `/dashboard` showed as `○ Static` until this was added)
+- Fixed two latent icon bugs surfaced by wiring in real data:
+  `src/lib/icons.ts`'s `ICONS` map was missing `Code` and `StickyNote` (the
+  seed data's lucide names for snippet/note types — it only had `Code2`/
+  `FileText` from `mock-data.ts`), so those types would have silently
+  rendered the fallback `File` icon
+- Verified in the browser: installed Playwright + Chromium (no project run
+  skill existed yet, `chromium-cli` wasn't on PATH), started `npm run dev`,
+  and drove `/dashboard` with a script — 5 real collections, correct per-card
+  item counts, accent colors and type icons, stat cards read 5/2, zero
+  console errors, screenshot matched the reference layout
+- `npm run build` and `npm run lint` pass
+
+Decisions worth carrying forward:
+
+- The collection's own stored `color` is now only a fallback for a
+  collection with zero items; `CollectionCard`'s left-edge accent always
+  prefers the most-used item type's color when items exist
+- Kept `CollectionWithCount`/`getCollectionsWithCounts()` in
+  `mock-data.ts` untouched rather than deleting them — nothing else in the
+  UI (sidebar, items) has moved off mock data yet, so removing the mock
+  collections path would have broken other in-scope-later work
+- `getRecentCollections` in `src/lib/db/collections.ts` and the same-named
+  function in `mock-data.ts` are distinct exports from different modules;
+  `dashboard/page.tsx` now imports only the DB one
 
 ### Initial Setup — Completed (2026-08-24)
 
