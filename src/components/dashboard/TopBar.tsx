@@ -1,33 +1,38 @@
-import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { FolderPlus, PanelLeft, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function TopBar() {
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4">
-      <Link
-        href="/"
-        className="shrink-0 text-sm font-semibold tracking-tight sm:text-base"
-      >
-        Dev<span className="text-muted-foreground">Stash</span>
-      </Link>
+    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
+      <Button variant="ghost" size="icon" aria-label="Toggle sidebar">
+        <PanelLeft />
+      </Button>
 
-      <div className="relative mx-auto w-full max-w-md">
+      <div className="relative w-full max-w-sm">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search items, tags, collections..."
-          aria-label="Search"
-          className="h-9 pl-8"
+          placeholder="Search items..."
+          aria-label="Search items"
+          className="pr-14 pl-8"
         />
+        <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground select-none sm:flex">
+          <span className="text-xs">⌘</span>K
+        </kbd>
       </div>
 
-      <Button size="lg" aria-label="New Item" className="shrink-0">
-        <Plus />
-        <span className="hidden sm:inline">New Item</span>
-      </Button>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <Button variant="outline" aria-label="New Collection">
+          <FolderPlus />
+          <span className="hidden sm:inline">New Collection</span>
+        </Button>
+        <Button aria-label="New Item">
+          <Plus />
+          <span className="hidden sm:inline">New Item</span>
+        </Button>
+      </div>
     </header>
   );
 }

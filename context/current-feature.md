@@ -91,4 +91,29 @@ Built the dashboard shell: ShadCN setup, `/dashboard` route, top bar, and sideba
 
 Built before `origin/main` was pulled, so the reference screenshots and the design
 principles in `context/project-overview.md` were not available at the time. The
-shell was reviewed against them after the merge — see the review notes below.
+shell was reviewed against them after the merge and corrected — see the entry below.
+
+### Dashboard UI — Phase 1 Design Match — Completed (2026-08-26)
+
+Reworked the shell to match `context/screenshots/dashboard-ui-main.png`. Branch `fix/dashboard-shell-to-match-design`.
+
+- Moved the logo out of the top bar and into the sidebar: the sidebar is now a
+  full-height left column whose header holds the gradient logo tile + `DevStash`
+  wordmark, and the top bar spans only the area to its right. Their bottom
+  borders line up at `h-12`.
+- `src/app/dashboard/layout.tsx` is now `[Sidebar][TopBar over main]` rather than
+  `[TopBar][Sidebar beside main]`
+- Top bar gained the sidebar toggle icon (`PanelLeft`, display only — phase 2
+  wires it up) and a "New Collection" outline button
+- Search moved from centered to left-aligned after the toggle, capped at
+  `max-w-sm`, placeholder shortened to `Search items...`, and a `⌘K` badge added
+  inside the field
+- Top bar height `h-14` → `h-12` (~48px) to match the reference
+- `npm run build` and `npm run lint` pass
+
+Known gaps against the reference, left for later phases:
+
+- The `⌘K` badge hardcodes the mac symbol; platform detection needs a client
+  component, and nothing is wired to the shortcut yet
+- "New Collection" is not in the phase 1 spec text but is in the screenshot — it
+  is rendered display-only
