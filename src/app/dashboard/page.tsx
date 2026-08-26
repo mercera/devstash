@@ -6,26 +6,32 @@ import { Boxes, Clock, FolderOpen, Folders, Pin, Star } from "lucide-react";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { getCollectionStats, getRecentCollections } from "@/lib/db/collections";
 import { cn } from "@/lib/utils";
-import {
-  getDashboardStats,
-  getPinnedItems,
-  getRecentCollections,
-  getRecentItems,
-} from "@/lib/mock-data";
+import { getDashboardStats, getPinnedItems, getRecentItems } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
   title: "Dashboard | DevStash",
 };
 
+/**
+ * Collections now come from Prisma, so the page must render per-request —
+ * without this, Next.js would prerender it once at build time and serve that
+ * frozen snapshot instead of live data.
+ */
+export const dynamic = "force-dynamic";
+
 const RECENT_ITEM_LIMIT = 10;
 const COLLECTION_CARD_LIMIT = 6;
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
   const stats = getDashboardStats();
-  const collections = getRecentCollections(COLLECTION_CARD_LIMIT);
   const pinnedItems = getPinnedItems();
   const recentItems = getRecentItems(RECENT_ITEM_LIMIT);
+  const [collections, collectionStats] = await Promise.all([
+    getRecentCollections(COLLECTION_CARD_LIMIT),
+    getCollectionStats(),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -45,7 +51,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Collections"
-          value={stats.collectionCount}
+          value={collectionStats.collectionCount}
           icon={FolderOpen}
           color="purple"
         />
@@ -57,7 +63,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Favorite collections"
-          value={stats.favoriteCollectionCount}
+          value={collectionStats.favoriteCollectionCount}
           icon={Folders}
           color="green"
         />

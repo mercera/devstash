@@ -6,6 +6,7 @@
  */
 
 import {
+  Code,
   Code2,
   File,
   FileText,
@@ -13,6 +14,7 @@ import {
   Image,
   Link,
   Sparkles,
+  StickyNote,
   Terminal,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +22,7 @@ import {
 import type { AccentColor } from "@/types";
 
 const ICONS: Record<string, LucideIcon> = {
+  Code,
   Code2,
   File,
   FileText,
@@ -27,6 +30,7 @@ const ICONS: Record<string, LucideIcon> = {
   Image,
   Link,
   Sparkles,
+  StickyNote,
   Terminal,
 };
 
