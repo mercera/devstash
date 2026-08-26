@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Database — Neon PostgreSQL + Prisma
+Seed Data
 
 ## Status
 
@@ -14,39 +14,40 @@ Completed
 
 <!-- Goals & requirements -->
 
-Stand up the persistence layer: a Neon serverless PostgreSQL database wired to
-the app through Prisma ORM, with the initial schema migrated.
+Write `prisma/seed.ts` to populate the Neon dev database with sample data for
+development and demos.
 
-- Install and initialize Prisma 7 (breaking changes vs. 6 — read the upgrade guide)
-- Provision a Neon project with a development branch and a production branch;
-  `DATABASE_URL` points at the development branch
-- Author the initial schema from the data models in @context/project-overview.md —
-  `User`, `Item`, `ItemType`, `Collection`, `Tag`, `ItemTag`
-- Add the NextAuth models: `Account`, `Session`, `VerificationToken`
-- Add appropriate indexes (foreign keys, lookup columns) and cascade deletes
-- Create and run the initial migration, then verify with `prisma migrate status`
-- Add a shared Prisma client singleton under `src/lib/`
+- Seed a demo `User` (demo@devstash.io, password hashed with bcryptjs at 12
+  rounds, `isPro: false`, `emailVerified` set to now)
+- Seed the 7 system `ItemType` rows (snippet, prompt, command, note, file,
+  image, link) with their Lucide icon names and hex colors, `isSystem: true`
+- Seed 5 `Collection`s owned by the demo user: React Patterns, AI Workflows,
+  DevOps, Terminal Commands, Design Resources
+- Seed the `Item`s per collection (mixed types — snippets, prompts, commands,
+  links — per @context/features/seed-spec.md), linked to the right
+  `Collection` and `ItemType`
+- Wire the script to run via `prisma db seed` / a `db:seed` package script
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/database-spec.md
-- Data models to mirror: @context/project-overview.md (the Prisma draft there is a
-  starting point and will evolve)
-- **Prisma 7** — read the whole upgrade guide before writing config:
-  https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
-  Setup reference: https://www.prisma.io/docs/getting-started/prisma-orm/quickstart/prisma-postgres
-- **Always migrate, never push.** `prisma migrate dev` for schema changes;
-  `db push` only if explicitly asked for. Production runs `prisma migrate deploy`
-- Nothing Prisma-related exists yet — no `prisma/` directory, no `.env`, and
-  `package.json` has no `prisma`/`@prisma/client` dependency
-- `src/types/index.ts` already mirrors the draft schema and `src/lib/mock-data.ts`
-  serves the UI through getters. Swapping the getters to Prisma is a later step —
-  this feature is the schema and connection only, so the dashboard keeps reading
-  mock data for now
-- Keep secrets out of git: `.env` stays ignored, add a `.env.example` with the
-  variable names
+- Full spec: @context/features/seed-spec.md
+- No `prisma/seed.ts` or seed script exists yet anywhere in the repo — nothing
+  to clear from a prior attempt, this is a from-scratch script
+- `bcryptjs` is not yet a dependency — install it (plus `@types/bcryptjs` if
+  needed) before hashing the demo password
+- Prisma 7 does not run seeds automatically on `migrate dev` — the seed
+  command and its entry in `prisma.config.ts` (or `package.json`'s
+  `prisma.seed`) need to be set up explicitly; confirm the current config
+  syntax against the Prisma 7 docs before wiring it up
+- Design/DevOps links should be real, working URLs per the spec (docs sites,
+  component libraries, design systems, icon libraries)
+- Item content should be realistic enough to demo well — real-looking code
+  snippets, prompts and commands, not lorem-ipsum placeholders
+- This seeds the database only; the dashboard keeps reading
+  `src/lib/mock-data.ts` until the getters are swapped to Prisma in a later
+  feature
 
 ## History
 
@@ -272,3 +273,47 @@ Decisions worth carrying forward:
   Postgres treats NULL `userId` as distinct. System types are seeded, not user input
 - The dashboard still reads `src/lib/mock-data.ts`. Swapping the getters to
   Prisma is the next feature, not this one
+
+### Seed Data — Completed (2026-08-26)
+
+Wrote `prisma/seed.ts` and seeded the Neon dev database. Branch `feature/seed-data`.
+
+- `node_modules` was stale (missing the `prisma` package despite being in
+  `package.json`), and no local `.env` existed — recreated `.env` from
+  `.env.example` with the Neon dev branch's `DATABASE_URL`/`DIRECT_URL`, then
+  `npm install` to restore `prisma` and regenerate the client
+- Installed `bcryptjs`; skipped `@types/bcryptjs` since bcryptjs 3.x ships its
+  own type definitions
+- Added `prisma/seed.ts` — seeds the demo user (bcrypt-hashed password, 12
+  rounds), the 7 system `ItemType`s, 5 `Collection`s and 18 `Item`s across
+  them, plus `Tag`/`ItemTag` rows derived from each item's tag list
+- Wired `migrations.seed` in `prisma.config.ts` to `tsx prisma/seed.ts` and
+  added `db:seed: "prisma db seed"` to `package.json`
+- Ran `npm run db:seed` against the Neon dev branch, then verified with
+  `npm run db:test` (1 user, 7 item types, 5 collections, 18 items, 29 tags)
+  and confirmed `npm run build` / `npm run lint` both pass
+- Re-ran the seed a second time and re-checked counts to confirm it's
+  idempotent — no duplicate rows
+
+Decisions worth carrying forward:
+
+- Every seeded row uses a stable, explicit `id` (`seed-user-demo`,
+  `seed-type-*`, `seed-col-*`, `seed-item-*`) and is `upsert`ed by that id, so
+  re-running the seed updates rows instead of duplicating them.
+  `ItemType.@@unique([userId, slug])` doesn't constrain system types since
+  Postgres treats `NULL` `userId` as distinct — upserting on the compound key
+  would have created a new set of 7 types on every run, hence the explicit ids
+- `Tag`/`ItemTag` don't need explicit ids: `Tag` upserts on the real
+  `[userId, name]` unique constraint, `ItemTag` on `[itemId, tagId]`
+- Item type `name`/`icon`/`color` follow the existing app convention from
+  `mock-data.ts` (plural display name, singular slug — e.g. `"Snippets"` /
+  `"snippet"`) rather than the spec table's lowercase literal, since the
+  sidebar and `getItemsByType` already key off that shape
+- Spec hex colors were mapped to the closest `AccentColor` enum value (there
+  happens to be a 1:1 match — blue, purple, orange, yellow, gray, pink, green)
+- Collection/item favorite and pinned flags and tag names aren't specified —
+  chose a plausible mix so the dashboard's favorites/pinned sections aren't
+  empty for the demo
+- `scripts/test-db.ts` (the database smoke test) is unrelated to seeding — it
+  only checks connectivity and does a rollback-only write, so it was left
+  untouched and used purely to verify the seed's row counts

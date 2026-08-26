@@ -13,12 +13,14 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
     "db:test": "tsx scripts/test-db.ts",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.34.0",
