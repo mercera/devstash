@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Dashboard UI — Phase 3
+Database — Neon PostgreSQL + Prisma
 
 ## Status
 
@@ -14,33 +14,39 @@ Completed
 
 <!-- Goals & requirements -->
 
-Phase 3 of 3 for the dashboard UI layout. Build out the main area to the right
-of the sidebar, replacing the `Main` placeholder in `src/app/dashboard/page.tsx`.
+Stand up the persistence layer: a Neon serverless PostgreSQL database wired to
+the app through Prisma ORM, with the initial schema migrated.
 
-- The main area to the right
-- 4 stats cards at the top — total items, collections, favorite items and
-  favorite collections (not in the screenshot)
-- Recent collections
-- Pinned items
-- 10 recent items
+- Install and initialize Prisma 7 (breaking changes vs. 6 — read the upgrade guide)
+- Provision a Neon project with a development branch and a production branch;
+  `DATABASE_URL` points at the development branch
+- Author the initial schema from the data models in @context/project-overview.md —
+  `User`, `Item`, `ItemType`, `Collection`, `Tag`, `ItemTag`
+- Add the NextAuth models: `Account`, `Session`, `VerificationToken`
+- Add appropriate indexes (foreign keys, lookup columns) and cascade deletes
+- Create and run the initial migration, then verify with `prisma migrate status`
+- Add a shared Prisma client singleton under `src/lib/`
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/dashboard-phase-3-spec.md
-- Target look: @context/screenshots/dashboard-ui-main.png, @context/screenshots/dashboard-ui-drawer.png
-- Mock data: @src/lib/mock-data.ts — read through the getters
-  (`getCollectionsWithCounts`, `getRecentCollections`, `getPinnedItems`,
-  `getRecentItems`, `getFavoriteItems`, …), never the raw arrays.
-  The spec links `mock-data.js`; the file is TypeScript
-- Previous phases: @context/features/dashboard-phase-1-spec.md, @context/features/dashboard-phase-2-spec.md
-- Tailwind v4 — theme config goes in `src/app/globals.css` via `@theme`, no `tailwind.config` file
-- The stats cards have no counterpart in the screenshot, so their look has to be
-  derived from the rest of the design
-- `src/lib/icons.ts` already maps type icon names and accent colors — reuse it
-  for the card accents and item rows rather than adding new mappings
-- The dashboard page can stay a server component; only the sidebar needs `"use client"`
+- Full spec: @context/features/database-spec.md
+- Data models to mirror: @context/project-overview.md (the Prisma draft there is a
+  starting point and will evolve)
+- **Prisma 7** — read the whole upgrade guide before writing config:
+  https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
+  Setup reference: https://www.prisma.io/docs/getting-started/prisma-orm/quickstart/prisma-postgres
+- **Always migrate, never push.** `prisma migrate dev` for schema changes;
+  `db push` only if explicitly asked for. Production runs `prisma migrate deploy`
+- Nothing Prisma-related exists yet — no `prisma/` directory, no `.env`, and
+  `package.json` has no `prisma`/`@prisma/client` dependency
+- `src/types/index.ts` already mirrors the draft schema and `src/lib/mock-data.ts`
+  serves the UI through getters. Swapping the getters to Prisma is a later step —
+  this feature is the schema and connection only, so the dashboard keeps reading
+  mock data for now
+- Keep secrets out of git: `.env` stays ignored, add a `.env.example` with the
+  variable names
 
 ## History
 
@@ -210,3 +216,59 @@ Decisions worth carrying forward:
   "View all" link to `/collections`, which does not exist yet
 - Item titles are not links — an item detail route has not been specced, and
   phase 3 asks only for the listing
+
+### Database — Neon PostgreSQL + Prisma — Completed (2026-08-26)
+
+Stood up the persistence layer. Branch `feature/database`.
+
+- Installed `prisma@7.10.0` + `dotenv` (dev) and `@prisma/client@7.10.0`,
+  `@prisma/adapter-neon`, `@neondatabase/serverless`. npm 12 blocks install
+  scripts by default — `npm install-scripts approve prisma @prisma/engines` was
+  needed to fetch the schema engine
+- Added `prisma/schema.prisma` — `User`, `ItemType`, `Collection`, `Item`,
+  `Tag`, `ItemTag` plus the NextAuth `Account`, `Session`, `VerificationToken`
+- Added `prisma.config.ts` — Prisma 7's required config file; holds the
+  datasource URL and the migrations path
+- Added `src/lib/prisma.ts` — client singleton over the Neon driver adapter,
+  cached on `globalThis` outside production so hot reload does not exhaust the pool
+- Added `.env.example` (`DATABASE_URL` pooled / `DIRECT_URL` direct) and
+  un-ignored it in `.gitignore`; ignored `/src/generated`
+- Added `postinstall: prisma generate` and `db:generate` / `db:migrate` /
+  `db:migrate:deploy` / `db:status` / `db:studio` scripts
+- ESLint globally ignores `src/generated/**`
+- Initial migration `20260826135618_init` created and applied to the Neon
+  development branch; `prisma migrate status` reports the schema up to date
+- Verified end to end through a throwaway `/api/dbcheck` route in the dev server
+  (counts returned 0 across four tables, Prisma query logs hit the pooled
+  connection), then deleted the route
+- `npm run build` and `npm run lint` pass
+
+Decisions worth carrying forward:
+
+- **Prisma 7, not 8.** npm's `latest` tag is `8.0.0-rc.11`; `7.10.0` is the
+  current stable 7 release and what the spec asked for
+- Prisma 7 breaking changes that shaped the setup: the `prisma-client` generator
+  replaces `prisma-client-js` and needs an explicit `output` (the client is
+  generated into `src/generated/prisma`, **not** `node_modules`), driver adapters
+  are mandatory, `datasource.url` moved out of `schema.prisma` into
+  `prisma.config.ts`, `.env` is no longer auto-loaded (hence `dotenv`), and
+  `migrate dev` no longer runs `generate` or seeds — both are explicit now
+- `prisma.config.ts` resolves `env("DIRECT_URL")` at load time, so **every**
+  Prisma CLI command fails without a `.env`. Copy `.env.example` first
+- Two URLs by design: the app runs on the pooled `DATABASE_URL` through the Neon
+  adapter, the CLI migrates over the direct `DIRECT_URL` (also the shadow database)
+- The generated client is ESM with extensionless relative imports, so it only
+  runs through a bundler — no plain `node script.ts` against it. Smoke tests have
+  to go through Next
+- `contentType` and `color` are Postgres enums rather than `String`, matching the
+  unions already in `src/types/index.ts`
+- Added `slug` to `ItemType` and `Collection` (unique per user) — the sidebar and
+  cards already route on it
+- `User` gained `name`, `image` and `emailVerified` for NextAuth adapter compatibility
+- Delete behaviour: user deletion cascades to everything they own; deleting a
+  **collection** sets `Item.collectionId` to null rather than deleting items;
+  `Item.type` is `Restrict` so a type in use cannot be dropped
+- `ItemType.@@unique([userId, slug])` does not constrain system types, since
+  Postgres treats NULL `userId` as distinct. System types are seeded, not user input
+- The dashboard still reads `src/lib/mock-data.ts`. Swapping the getters to
+  Prisma is the next feature, not this one

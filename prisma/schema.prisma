@@ -1,0 +1,221 @@
+// DevStash schema.
+//
+// Prisma 7: the connection URL lives in `prisma.config.ts`, not here, and the
+// client is generated into `src/generated/prisma` rather than node_modules.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Semantic accent color for types and collections. The UI maps these to
+/// Tailwind classes — see `src/lib/icons.ts`.
+enum AccentColor {
+  blue
+  purple
+  orange
+  yellow
+  green
+  pink
+  gray
+}
+
+/// Text items store `content`; file items store `fileUrl`/`fileName`/`fileSize`.
+enum ContentType {
+  text
+  file
+}
+
+// ---------------------------------------------------------------------------
+// Application models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  /// Null for OAuth-only accounts.
+  password      String?
+
+  isPro                Boolean @default(false)
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
+  accounts    Account[]
+  sessions    Session[]
+  items       Item[]
+  itemTypes   ItemType[]
+  collections Collection[]
+  tags        Tag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ItemType {
+  id    String      @id @default(cuid())
+  name  String
+  /// URL-safe identifier used by the type filter routes, e.g. `/items/snippet`.
+  slug  String
+  /// lucide-react icon name.
+  icon  String
+  color AccentColor @default(gray)
+
+  /// System types are seeded and shared by every user.
+  isSystem Boolean @default(false)
+
+  /// Null for system types; set for a Pro user's custom types.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items Item[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, slug])
+  @@index([userId])
+  @@index([slug])
+}
+
+model Collection {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  color       AccentColor @default(gray)
+  isFavorite  Boolean     @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items Item[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, slug])
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model Item {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  contentType ContentType @default(text)
+  /// Markdown / code body for text items.
+  content     String?
+  fileUrl     String?
+  fileName    String?
+  /// Size in bytes.
+  fileSize    Int?
+  url         String?
+  /// Syntax highlighting hint for code content, e.g. `typescript`.
+  language    String?
+  isFavorite  Boolean     @default(false)
+  isPinned    Boolean     @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  typeId String
+  type   ItemType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  /// Deleting a collection keeps its items; they just become uncollected.
+  collectionId String?
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  tags ItemTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([typeId])
+  @@index([collectionId])
+  @@index([userId, updatedAt])
+  @@index([userId, isPinned])
+  @@index([userId, isFavorite])
+}
+
+model Tag {
+  id   String @id @default(cuid())
+  name String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items ItemTag[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model ItemTag {
+  itemId String
+  tagId  String
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, tagId])
+  @@index([tagId])
+}
+
+// ---------------------------------------------------------------------------
+// NextAuth models
+// ---------------------------------------------------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
