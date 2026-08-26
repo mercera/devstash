@@ -87,6 +87,14 @@ export interface CollectionWithCount extends Collection {
   typeIds: string[];
 }
 
+/** Headline counts for the dashboard stat cards. */
+export interface DashboardStats {
+  itemCount: number;
+  collectionCount: number;
+  favoriteItemCount: number;
+  favoriteCollectionCount: number;
+}
+
 /** An item joined with its type and collection, ready to render. */
 export interface ItemWithRelations extends Item {
   type: ItemType;
