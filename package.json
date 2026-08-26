@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
+    "db:test": "tsx scripts/test-db.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -39,10 +40,12 @@
     "eslint-config-next": "16.3.2",
     "prisma": "^7.10.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   },
   "allowScripts": {
     "prisma@7.10.0": true,
-    "@prisma/engines@7.10.0": true
+    "@prisma/engines@7.10.0": true,
+    "esbuild@0.28.2": true
   }
 }
