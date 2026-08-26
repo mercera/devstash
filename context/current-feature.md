@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Dashboard UI — Phase 1
+Dashboard UI — Phase 2
 
 ## Status
 
@@ -14,24 +14,29 @@ Completed
 
 <!-- Goals & requirements -->
 
-Phase 1 of 3 for the dashboard UI layout. Build the shell only — no real data or interactivity yet.
+Phase 2 of 3 for the dashboard UI layout. Fill in the sidebar with real (mock)
+data — the main area stays a placeholder until phase 3.
 
-- Initialize ShadCN UI and install the components needed for this phase
-- Add a dashboard route at `/dashboard`
-- Build the main dashboard layout plus any global styles it needs
-- Dark mode by default
-- Top bar with search and a "New Item" button (display only, non-functional)
-- Placeholder sidebar and main area — just an `h2` with "Sidebar" and "Main" for now
+- Collapsible sidebar
+- Item types list, each linking to `/items/[type]` (e.g. `/items/snippets`)
+- Favorite collections section
+- Most recent collections section
+- User avatar area pinned to the bottom of the sidebar
+- Drawer icon in the top bar opens/closes the sidebar (wire up the phase 1
+  `PanelLeft` placeholder)
+- Always a drawer on mobile view
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/dashboard-phase-1-spec.md
-- Target look: @context/screenshots/dashboard-ui-main.png
-- Mock data: @src/lib/mock-data.ts
-- Follow-on phases: @context/features/dashboard-phase-2-spec.md, @context/features/dashboard-phase-3-spec.md
+- Full spec: @context/features/dashboard-phase-2-spec.md
+- Target look: @context/screenshots/dashboard-ui-main.png, @context/screenshots/dashboard-ui-drawer.png
+- Mock data: @src/lib/mock-data.ts — read through the getters
+  (`getItemTypesWithCounts`, `getCollectionsWithCounts`, …), never the raw arrays
+- Previous phase: @context/features/dashboard-phase-1-spec.md — next: @context/features/dashboard-phase-3-spec.md
 - Tailwind v4 — theme config goes in `src/app/globals.css` via `@theme`, no `tailwind.config` file
+- The `/items/[type]` routes don't exist yet; links can point at them ahead of the pages
 
 ## History
 
@@ -117,3 +122,47 @@ Known gaps against the reference, left for later phases:
   component, and nothing is wired to the shortcut yet
 - "New Collection" is not in the phase 1 spec text but is in the screenshot — it
   is rendered display-only
+
+### Dashboard UI — Phase 2 — Completed (2026-08-26)
+
+Filled in the sidebar with mock data and made it collapsible. Branch `feature/dashboard-phase-2`.
+
+- Installed the ShadCN `sidebar`, `collapsible` and `avatar` components (which
+  pulled in `sheet`, `tooltip`, `separator`, `skeleton` and `use-mobile`);
+  deleted the `dropdown-menu` the CLI also fetched since nothing uses it
+- Rebuilt `src/components/dashboard/Sidebar.tsx` on the ShadCN sidebar
+  primitives — header logo, a collapsible **Types** section (icon in the type's
+  accent color, count badge, link to `/items/[slug]`), a collapsible
+  **Collections** section split into `FAVORITES` (star badge) and
+  `ALL COLLECTIONS` (count badge) linking to `/collections/[slug]`, and a footer
+  with the avatar, name, email and a display-only settings gear
+- Active rows come from `usePathname()`, so `Sidebar` is now a client component
+- `TopBar` swapped its `PanelLeft` placeholder for `SidebarTrigger`: offcanvas
+  collapse on desktop, Sheet drawer below `md`, plus the built-in ⌘B shortcut
+- `src/app/dashboard/layout.tsx` now wraps everything in `SidebarProvider` +
+  `SidebarInset`; the inner wrapper is a `div` because `SidebarInset` is the `<main>`
+- Added `src/lib/icons.ts` — maps `ItemType.icon` names to lucide components and
+  `AccentColor` to Tailwind text classes, keeping the data layer React-free and
+  the UI free of inline styles
+- Added `getRecentCollections(limit?)` to `src/lib/mock-data.ts` (all collections,
+  most recently updated first) and made `byUpdatedAtDesc` generic over
+  `{ updatedAt: Date }` so it sorts collections as well as items
+- Dark `--sidebar` in `globals.css` was lighter than the page background; set it
+  to the background value so the sidebar reads as one dark surface like the reference
+- Rewrote the generated `src/hooks/use-mobile.ts` with `useSyncExternalStore` —
+  the CLI's version failed `npm run lint` under `react-hooks/set-state-in-effect`
+- `npm run build` and `npm run lint` pass; `/dashboard` still prerenders as static
+
+Decisions worth carrying forward:
+
+- Type links use the singular mock-data slug (`/items/snippet`), not the
+  `/items/snippets` in the spec text — the slug is what `getItemsByType` keys on,
+  so the route follows the data rather than the other way round
+- The spec asks for "most recent collections" while the screenshot labels that
+  section `ALL COLLECTIONS` and shows only the non-favorites. Kept the
+  screenshot's label and membership, ordered most-recently-updated first
+- Collapse is `offcanvas` (the ShadCN default), so there is no icon rail; the
+  `tooltip` props were dropped from the menu buttons since they only ever show in
+  icon mode, which also avoids needing a `TooltipProvider`
+- `/items/[slug]` and `/collections/[slug]` pages do not exist yet — the sidebar
+  links point ahead of them

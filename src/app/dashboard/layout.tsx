@@ -1,16 +1,17 @@
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export default function DashboardLayout({
   children,
 }: LayoutProps<"/dashboard">) {
   return (
-    <div className="flex min-h-full flex-1">
+    <SidebarProvider className="min-h-full flex-1">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <SidebarInset>
         <TopBar />
-        <main className="min-w-0 flex-1 p-6">{children}</main>
-      </div>
-    </div>
+        <div className="min-w-0 flex-1 p-6">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
