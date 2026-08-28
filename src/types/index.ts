@@ -18,15 +18,6 @@ export type AccentColor =
 /** Text items store `content`; file items store `fileUrl`/`fileName`/`fileSize`. */
 export type ContentType = "text" | "file";
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  image: string | null;
-  isPro: boolean;
-  createdAt: Date;
-}
-
 export interface ItemType {
   id: string;
   name: string;
@@ -80,13 +71,6 @@ export interface ItemTypeWithCount extends ItemType {
   itemCount: number;
 }
 
-/** A collection with its item count and the types of items it holds. */
-export interface CollectionWithCount extends Collection {
-  itemCount: number;
-  /** Distinct type ids present in the collection, for the icon row on cards. */
-  typeIds: string[];
-}
-
 /**
  * A collection ready for the dashboard card. `accentColor` and `types` are
  * derived from the collection's items (most-used type first) rather than the
@@ -103,12 +87,11 @@ export interface CollectionCardData {
   types: ItemType[];
 }
 
-/** Headline counts for the dashboard stat cards. */
-export interface DashboardStats {
-  itemCount: number;
-  collectionCount: number;
-  favoriteItemCount: number;
-  favoriteCollectionCount: number;
+/** The signed-in user as the sidebar footer renders them. */
+export interface CurrentUser {
+  name: string | null;
+  email: string;
+  image: string | null;
 }
 
 /** An item joined with its type and collection, ready to render. */

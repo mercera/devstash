@@ -7,7 +7,7 @@
 
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { prisma } from "@/lib/prisma";
-import type { ItemWithRelations } from "@/types";
+import type { ItemTypeWithCount, ItemWithRelations } from "@/types";
 
 const DEMO_USER_ID = "seed-user-demo";
 
@@ -72,6 +72,33 @@ export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
   });
 
   return items.map(toItemWithRelations);
+}
+
+/**
+ * Item types for the sidebar, in seeded order, each with the number of items
+ * the user has of that type.
+ *
+ * System types are shared by every user (`userId` is null on them), so the
+ * count has to be filtered to this user rather than counting the relation.
+ */
+export async function getItemTypesWithCounts(): Promise<ItemTypeWithCount[]> {
+  const types = await prisma.itemType.findMany({
+    where: { OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
+    orderBy: { createdAt: "asc" },
+    include: {
+      _count: { select: { items: { where: { userId: DEMO_USER_ID } } } },
+    },
+  });
+
+  return types.map((type) => ({
+    id: type.id,
+    name: type.name,
+    slug: type.slug,
+    icon: type.icon,
+    color: type.color,
+    isSystem: type.isSystem,
+    itemCount: type._count.items,
+  }));
 }
 
 /** Item counts for the dashboard stat cards. */
