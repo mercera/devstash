@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Dashboard Items — Live Data
+Stats & Sidebar — Live Data
 
 ## Status
 
@@ -14,58 +14,83 @@ Completed
 
 <!-- Goals & requirements -->
 
-Replace the dashboard's **Pinned** and **Recent** item lists with real data
-from the Neon database via Prisma, instead of `src/lib/mock-data.ts`. The
-Collections grid already reads live data (previous feature); this pass
-finishes the main area.
+Move the **sidebar** off `src/lib/mock-data.ts` and onto live Neon/Prisma
+data, and confirm the main-area stat cards are reading the database. The
+dashboard's main area (stats, collections grid, pinned, recent) already went
+live in the previous two features; the sidebar is the last mock-backed
+surface.
 
-- Add `src/lib/db/items.ts` with the data-fetching functions the dashboard
-  needs (pinned items, recent items, item counts)
-- Fetch items directly in the server component (`src/app/dashboard/page.tsx`)
-  — no client-side fetch, no API route
-- Item card's left-edge accent and icon tile stay derived from the item's
-  `ItemType` (color + lucide icon name), as they are today
-- Keep everything the card renders now: type icon, title, pin/star flags,
-  description, tag badges and the date on the right
-- Hide the **Pinned** section entirely when there are no pinned items
-  (today it would render an empty section header)
-- Move the remaining mock-backed stat cards ("Items", "Favorite items") onto
-  live data so no part of the dashboard's main area reads `mock-data.ts`
-- Visual result should be unchanged from the current mock-data version —
+- Stat cards display database data, keeping the current design/layout
+- **Types** section lists the system item types from the database, each with
+  its lucide icon in its accent color, its item count, and a link to
+  `/items/[slug]`
+- **Collections** section lists real collections, split as it is today:
+  `FAVORITES` keeps the star icon, `ALL COLLECTIONS` (recents) replaces the
+  plain folder/count with a **colored circle** derived from the collection's
+  most-used item type
+- Add a **"View all collections"** link under the collections list, pointing
+  to `/collections`
+- Sidebar **footer user** (avatar, name, email) reads the real user from the
+  database instead of `currentUser` in `mock-data.ts`, so nothing in the app
+  imports that module any more
+- Add the sidebar's data-fetching functions to `src/lib/db/items.ts` (and
+  `src/lib/db/collections.ts` for the collection side), following the
+  existing pattern in `src/lib/db/collections.ts`
+- Visual result should be unchanged apart from the two additions above —
   check against @context/screenshots/dashboard-ui-main.png if unsure
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/dashboard-items-spec.md
-- The **sidebar** (`src/components/dashboard/Sidebar.tsx`) still reads
-  `src/lib/mock-data.ts` — type counts, collections list and the footer user.
-  Out of scope here; a later feature covers it
-- `ItemCard.tsx` consumes `ItemWithRelations` (item + `type` + `collection`,
-  with `tags` flattened to `string[]`). The new `src/lib/db/items.ts` should
-  return that same shape so the component doesn't need to change — note the
-  DB models tags through `Tag`/`ItemTag`, so the query has to include
-  `tags: { include: { tag: true } }` and map down to names
-- Pinned/recent ordering follows the existing mock getters: both sort by
-  `updatedAt` desc, and Recent is capped by `RECENT_ITEM_LIMIT` (10) in
-  `dashboard/page.tsx`
-- "Update collection stats display" in the spec reads as the leftover stat
-  cards: `getCollectionStats()` already supplies the two collection numbers
-  from the DB, while `getDashboardStats()` (mock) still supplies `itemCount`
-  and `favoriteItemCount`. Decide whether to add an item-stats function in
-  `src/lib/db/items.ts` or fold all four counts into one DB stats call
-- Same auth gap as last feature: no session wiring exists, so scope queries to
-  the hardcoded seeded demo user (`seed-user-demo`) exactly as
-  `src/lib/db/collections.ts` does — will need to change once auth lands
-- Demo data to query against already exists: 18 items across 5 collections
-  owned by demo@devstash.io — see @context/features/seed-spec.md
-- `dashboard/page.tsx` already has `export const dynamic = "force-dynamic"`,
-  so no extra work is needed to keep the route rendering per-request
-- Watch for missing lucide names in `ICONS` in `src/lib/icons.ts` — the seed
-  data's icon names diverged from `mock-data.ts`'s once already
-- Follow `coding-standards.md`'s file organization: `src/lib/db/[feature].ts`
-  for Prisma data-fetching modules
+- Full spec: @context/features/stats-sidebar-spec.md
+- Two spec bullets are already done by the previous feature and only need
+  verifying, not building: `src/lib/db/items.ts` exists
+  (`getPinnedItems`/`getRecentItems`/`getItemStats`), and the four stat cards
+  in `dashboard/page.tsx` already read `getItemStats()` +
+  `getCollectionStats()`. The real work here is the sidebar
+- `Sidebar.tsx` is a **client component** (`usePathname()` for active rows)
+  and calls the mock getters at **module scope**. Prisma can't run there, so
+  the data has to be fetched in a server component and passed down as props —
+  `src/app/dashboard/layout.tsx` is the natural place, and it would become an
+  async server component. Keep `usePathname()` in the client child
+- `dashboard/layout.tsx` has no `export const dynamic = "force-dynamic"`
+  (only `page.tsx` does). Adding data fetching to the layout means it needs
+  the same treatment or the sidebar renders a build-time snapshot — the exact
+  bug caught during the collections feature
+- Item type counts need care: system types have `userId: null`, so the
+  **types** are global but the **counts** must be scoped to the demo user —
+  a `_count` on `items` filtered by `userId`, not a bare relation count
+- The colored circle can reuse what `getRecentCollections()` already
+  computes: `CollectionCardData.accentColor` is the most-used type's color,
+  falling back to the collection's stored `color` when it has no items.
+  `src/lib/icons.ts` has text/border/tile class maps but **no plain
+  background dot** — a `getAccentDotClass` (or equivalent) needs adding there
+  rather than an inline style
+- Favorites vs. recents membership follows the current sidebar: `FAVORITES`
+  is `isFavorite` collections, `ALL COLLECTIONS` is the rest, most recently
+  updated first. Decide whether the collections DB module gets a dedicated
+  sidebar getter or the page filters one `getRecentCollections()` result
+- Type links already use the singular slug (`/items/snippet`), which is what
+  the spec's `/items/[typename]` means — the slug column is the source of truth
+- The footer user isn't in the spec text — it was added to the goals
+  deliberately, because it's the sidebar's last `mock-data.ts` read. It needs
+  a user getter (`src/lib/db/user.ts`, or alongside the others) returning the
+  demo user's `name`/`email`/`image`; the initials fallback is derived in the
+  component and stays there
+- Once the footer moves, **nothing** imports `src/lib/mock-data.ts`. Deleting
+  it (and any now-dead view types in `src/types/index.ts`, e.g.
+  `CollectionWithCount`, `DashboardStats`) is worth proposing — but ask
+  before removing files, per `ai-interaction.md`
+- `/items/[slug]`, `/collections/[slug]` and `/collections` still don't
+  exist — these links point ahead of their routes, as they do today
+- Same auth gap as the last two features: no session wiring, so scope every
+  query to the hardcoded seeded demo user (`seed-user-demo`) exactly as
+  `src/lib/db/collections.ts` does
+- Demo data to query against: 7 system types, 5 collections, 18 items owned by
+  demo@devstash.io — see @context/features/seed-spec.md
+- `node_modules` has gone stale twice now (missing `prisma`, then
+  `bcryptjs`) — run `npm install` before typechecking
 
 ## History
 
@@ -429,3 +454,64 @@ Decisions worth carrying forward:
   way to reach that state exists yet
 - `node_modules` was stale again (`bcryptjs` missing, same as during the seed
   feature) — `npm install` before typechecking
+
+### Stats & Sidebar — Live Data — Completed (2026-08-28)
+
+Moved the sidebar off `src/lib/mock-data.ts` and onto live Neon/Prisma data.
+Branch `feature/stats-sidebar`.
+
+- Added `src/lib/db/user.ts` — `getCurrentUser()` returning the seeded demo
+  user's `name`/`email`/`image` for the footer, plus a `CurrentUser` type in
+  `src/types/index.ts`
+- Added `getItemTypesWithCounts()` to `src/lib/db/items.ts` — system types
+  plus the user's own, in seeded order, each with a **filtered** relation
+  count (`_count: { select: { items: { where: { userId } } } }`) since system
+  types are shared and a bare count would total every user's items
+- `getRecentCollections(limit?)` in `src/lib/db/collections.ts` had its
+  default `6` dropped so the sidebar can omit the limit and list them all;
+  `dashboard/page.tsx` already passed its limit explicitly
+- Added `getAccentDotClass` to `src/lib/icons.ts` (`bg-*-500`) — the existing
+  maps were text/border/tile only
+- `Sidebar.tsx` now takes `itemTypes`, `collections` and `user` as props and
+  splits favorites from the rest itself; it stays a client component for
+  `usePathname()`. Non-favorite collections show the colored circle in the
+  badge slot where favorites show their star, and a "View all collections"
+  link sits under the list
+- `dashboard/layout.tsx` became an async server component fetching all three
+  through `Promise.all`, with `export const dynamic = "force-dynamic"`
+- Verified in the browser: 7 types with live counts (4/3/5/0/0/0/6 = the 18
+  seeded items), 2 favorites with stars, 3 collections with green/orange/green
+  dots, the "View all collections" link, footer reading Demo User /
+  demo@devstash.io, zero console errors
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; `/dashboard`
+  still builds as `ƒ (Dynamic)`
+
+Decisions worth carrying forward:
+
+- The spec contrasts "star icons for favorites" with "a colored circle for
+  recents", so the circle **replaces** the item count in the badge slot for
+  non-favorite collections. The count in the reference screenshot is gone
+  there as a result — revisit if both are wanted
+- The circle reuses `CollectionCardData.accentColor`, which
+  `getRecentCollections()` already derives from the most-used item type, so
+  no new query or type was needed
+- Item types are ordered by `createdAt` asc, which reproduces the seed's
+  authoring order (Snippets → Prompts → Commands → Notes → Files → Images →
+  Links) and so matches the reference screenshot. There is no explicit sort
+  column on `ItemType`
+- Notes/Files/Images legitimately read `0` — the seed's 18 items only cover
+  snippet/prompt/command/link
+- `User.name` is nullable in the schema, so the footer falls back to the
+  email for both the display name and the avatar initials, and the whole
+  footer is skipped if the user row is missing
+- **A running `next dev` server does not pick up brand-new Tailwind utility
+  classes** — `bg-green-500` computed as transparent against the already-open
+  dev server on :3000 while `.bg-green-500` was present in the production CSS.
+  Confirmed correct by building and driving `next start` on another port;
+  restart the dev server after adding a new utility to `icons.ts`
+- **`src/lib/mock-data.ts` is gone.** With the sidebar moved, nothing
+  imported it any more, so the module was deleted along with the three view
+  types only it used — `User`, `CollectionWithCount` and `DashboardStats`.
+  `Item`, `Collection` and `ContentType` stay: they are still the base types
+  `ItemWithRelations` builds on. The dashboard now has no mock data path at
+  all; every surface reads Neon through `src/lib/db/*`

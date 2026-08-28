@@ -27,30 +27,42 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
-import { getAccentTextClass } from "@/lib/icons";
-import {
-  currentUser,
-  getFavoriteCollections,
-  getItemTypesWithCounts,
-  getRecentCollections,
-} from "@/lib/mock-data";
+import { getAccentDotClass, getAccentTextClass } from "@/lib/icons";
+import { cn } from "@/lib/utils";
+import type {
+  CollectionCardData,
+  CurrentUser,
+  ItemTypeWithCount,
+} from "@/types";
 
-const itemTypes = getItemTypesWithCounts();
-const favoriteCollections = getFavoriteCollections();
-/** Favorites already have their own section, so they are excluded here. */
-const otherCollections = getRecentCollections().filter(
-  (collection) => !collection.isFavorite,
-);
+/** Avatar fallback: initials from the user's name, or their email otherwise. */
+function getInitials(user: CurrentUser): string {
+  return (user.name ?? user.email)
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
-const userInitials = currentUser.name
-  .split(" ")
-  .map((part) => part[0])
-  .join("")
-  .slice(0, 2)
-  .toUpperCase();
+interface SidebarProps {
+  itemTypes: ItemTypeWithCount[];
+  /** All of the user's collections; the two sections are split from this. */
+  collections: CollectionCardData[];
+  user: CurrentUser | null;
+}
 
-export function Sidebar() {
+export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
   const pathname = usePathname();
+
+  const favoriteCollections = collections.filter(
+    (collection) => collection.isFavorite,
+  );
+  /** Favorites already have their own section, so they are excluded here. */
+  const otherCollections = collections.filter(
+    (collection) => !collection.isFavorite,
+  );
 
   return (
     <SidebarRoot>
@@ -125,40 +137,60 @@ export function Sidebar() {
                   isActive={pathname === `/collections/${collection.slug}`}
                   name={collection.name}
                 >
-                  <SidebarMenuBadge className="text-sidebar-foreground/50">
-                    {collection.itemCount}
+                  <SidebarMenuBadge>
+                    <span
+                      className={cn(
+                        "size-2.5 rounded-full",
+                        getAccentDotClass(collection.accentColor),
+                      )}
+                    />
                   </SidebarMenuBadge>
                 </CollectionItem>
               ))}
+            </SidebarMenu>
+
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className="text-sidebar-foreground/50 hover:text-sidebar-foreground"
+                >
+                  <Link href="/collections">View all collections</Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </NavSection>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg">
-              <Avatar className="size-8">
-                <AvatarImage src={currentUser.image ?? undefined} alt="" />
-                <AvatarFallback className="text-xs">
-                  {userInitials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left leading-tight">
-                <span className="truncate font-medium">{currentUser.name}</span>
-                <span className="truncate text-xs text-sidebar-foreground/50">
-                  {currentUser.email}
-                </span>
-              </div>
-            </SidebarMenuButton>
-            <SidebarMenuAction className="top-1/2 -translate-y-1/2 text-sidebar-foreground/50">
-              <Settings />
-              <span className="sr-only">Settings</span>
-            </SidebarMenuAction>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+      {user && (
+        <SidebarFooter className="border-t border-sidebar-border">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg">
+                <Avatar className="size-8">
+                  <AvatarImage src={user.image ?? undefined} alt="" />
+                  <AvatarFallback className="text-xs">
+                    {getInitials(user)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="truncate font-medium">
+                    {user.name ?? user.email}
+                  </span>
+                  <span className="truncate text-xs text-sidebar-foreground/50">
+                    {user.email}
+                  </span>
+                </div>
+              </SidebarMenuButton>
+              <SidebarMenuAction className="top-1/2 -translate-y-1/2 text-sidebar-foreground/50">
+                <Settings />
+                <span className="sr-only">Settings</span>
+              </SidebarMenuAction>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
     </SidebarRoot>
   );
 }

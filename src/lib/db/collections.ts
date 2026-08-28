@@ -11,7 +11,8 @@ import type { CollectionCardData, ItemType } from "@/types";
 const DEMO_USER_ID = "seed-user-demo";
 
 /**
- * Recent collections for the dashboard grid, most recently updated first.
+ * Recent collections, most recently updated first — the dashboard grid takes
+ * a limit, the sidebar omits it to list them all.
  *
  * Each collection's accent color and type icons are derived from its items
  * (the most-used item type wins the accent) rather than the collection's own
@@ -19,7 +20,7 @@ const DEMO_USER_ID = "seed-user-demo";
  * it has no items yet.
  */
 export async function getRecentCollections(
-  limit = 6,
+  limit?: number,
 ): Promise<CollectionCardData[]> {
   const collections = await prisma.collection.findMany({
     where: { userId: DEMO_USER_ID },

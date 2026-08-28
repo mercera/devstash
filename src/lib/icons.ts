@@ -69,6 +69,21 @@ export function getAccentBorderClass(color: AccentColor): string {
   return ACCENT_BORDER[color];
 }
 
+const ACCENT_DOT: Record<AccentColor, string> = {
+  blue: "bg-blue-500",
+  purple: "bg-purple-500",
+  orange: "bg-orange-500",
+  yellow: "bg-yellow-500",
+  green: "bg-green-500",
+  pink: "bg-pink-500",
+  gray: "bg-neutral-500",
+};
+
+/** Solid dot marking a collection with its most-used item type's color. */
+export function getAccentDotClass(color: AccentColor): string {
+  return ACCENT_DOT[color];
+}
+
 const ACCENT_TILE: Record<AccentColor, string> = {
   blue: "bg-blue-500/10 text-blue-400",
   purple: "bg-purple-500/10 text-purple-400",
