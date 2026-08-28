@@ -7,17 +7,17 @@ import { CollectionCard } from "@/components/dashboard/CollectionCard";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { getCollectionStats, getRecentCollections } from "@/lib/db/collections";
+import { getItemStats, getPinnedItems, getRecentItems } from "@/lib/db/items";
 import { cn } from "@/lib/utils";
-import { getDashboardStats, getPinnedItems, getRecentItems } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
   title: "Dashboard | DevStash",
 };
 
 /**
- * Collections now come from Prisma, so the page must render per-request —
- * without this, Next.js would prerender it once at build time and serve that
- * frozen snapshot instead of live data.
+ * Collections and items now come from Prisma, so the page must render
+ * per-request — without this, Next.js would prerender it once at build time
+ * and serve that frozen snapshot instead of live data.
  */
 export const dynamic = "force-dynamic";
 
@@ -25,13 +25,14 @@ const RECENT_ITEM_LIMIT = 10;
 const COLLECTION_CARD_LIMIT = 6;
 
 export default async function DashboardPage() {
-  const stats = getDashboardStats();
-  const pinnedItems = getPinnedItems();
-  const recentItems = getRecentItems(RECENT_ITEM_LIMIT);
-  const [collections, collectionStats] = await Promise.all([
-    getRecentCollections(COLLECTION_CARD_LIMIT),
-    getCollectionStats(),
-  ]);
+  const [collections, collectionStats, pinnedItems, recentItems, itemStats] =
+    await Promise.all([
+      getRecentCollections(COLLECTION_CARD_LIMIT),
+      getCollectionStats(),
+      getPinnedItems(),
+      getRecentItems(RECENT_ITEM_LIMIT),
+      getItemStats(),
+    ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Items"
-          value={stats.itemCount}
+          value={itemStats.itemCount}
           icon={Boxes}
           color="blue"
         />
@@ -57,7 +58,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="Favorite items"
-          value={stats.favoriteItemCount}
+          value={itemStats.favoriteItemCount}
           icon={Star}
           color="yellow"
         />
@@ -89,14 +90,16 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section>
-        <SectionHeader title="Pinned" icon={<Pin className="size-4" />} />
-        <div className="flex flex-col gap-3">
-          {pinnedItems.map((item) => (
-            <ItemCard key={item.id} item={item} />
-          ))}
-        </div>
-      </section>
+      {pinnedItems.length > 0 && (
+        <section>
+          <SectionHeader title="Pinned" icon={<Pin className="size-4" />} />
+          <div className="flex flex-col gap-3">
+            {pinnedItems.map((item) => (
+              <ItemCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <SectionHeader title="Recent" icon={<Clock className="size-4" />} />

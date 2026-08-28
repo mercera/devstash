@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Dashboard Collections — Live Data
+Dashboard Items — Live Data
 
 ## Status
 
@@ -14,48 +14,56 @@ Completed
 
 <!-- Goals & requirements -->
 
-Replace the dashboard's collection cards (the "recent collections" grid on
-the right side of the main area) with real data from the Neon database via
-Prisma, instead of `src/lib/mock-data.ts`. Item cards underneath stay out of
-scope for this pass.
+Replace the dashboard's **Pinned** and **Recent** item lists with real data
+from the Neon database via Prisma, instead of `src/lib/mock-data.ts`. The
+Collections grid already reads live data (previous feature); this pass
+finishes the main area.
 
-- Add `src/lib/db/collections.ts` with the data-fetching functions the
-  dashboard needs (recent collections with item counts and per-collection
-  type icons)
-- Fetch collections directly in the server component (`src/app/dashboard/page.tsx`)
+- Add `src/lib/db/items.ts` with the data-fetching functions the dashboard
+  needs (pinned items, recent items, item counts)
+- Fetch items directly in the server component (`src/app/dashboard/page.tsx`)
   — no client-side fetch, no API route
-- Collection card's left-edge accent color is derived from the most-used
-  content type in that collection, not the collection's own stored `color`
-- Card still shows small icons for every distinct item type present in the
-  collection
-- Update the dashboard stat cards that read collection counts to the live data
+- Item card's left-edge accent and icon tile stay derived from the item's
+  `ItemType` (color + lucide icon name), as they are today
+- Keep everything the card renders now: type icon, title, pin/star flags,
+  description, tag badges and the date on the right
+- Hide the **Pinned** section entirely when there are no pinned items
+  (today it would render an empty section header)
+- Move the remaining mock-backed stat cards ("Items", "Favorite items") onto
+  live data so no part of the dashboard's main area reads `mock-data.ts`
 - Visual result should be unchanged from the current mock-data version —
-  6 cards, same layout — check against @context/screenshots/dashboard-ui-main.png
-  if unsure
+  check against @context/screenshots/dashboard-ui-main.png if unsure
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/dashboard-collections-spec.md
-- This only swaps the **collections** section. Pinned/recent **items** and the
-  sidebar keep reading `src/lib/mock-data.ts` until a later feature covers them
-- Currently `CollectionCard` colors from `collection.color` (the stored
-  semantic color) — see `src/components/dashboard/CollectionCard.tsx` and
-  `getAccentBorderClass` in `src/lib/icons.ts`. The spec asks for the border
-  to instead be derived from the most-used `ItemType` among the collection's
-  items, so the accent now depends on item data, not just the collection row
-- `getCollectionsWithCounts()` / `getRecentCollections()` in `mock-data.ts` are
-  the current shape to match — `itemCount` and `typeIds` — so the new
-  `src/lib/db/collections.ts` functions should return a compatible shape the
-  component doesn't need to change to consume, modulo the accent-color source
-- Demo data to query against already exists: seeded in the previous feature
-  (5 collections, 18 items owned by demo@devstash.io) — see
-  @context/features/seed-spec.md and the Seed Data history entry below
-- No auth/session wiring exists yet, so "the current user" isn't reachable
-  from a session. Decided: hardcode the seeded demo user
-  (demo@devstash.io / `seed-user-demo`) in the query for now — will need to
-  change once auth lands
+- Full spec: @context/features/dashboard-items-spec.md
+- The **sidebar** (`src/components/dashboard/Sidebar.tsx`) still reads
+  `src/lib/mock-data.ts` — type counts, collections list and the footer user.
+  Out of scope here; a later feature covers it
+- `ItemCard.tsx` consumes `ItemWithRelations` (item + `type` + `collection`,
+  with `tags` flattened to `string[]`). The new `src/lib/db/items.ts` should
+  return that same shape so the component doesn't need to change — note the
+  DB models tags through `Tag`/`ItemTag`, so the query has to include
+  `tags: { include: { tag: true } }` and map down to names
+- Pinned/recent ordering follows the existing mock getters: both sort by
+  `updatedAt` desc, and Recent is capped by `RECENT_ITEM_LIMIT` (10) in
+  `dashboard/page.tsx`
+- "Update collection stats display" in the spec reads as the leftover stat
+  cards: `getCollectionStats()` already supplies the two collection numbers
+  from the DB, while `getDashboardStats()` (mock) still supplies `itemCount`
+  and `favoriteItemCount`. Decide whether to add an item-stats function in
+  `src/lib/db/items.ts` or fold all four counts into one DB stats call
+- Same auth gap as last feature: no session wiring exists, so scope queries to
+  the hardcoded seeded demo user (`seed-user-demo`) exactly as
+  `src/lib/db/collections.ts` does — will need to change once auth lands
+- Demo data to query against already exists: 18 items across 5 collections
+  owned by demo@devstash.io — see @context/features/seed-spec.md
+- `dashboard/page.tsx` already has `export const dynamic = "force-dynamic"`,
+  so no extra work is needed to keep the route rendering per-request
+- Watch for missing lucide names in `ICONS` in `src/lib/icons.ts` — the seed
+  data's icon names diverged from `mock-data.ts`'s once already
 - Follow `coding-standards.md`'s file organization: `src/lib/db/[feature].ts`
   for Prisma data-fetching modules
 
@@ -373,3 +381,51 @@ Decisions worth carrying forward:
 - `scripts/test-db.ts` (the database smoke test) is unrelated to seeding — it
   only checks connectivity and does a rollback-only write, so it was left
   untouched and used purely to verify the seed's row counts
+
+### Dashboard Items — Live Data — Completed (2026-08-28)
+
+Swapped the dashboard's "Pinned" and "Recent" item lists and the two item
+stat cards from `src/lib/mock-data.ts` to live Neon/Prisma queries. Branch
+`feature/dashboard-items`.
+
+- Added `src/lib/db/items.ts` — `getPinnedItems()`, `getRecentItems(limit)`
+  and `getItemStats()`, all scoped to the hardcoded seeded demo user
+  (`seed-user-demo`), mirroring `src/lib/db/collections.ts`
+- The module shares one `itemInclude` (type + collection + `tags: { include:
+  { tag: true } }`, tags ordered by name) and a `toItemWithRelations` mapper
+  that flattens the `Tag`/`ItemTag` join to `string[]` and drops `userId`, so
+  the query result matches the `ItemWithRelations` shape `ItemCard` already
+  consumed — no component change was needed
+- `dashboard/page.tsx` dropped its `mock-data` import entirely; all five
+  fetches (collections, collection stats, pinned, recent, item stats) now run
+  through a single `Promise.all`
+- The Pinned section is wrapped in `pinnedItems.length > 0 && …` so it
+  disappears rather than rendering an empty header
+- Verified in the browser: reinstalled `playwright-core` in the scratchpad
+  (Chromium was still in `~/AppData/Local/ms-playwright`, but under
+  `chrome-win64/`, not `chrome-win/`), drove `/dashboard` — stat cards read
+  18/5/5/2, 4 pinned cards, 10 recent, correct type icons, accent borders,
+  tag badges and dates, zero console errors, screenshot matched the reference
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; `/dashboard`
+  still builds as `ƒ (Dynamic)`
+
+Decisions worth carrying forward:
+
+- Item counts live in `src/lib/db/items.ts` (`getItemStats`) rather than being
+  folded into one four-count stats call, so each `db/[feature].ts` module owns
+  its own model and the page composes them
+- The row type for the mapper comes from the generated
+  `ItemGetPayload<{ include: typeof itemInclude }>`, which needs `itemInclude`
+  declared `as const` — without it `orderBy: "asc"` widens to `string` and the
+  payload type stops resolving
+- Tags are ordered alphabetically by name. The join gives no inherent order,
+  and the seed's authoring order isn't recoverable from `ItemTag`
+- `getDashboardStats()` and the item getters in `mock-data.ts` were left in
+  place (now unused by the dashboard) — the **sidebar** still reads that
+  module for type counts, the collections list and the footer user, so it
+  stays until a later feature moves it
+- The empty-Pinned branch was not browser-verified: emptying the seeded pinned
+  set needed a DB write the permission classifier blocked, and no non-mutating
+  way to reach that state exists yet
+- `node_modules` was stale again (`bcryptjs` missing, same as during the seed
+  feature) — `npm install` before typechecking
