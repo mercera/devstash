@@ -2,7 +2,7 @@
 
 <!-- Feature Name -->
 
-Stats & Sidebar — Live Data
+Add Pro Badge to Sidebar
 
 ## Status
 
@@ -14,83 +14,61 @@ Completed
 
 <!-- Goals & requirements -->
 
-Move the **sidebar** off `src/lib/mock-data.ts` and onto live Neon/Prisma
-data, and confirm the main-area stat cards are reading the database. The
-dashboard's main area (stats, collections grid, pinned, recent) already went
-live in the previous two features; the sidebar is the last mock-backed
-surface.
+Mark the two Pro-only item types in the sidebar's **Types** list with a small
+`PRO` badge, so the free tier can see which types it doesn't have yet.
 
-- Stat cards display database data, keeping the current design/layout
-- **Types** section lists the system item types from the database, each with
-  its lucide icon in its accent color, its item count, and a link to
-  `/items/[slug]`
-- **Collections** section lists real collections, split as it is today:
-  `FAVORITES` keeps the star icon, `ALL COLLECTIONS` (recents) replaces the
-  plain folder/count with a **colored circle** derived from the collection's
-  most-used item type
-- Add a **"View all collections"** link under the collections list, pointing
-  to `/collections`
-- Sidebar **footer user** (avatar, name, email) reads the real user from the
-  database instead of `currentUser` in `mock-data.ts`, so nothing in the app
-  imports that module any more
-- Add the sidebar's data-fetching functions to `src/lib/db/items.ts` (and
-  `src/lib/db/collections.ts` for the collection side), following the
-  existing pattern in `src/lib/db/collections.ts`
-- Visual result should be unchanged apart from the two additions above —
-  check against @context/screenshots/dashboard-ui-main.png if unsure
+- The **Files** and **Images** rows in the sidebar Types section show a `PRO`
+  badge; no other row changes
+- Badge text is uppercase `PRO`
+- Built with the ShadCN `Badge` component (`src/components/ui/badge.tsx`),
+  not a hand-rolled span
+- Styling is clean and subtle — it should read as a quiet marker beside the
+  type name, not compete with the type icon or the row's active state
+- Everything else in the sidebar looks and behaves exactly as it does now
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full spec: @context/features/stats-sidebar-spec.md
-- Two spec bullets are already done by the previous feature and only need
-  verifying, not building: `src/lib/db/items.ts` exists
-  (`getPinnedItems`/`getRecentItems`/`getItemStats`), and the four stat cards
-  in `dashboard/page.tsx` already read `getItemStats()` +
-  `getCollectionStats()`. The real work here is the sidebar
-- `Sidebar.tsx` is a **client component** (`usePathname()` for active rows)
-  and calls the mock getters at **module scope**. Prisma can't run there, so
-  the data has to be fetched in a server component and passed down as props —
-  `src/app/dashboard/layout.tsx` is the natural place, and it would become an
-  async server component. Keep `usePathname()` in the client child
-- `dashboard/layout.tsx` has no `export const dynamic = "force-dynamic"`
-  (only `page.tsx` does). Adding data fetching to the layout means it needs
-  the same treatment or the sidebar renders a build-time snapshot — the exact
-  bug caught during the collections feature
-- Item type counts need care: system types have `userId: null`, so the
-  **types** are global but the **counts** must be scoped to the demo user —
-  a `_count` on `items` filtered by `userId`, not a bare relation count
-- The colored circle can reuse what `getRecentCollections()` already
-  computes: `CollectionCardData.accentColor` is the most-used type's color,
-  falling back to the collection's stored `color` when it has no items.
-  `src/lib/icons.ts` has text/border/tile class maps but **no plain
-  background dot** — a `getAccentDotClass` (or equivalent) needs adding there
-  rather than an inline style
-- Favorites vs. recents membership follows the current sidebar: `FAVORITES`
-  is `isFavorite` collections, `ALL COLLECTIONS` is the rest, most recently
-  updated first. Decide whether the collections DB module gets a dedicated
-  sidebar getter or the page filters one `getRecentCollections()` result
-- Type links already use the singular slug (`/items/snippet`), which is what
-  the spec's `/items/[typename]` means — the slug column is the source of truth
-- The footer user isn't in the spec text — it was added to the goals
-  deliberately, because it's the sidebar's last `mock-data.ts` read. It needs
-  a user getter (`src/lib/db/user.ts`, or alongside the others) returning the
-  demo user's `name`/`email`/`image`; the initials fallback is derived in the
-  component and stays there
-- Once the footer moves, **nothing** imports `src/lib/mock-data.ts`. Deleting
-  it (and any now-dead view types in `src/types/index.ts`, e.g.
-  `CollectionWithCount`, `DashboardStats`) is worth proposing — but ask
-  before removing files, per `ai-interaction.md`
-- `/items/[slug]`, `/collections/[slug]` and `/collections` still don't
-  exist — these links point ahead of their routes, as they do today
-- Same auth gap as the last two features: no session wiring, so scope every
-  query to the hardcoded seeded demo user (`seed-user-demo`) exactly as
-  `src/lib/db/collections.ts` does
-- Demo data to query against: 7 system types, 5 collections, 18 items owned by
-  demo@devstash.io — see @context/features/seed-spec.md
-- `node_modules` has gone stale twice now (missing `prisma`, then
-  `bcryptjs`) — run `npm install` before typechecking
+- Full spec: @context/features/add-pro-badge-sidebar.md (short — three
+  requirement bullets, so most of the detail below is inferred from the code)
+- The Types rows are in `src/components/dashboard/Sidebar.tsx:84-106`. Each
+  is a `SidebarMenuItem` holding a `SidebarMenuButton` (icon + name) and a
+  `SidebarMenuBadge` containing `type.itemCount`
+- **The main open question is the badge slot.** `SidebarMenuBadge` is
+  absolutely positioned at the row's right edge and already holds the item
+  count. So the `PRO` badge either replaces the count on those two rows, or
+  sits inside the button next to the type name with the count staying put.
+  Files and Images both read `0` in the seed data, so either looks fine
+  today — worth deciding deliberately rather than by accident. Inline after
+  the name is the safer default: it keeps the count column aligned down the
+  whole list
+- Identify the two types by **slug** (`file`, `image`), not display name —
+  the slug column is the source of truth everywhere else in this codebase
+  (`/items/[slug]` links, `getItemsByType`). Names are the plural
+  `"Files"`/`"Images"`
+- The type list comes from the database via `getItemTypesWithCounts()`
+  (`src/lib/db/items.ts`) and arrives as an `ItemTypeWithCount[]` prop.
+  Nothing on `ItemType` marks a type as Pro, so the Pro set has to live
+  somewhere — a small constant in the component or in `src/lib/` is the
+  minimal change. A schema column is **not** in scope for this spec
+- `Badge`'s subtle variants are `secondary`, `outline` and `ghost`; `default`
+  is solid primary and would shout. The base style is `h-5 … px-2 text-xs`,
+  which is large next to a sidebar row — expect to pass `className` to shrink
+  the height, padding and font, and to add tracking for the uppercase letters
+- ShadCN's `Badge` is already installed, so no `shadcn add` run is needed
+- This is display-only. `User.isPro` exists in the Prisma schema and
+  `getCurrentUser()` doesn't select it; the spec asks to label the types, not
+  to gate access or read the current user's plan. Don't build gating
+- Dark mode is the default and the only theme the dashboard is checked
+  against — verify the badge against the dark sidebar surface
+- Reference screenshot @context/screenshots/dashboard-ui-main.png predates
+  this badge, so it won't show one; use it only to confirm nothing else moved
+- **A running `next dev` server does not pick up brand-new Tailwind utility
+  classes** (hit during the last feature) — restart the dev server if the
+  badge's styling computes as unstyled
+- `node_modules` has gone stale three times now (missing `prisma`, then
+  `bcryptjs` twice) — run `npm install` before typechecking
 
 ## History
 

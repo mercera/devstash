@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, Folder, Layers, Settings, Star } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
@@ -34,6 +35,9 @@ import type {
   CurrentUser,
   ItemTypeWithCount,
 } from "@/types";
+
+/** Item types reserved for the Pro plan — their rows are marked with a badge. */
+const PRO_TYPE_SLUGS = new Set(["file", "image"]);
 
 /** Avatar fallback: initials from the user's name, or their email otherwise. */
 function getInitials(user: CurrentUser): string {
@@ -95,7 +99,18 @@ export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
                           type={type}
                           className={getAccentTextClass(type.color)}
                         />
-                        <span>{type.name}</span>
+                        {/* The button truncates its last child span, so the
+                            name asks for it directly — a trailing badge would
+                            otherwise take it. */}
+                        <span className="truncate">{type.name}</span>
+                        {PRO_TYPE_SLUGS.has(type.slug) && (
+                          <Badge
+                            variant="outline"
+                            className="h-4 border-sidebar-border px-1 text-[10px] font-medium tracking-wider text-sidebar-foreground/50"
+                          >
+                            PRO
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                     <SidebarMenuBadge className="text-sidebar-foreground/50">
