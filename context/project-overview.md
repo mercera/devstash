@@ -350,8 +350,16 @@ git switch -c lesson-01-setup
 
 ## 📌 Status
 
-- In planning
-- Ready for environment setup & UI scaffolding
+**MVP in progress.**
+
+- Next.js (React 19) + TypeScript + Tailwind CSS v4 + ShadCN scaffolded
+- Neon PostgreSQL + Prisma live, migrated and seeded with demo data
+- Dashboard (`/dashboard`) built and reading entirely from the database —
+  stats, collections, pinned items, recent items and the sidebar
+- Next up: items CRUD, collections CRUD, search, then authentication
+
+> Per-feature specs live in `context/features/`; the running log of completed
+> work is in `context/current-feature.md`.
 
 ---
 

@@ -11,6 +11,9 @@ Read the following to get the full context of the project:
 - @context/ai-interaction.md
 - @context/current-feature.md
 
+Per-feature specs live in `context/features/` — one file per feature, written
+before implementation starts. Read the relevant one when working on a feature.
+
 ## Commands
 
 - **Dev server**: `npm run dev` (runs on http://localhost:3000)

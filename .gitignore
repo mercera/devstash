@@ -40,6 +40,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# claude code (skills are shared, local permission grants are not)
+.claude/settings.local.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

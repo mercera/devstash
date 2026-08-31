@@ -18,52 +18,6 @@
 
 <!-- Keep this updated. Earliest to latest -->
 
-### Dashboard Collections — Live Data — Completed (2026-08-26)
-
-Swapped the dashboard's "Collections" grid and its two stat cards from
-`src/lib/mock-data.ts` to live Neon/Prisma queries. Branch
-`feature/dashboard-collections`.
-
-- Added `src/lib/db/collections.ts` — `getRecentCollections(limit)` and
-  `getCollectionStats()`, both scoped to the hardcoded seeded demo user
-  (`seed-user-demo`)
-- Added `CollectionCardData` to `src/types/index.ts` — `accentColor` and
-  `types: ItemType[]` (full objects, most-used first) replace the old
-  `color` / `typeIds: string[]` pairing `CollectionWithCount` used
-- Rewrote `CollectionCard.tsx` to consume `CollectionCardData` directly
-  instead of looking up `typeIds` against `mock-data.ts`'s `getItemType`
-- `dashboard/page.tsx` is now an async server component; fetches
-  `getRecentCollections` and `getCollectionStats` via `Promise.all`
-  alongside the still-mock `getPinnedItems`/`getRecentItems`/`getDashboardStats`
-- Added `export const dynamic = "force-dynamic"` to the dashboard page —
-  without it Next prerenders the route at build time and serves that frozen
-  snapshot, defeating the point of live data (caught in the build output:
-  `/dashboard` showed as `○ Static` until this was added)
-- Fixed two latent icon bugs surfaced by wiring in real data:
-  `src/lib/icons.ts`'s `ICONS` map was missing `Code` and `StickyNote` (the
-  seed data's lucide names for snippet/note types — it only had `Code2`/
-  `FileText` from `mock-data.ts`), so those types would have silently
-  rendered the fallback `File` icon
-- Verified in the browser: installed Playwright + Chromium (no project run
-  skill existed yet, `chromium-cli` wasn't on PATH), started `npm run dev`,
-  and drove `/dashboard` with a script — 5 real collections, correct per-card
-  item counts, accent colors and type icons, stat cards read 5/2, zero
-  console errors, screenshot matched the reference layout
-- `npm run build` and `npm run lint` pass
-
-Decisions worth carrying forward:
-
-- The collection's own stored `color` is now only a fallback for a
-  collection with zero items; `CollectionCard`'s left-edge accent always
-  prefers the most-used item type's color when items exist
-- Kept `CollectionWithCount`/`getCollectionsWithCounts()` in
-  `mock-data.ts` untouched rather than deleting them — nothing else in the
-  UI (sidebar, items) has moved off mock data yet, so removing the mock
-  collections path would have broken other in-scope-later work
-- `getRecentCollections` in `src/lib/db/collections.ts` and the same-named
-  function in `mock-data.ts` are distinct exports from different modules;
-  `dashboard/page.tsx` now imports only the DB one
-
 ### Initial Setup — Completed (2026-08-24)
 
 Scaffolded the Next.js client with Tailwind CSS v4.
@@ -328,6 +282,52 @@ Decisions worth carrying forward:
 - `scripts/test-db.ts` (the database smoke test) is unrelated to seeding — it
   only checks connectivity and does a rollback-only write, so it was left
   untouched and used purely to verify the seed's row counts
+
+### Dashboard Collections — Live Data — Completed (2026-08-26)
+
+Swapped the dashboard's "Collections" grid and its two stat cards from
+`src/lib/mock-data.ts` to live Neon/Prisma queries. Branch
+`feature/dashboard-collections`.
+
+- Added `src/lib/db/collections.ts` — `getRecentCollections(limit)` and
+  `getCollectionStats()`, both scoped to the hardcoded seeded demo user
+  (`seed-user-demo`)
+- Added `CollectionCardData` to `src/types/index.ts` — `accentColor` and
+  `types: ItemType[]` (full objects, most-used first) replace the old
+  `color` / `typeIds: string[]` pairing `CollectionWithCount` used
+- Rewrote `CollectionCard.tsx` to consume `CollectionCardData` directly
+  instead of looking up `typeIds` against `mock-data.ts`'s `getItemType`
+- `dashboard/page.tsx` is now an async server component; fetches
+  `getRecentCollections` and `getCollectionStats` via `Promise.all`
+  alongside the still-mock `getPinnedItems`/`getRecentItems`/`getDashboardStats`
+- Added `export const dynamic = "force-dynamic"` to the dashboard page —
+  without it Next prerenders the route at build time and serves that frozen
+  snapshot, defeating the point of live data (caught in the build output:
+  `/dashboard` showed as `○ Static` until this was added)
+- Fixed two latent icon bugs surfaced by wiring in real data:
+  `src/lib/icons.ts`'s `ICONS` map was missing `Code` and `StickyNote` (the
+  seed data's lucide names for snippet/note types — it only had `Code2`/
+  `FileText` from `mock-data.ts`), so those types would have silently
+  rendered the fallback `File` icon
+- Verified in the browser: installed Playwright + Chromium (no project run
+  skill existed yet, `chromium-cli` wasn't on PATH), started `npm run dev`,
+  and drove `/dashboard` with a script — 5 real collections, correct per-card
+  item counts, accent colors and type icons, stat cards read 5/2, zero
+  console errors, screenshot matched the reference layout
+- `npm run build` and `npm run lint` pass
+
+Decisions worth carrying forward:
+
+- The collection's own stored `color` is now only a fallback for a
+  collection with zero items; `CollectionCard`'s left-edge accent always
+  prefers the most-used item type's color when items exist
+- Kept `CollectionWithCount`/`getCollectionsWithCounts()` in
+  `mock-data.ts` untouched rather than deleting them — nothing else in the
+  UI (sidebar, items) has moved off mock data yet, so removing the mock
+  collections path would have broken other in-scope-later work
+- `getRecentCollections` in `src/lib/db/collections.ts` and the same-named
+  function in `mock-data.ts` are distinct exports from different modules;
+  `dashboard/page.tsx` now imports only the DB one
 
 ### Dashboard Items — Live Data — Completed (2026-08-28)
 

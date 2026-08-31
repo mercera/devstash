@@ -7,9 +7,7 @@
 
 import {
   Code,
-  Code2,
   File,
-  FileText,
   Folder,
   Image,
   Link,
@@ -23,9 +21,7 @@ import type { AccentColor } from "@/types";
 
 const ICONS: Record<string, LucideIcon> = {
   Code,
-  Code2,
   File,
-  FileText,
   Folder,
   Image,
   Link,
