@@ -2,73 +2,17 @@
 
 <!-- Feature Name -->
 
-Add Pro Badge to Sidebar
-
 ## Status
 
 <!-- Not Started|In Progress|Completed -->
-
-Completed
 
 ## Goals
 
 <!-- Goals & requirements -->
 
-Mark the two Pro-only item types in the sidebar's **Types** list with a small
-`PRO` badge, so the free tier can see which types it doesn't have yet.
-
-- The **Files** and **Images** rows in the sidebar Types section show a `PRO`
-  badge; no other row changes
-- Badge text is uppercase `PRO`
-- Built with the ShadCN `Badge` component (`src/components/ui/badge.tsx`),
-  not a hand-rolled span
-- Styling is clean and subtle — it should read as a quiet marker beside the
-  type name, not compete with the type icon or the row's active state
-- Everything else in the sidebar looks and behaves exactly as it does now
-
 ## Notes
 
 <!-- Any extra notes -->
-
-- Full spec: @context/features/add-pro-badge-sidebar.md (short — three
-  requirement bullets, so most of the detail below is inferred from the code)
-- The Types rows are in `src/components/dashboard/Sidebar.tsx:84-106`. Each
-  is a `SidebarMenuItem` holding a `SidebarMenuButton` (icon + name) and a
-  `SidebarMenuBadge` containing `type.itemCount`
-- **The main open question is the badge slot.** `SidebarMenuBadge` is
-  absolutely positioned at the row's right edge and already holds the item
-  count. So the `PRO` badge either replaces the count on those two rows, or
-  sits inside the button next to the type name with the count staying put.
-  Files and Images both read `0` in the seed data, so either looks fine
-  today — worth deciding deliberately rather than by accident. Inline after
-  the name is the safer default: it keeps the count column aligned down the
-  whole list
-- Identify the two types by **slug** (`file`, `image`), not display name —
-  the slug column is the source of truth everywhere else in this codebase
-  (`/items/[slug]` links, `getItemsByType`). Names are the plural
-  `"Files"`/`"Images"`
-- The type list comes from the database via `getItemTypesWithCounts()`
-  (`src/lib/db/items.ts`) and arrives as an `ItemTypeWithCount[]` prop.
-  Nothing on `ItemType` marks a type as Pro, so the Pro set has to live
-  somewhere — a small constant in the component or in `src/lib/` is the
-  minimal change. A schema column is **not** in scope for this spec
-- `Badge`'s subtle variants are `secondary`, `outline` and `ghost`; `default`
-  is solid primary and would shout. The base style is `h-5 … px-2 text-xs`,
-  which is large next to a sidebar row — expect to pass `className` to shrink
-  the height, padding and font, and to add tracking for the uppercase letters
-- ShadCN's `Badge` is already installed, so no `shadcn add` run is needed
-- This is display-only. `User.isPro` exists in the Prisma schema and
-  `getCurrentUser()` doesn't select it; the spec asks to label the types, not
-  to gate access or read the current user's plan. Don't build gating
-- Dark mode is the default and the only theme the dashboard is checked
-  against — verify the badge against the dark sidebar surface
-- Reference screenshot @context/screenshots/dashboard-ui-main.png predates
-  this badge, so it won't show one; use it only to confirm nothing else moved
-- **A running `next dev` server does not pick up brand-new Tailwind utility
-  classes** (hit during the last feature) — restart the dev server if the
-  badge's styling computes as unstyled
-- `node_modules` has gone stale three times now (missing `prisma`, then
-  `bcryptjs` twice) — run `npm install` before typechecking
 
 ## History
 
@@ -493,3 +437,51 @@ Decisions worth carrying forward:
   `Item`, `Collection` and `ContentType` stay: they are still the base types
   `ItemWithRelations` builds on. The dashboard now has no mock data path at
   all; every surface reads Neon through `src/lib/db/*`
+
+### Add Pro Badge to Sidebar — Completed (2026-08-31)
+
+Marked the two Pro-only item types in the sidebar's Types list with a subtle
+`PRO` badge. Branch `feature/pro-badge-sidebar`. One source file changed,
+17 lines.
+
+- Added `PRO_TYPE_SLUGS` (`file`, `image`) at module scope in
+  `Sidebar.tsx` and rendered a ShadCN `Badge` (`variant="outline"`) inline
+  after the type name when the row's slug is in the set
+- Shrank the badge to sidebar scale with `className`: `h-4 px-1 text-[10px]`
+  plus `tracking-wider`, `text-sidebar-foreground/50` and
+  `border-sidebar-border`. The stock `Badge` is `h-5 px-2 text-xs`, sized for
+  page content, and `variant="default"` is solid primary — far too loud here
+- Added `truncate` to the type-name span. This is **required**, not
+  cosmetic: `sidebarMenuButtonVariants` truncates via
+  `[&>span:last-child]:truncate`, and `Badge` renders a `<span>`, so
+  appending it silently moved truncation off the name onto the badge
+- Verified in the browser against the production build: badge on Files and
+  Images only, all 7 rows enumerated with counts 4/3/5/0/0/0/6, uppercase
+  `PRO` as literal text (computed `text-transform: none`), computed styling
+  confirmed (10px font, 16px tall, 50% foreground, 1px 10%-opacity border),
+  favorites/dots/footer untouched, zero console errors
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; `/dashboard`
+  still builds as `ƒ (Dynamic)`
+
+Decisions worth carrying forward:
+
+- The badge sits **inline after the name**, not in the `SidebarMenuBadge`
+  slot. That slot is absolutely positioned at `right-1` and already holds the
+  item count, so putting `PRO` there would have dropped the count on exactly
+  those two rows; inline keeps the count column aligned down all seven. It
+  also means the name span must stay at natural width — making it `flex-1`
+  would push the badge under the absolutely-positioned count
+- `PRO_TYPE_SLUGS` keys on **slug**, matching how types are identified
+  everywhere else (`/items/[slug]`, `getItemsByType`), not display name
+- The Pro set lives in the component because there is exactly one consumer.
+  It is domain data, though — when plan gating lands it should move to
+  `src/lib/` or become a column on `ItemType`. `User.isPro` already exists in
+  the schema and is still unread; this feature is display-only labelling and
+  deliberately builds no gating
+- **`.env.production` points at a different database than `.env`** — one
+  holding the demo user and the 7 system types but **zero items and zero
+  collections**. `next start` prefers `.env.production`, so verifying a
+  production build against it renders an empty dashboard (0 everywhere).
+  Browser checks need `DATABASE_URL` overridden from `.env`, since a real
+  process env var beats the env file. Unrelated to this feature and left
+  untouched, but a deploy from this state would serve an empty dashboard
