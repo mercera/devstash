@@ -12,12 +12,15 @@ import type { ItemTypeWithCount, ItemWithRelations } from "@/types";
 const DEMO_USER_ID = "seed-user-demo";
 
 /**
- * Everything `ItemCard` needs: the item's type (icon + accent color), its
- * collection, and the tag names behind the `Tag`/`ItemTag` join.
+ * Everything `ItemCard` needs: the item's type (icon + accent color) and the
+ * tag names behind the `Tag`/`ItemTag` join.
+ *
+ * The parent `Collection` is deliberately not joined — no card renders it, and
+ * including it pulled a full collection row per item. `collectionId` is already
+ * on the item for anything that needs to filter.
  */
 const itemInclude = {
   type: true,
-  collection: true,
   tags: {
     include: { tag: true },
     orderBy: { tag: { name: "asc" } },
@@ -47,7 +50,6 @@ function toItemWithRelations(item: ItemRow): ItemWithRelations {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     type: item.type,
-    collection: item.collection,
   };
 }
 
