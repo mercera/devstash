@@ -1,62 +1,18 @@
 # Current Feature
 
-Dashboard Query Over-Fetch Fixes
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-Fix the two medium-severity performance findings from the codebase audit. Both
-are contained to `src/lib/db/` — no component or UI change is expected.
-
-Branch: `fix/dashboard-query-overfetch`
-
-### 1. Drop the unused `Collection` relation from item queries
-
-`itemInclude` in `src/lib/db/items.ts:20` pulls the full `Collection` row
-(name, slug, description, color, timestamps) for every pinned and recent item.
-Nothing renders it — `ItemCard.tsx` never reads `item.collection`, and the only
-read anywhere in `src/components/` is the mapper at `items.ts:50` forwarding it
-into `ItemWithRelations`.
-
-- Remove `collection: true` from `itemInclude`
-- Remove `collection` from the `toItemWithRelations` mapper
-- Remove `collection` from `ItemWithRelations` in `src/types/index.ts`
-- `collectionId` stays on the item — it is a scalar, costs nothing, and is what
-  a future collection filter will key on
-
-### 2. Replace the per-item `type` fetch in `getRecentCollections` with an aggregate
-
-`src/lib/db/collections.ts:29-34` uses `items: { select: { type: true } }`, which
-returns one full `ItemType` object per item in every collection, only to compute
-`itemCount` (`.length`, line 52) and the most-used type ordering (line 44). The
-sidebar calls this with **no limit** on a `force-dynamic` route, so the row count
-grows with the user's total item count on every request.
-
-- Replace the `include` with `prisma.item.groupBy({ by: ["collectionId", "typeId"], where: { userId }, _count: true })`
-- Resolve the distinct `ItemType`s in one `findMany` and join them in memory
-- Preserve the existing output exactly: `itemCount`, `types` ordered most-used
-  first, and `accentColor` falling back to the collection's stored `color` when
-  it has no items
-- Watch the tie-break — the current code's `Map` insertion order means equal
-  counts keep first-seen order; `groupBy` results need a stable secondary sort so
-  card icon order does not shuffle between requests
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Source: code-auditor sweep of the full tree (2026-08-31). It found 0 critical,
-  0 high, 2 medium (these), 2 low. The two low findings are **not** in scope:
-  the hardcoded seed password in `prisma/seed.ts:424` (revisit when auth lands)
-  and a duplicated href literal in `Sidebar.tsx:135-136`/`151-152`
-- No auth exists yet, so both modules stay scoped to the hardcoded
-  `DEMO_USER_ID` — this feature is not the place to change that
-- Verification: `npx tsc --noEmit`, `npm run lint`, `npm run build`, then drive
-  `/dashboard` in the browser and confirm the numbers are unchanged — stat cards
-  18/5/5/2, 4 pinned, 10 recent, 5 collection cards with the same counts, accent
-  borders and type icon rows as before. Remember `.env.production` points at an
-  empty database, so a `next start` check needs `DATABASE_URL` overridden from `.env`
+<!-- Any extra notes -->
 
 ## History
 
@@ -529,3 +485,74 @@ Decisions worth carrying forward:
   Browser checks need `DATABASE_URL` overridden from `.env`, since a real
   process env var beats the env file. Unrelated to this feature and left
   untouched, but a deploy from this state would serve an empty dashboard
+
+### Dashboard Query Over-Fetch Fixes — Completed (2026-08-31)
+
+Fixed the two medium-severity findings from a `code-auditor` sweep of the full
+tree. Branch `fix/dashboard-query-overfetch`. Three source files, +134/−31,
+no component touched.
+
+- **Dropped the unused `Collection` relation from `itemInclude`** in
+  `src/lib/db/items.ts`. `ItemCard` never read `item.collection`, but the join
+  pulled a full collection row (name, slug, description, color, timestamps) for
+  every pinned and recent item. Removed from the include, the
+  `toItemWithRelations` mapper, and `ItemWithRelations` in
+  `src/types/index.ts`. `collectionId` stays — it is a scalar and is what a
+  future collection filter will key on
+- **Replaced the per-item `type` fetch in `getRecentCollections`** with a
+  `prisma.item.groupBy({ by: ["collectionId", "typeId"], _count: true })`
+  aggregate. The old `items: { select: { type: true } }` returned one full
+  `ItemType` object per item in every collection, only to compute `.length` and
+  a most-used-type ordering — and the sidebar calls this with **no limit** on a
+  `force-dynamic` route, so it grew with the user's total item count on every
+  request
+- Extracted `tallyTypesByCollection()` to bucket the `groupBy` rows, keeping
+  `getRecentCollections` itself short
+- Verified with a **before/after baseline** rather than by eye: stashed the
+  `src/` changes, drove `/dashboard` with Playwright dumping stat cards, section
+  card counts, per-collection name/count/accent class and sidebar rows to JSON,
+  restored the stash and re-ran. `diff` reported the two runs identical — stats
+  18/5/5/2, 4 pinned, 10 recent, 5 collection cards at 4/4/4/3/3 (= 18), accents
+  green/orange/green/purple/blue, zero console errors
+- The Prisma query log confirms the change: the baseline emitted two
+  `SELECT … FROM "Collection" WHERE "id" IN (…)` relation loads per render (one
+  each for pinned and recent), the new code emits none, and the per-item `type`
+  fetch is now `SELECT COUNT(*) … GROUP BY "collectionId", "typeId"`
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; `/dashboard`
+  still builds as `ƒ (Dynamic)`
+
+Decisions worth carrying forward:
+
+- **The win is payload, not round trips.** Query count per
+  `getRecentCollections` call went 1 → 3 (collections, item types, aggregate),
+  all inside one `Promise.all`. The dashboard calls it twice per render
+  (`layout.tsx` unlimited, `page.tsx` with 6), so the route went from 2 to 6
+  statements — but each is tiny, they run in parallel, and the result set is now
+  bounded by collections × types instead of by item count
+- The `groupBy` is deliberately **not** filtered to the fetched collection ids.
+  Doing so would force it to wait on the collections query; its result is
+  bounded either way, so running all three in parallel is one round trip
+  instead of two
+- Item types are `select`ed down to the six columns the UI renders.
+  `CollectionCardData.types` is typed as the narrow `ItemType`, but the old code
+  assigned full Prisma rows into it, quietly serializing `userId`/`createdAt`/
+  `updatedAt` across the RSC boundary into the client-side `Sidebar`. This
+  duplicates the projection `getItemTypesWithCounts` already hand-lists — a
+  second place to edit if `ItemType` gains a rendered field
+- Equal type counts now **tie-break on seeded item-type order**. The old code
+  relied on `Map` insertion order over a nested query with no `orderBy`, so a
+  card's icon row was already nondeterministic between requests. Small
+  correctness gain, not just parity
+- The count is now `userId`-scoped. `collection.items.length` counted every item
+  in the collection regardless of owner; identical today since collections are
+  user-scoped, and it diverges only if items ever cross users
+- **`Collection` in `src/types/index.ts` is now an unused export** —
+  `ItemWithRelations` was its only consumer. Left in place because it is the
+  canonical domain type and collections CRUD is next on the roadmap, but the
+  precedent from the mock-data removal was to delete view types once nothing
+  references them
+- The audit's two **low** findings were left out of scope: the hardcoded demo
+  password in `prisma/seed.ts:424` (`"12345678"` for `demo@devstash.io`, in git
+  history and a working login the moment auth lands — worth randomizing and
+  refusing to seed against production first) and a duplicated
+  `` `/collections/${slug}` `` literal in `Sidebar.tsx`
