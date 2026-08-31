@@ -43,6 +43,9 @@ yarn-error.log*
 # claude code (skills are shared, local permission grants are not)
 .claude/settings.local.json
 
+# auto-generated mirror of .claude/skills — .claude is the source of truth
+/.agents
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
