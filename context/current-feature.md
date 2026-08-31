@@ -1,18 +1,62 @@
 # Current Feature
 
-<!-- Feature Name -->
+Dashboard Query Over-Fetch Fixes
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+Fix the two medium-severity performance findings from the codebase audit. Both
+are contained to `src/lib/db/` — no component or UI change is expected.
+
+Branch: `fix/dashboard-query-overfetch`
+
+### 1. Drop the unused `Collection` relation from item queries
+
+`itemInclude` in `src/lib/db/items.ts:20` pulls the full `Collection` row
+(name, slug, description, color, timestamps) for every pinned and recent item.
+Nothing renders it — `ItemCard.tsx` never reads `item.collection`, and the only
+read anywhere in `src/components/` is the mapper at `items.ts:50` forwarding it
+into `ItemWithRelations`.
+
+- Remove `collection: true` from `itemInclude`
+- Remove `collection` from the `toItemWithRelations` mapper
+- Remove `collection` from `ItemWithRelations` in `src/types/index.ts`
+- `collectionId` stays on the item — it is a scalar, costs nothing, and is what
+  a future collection filter will key on
+
+### 2. Replace the per-item `type` fetch in `getRecentCollections` with an aggregate
+
+`src/lib/db/collections.ts:29-34` uses `items: { select: { type: true } }`, which
+returns one full `ItemType` object per item in every collection, only to compute
+`itemCount` (`.length`, line 52) and the most-used type ordering (line 44). The
+sidebar calls this with **no limit** on a `force-dynamic` route, so the row count
+grows with the user's total item count on every request.
+
+- Replace the `include` with `prisma.item.groupBy({ by: ["collectionId", "typeId"], where: { userId }, _count: true })`
+- Resolve the distinct `ItemType`s in one `findMany` and join them in memory
+- Preserve the existing output exactly: `itemCount`, `types` ordered most-used
+  first, and `accentColor` falling back to the collection's stored `color` when
+  it has no items
+- Watch the tie-break — the current code's `Map` insertion order means equal
+  counts keep first-seen order; `groupBy` results need a stable secondary sort so
+  card icon order does not shuffle between requests
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source: code-auditor sweep of the full tree (2026-08-31). It found 0 critical,
+  0 high, 2 medium (these), 2 low. The two low findings are **not** in scope:
+  the hardcoded seed password in `prisma/seed.ts:424` (revisit when auth lands)
+  and a duplicated href literal in `Sidebar.tsx:135-136`/`151-152`
+- No auth exists yet, so both modules stay scoped to the hardcoded
+  `DEMO_USER_ID` — this feature is not the place to change that
+- Verification: `npx tsc --noEmit`, `npm run lint`, `npm run build`, then drive
+  `/dashboard` in the browser and confirm the numbers are unchanged — stat cards
+  18/5/5/2, 4 pinned, 10 recent, 5 collection cards with the same counts, accent
+  borders and type icon rows as before. Remember `.env.production` points at an
+  empty database, so a `next start` check needs `DATABASE_URL` overridden from `.env`
 
 ## History
 

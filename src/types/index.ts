@@ -94,8 +94,11 @@ export interface CurrentUser {
   image: string | null;
 }
 
-/** An item joined with its type and collection, ready to render. */
+/**
+ * An item joined with its type, ready to render. The parent collection is not
+ * joined — `collectionId` is carried on `Item` for anything that needs to
+ * filter, and no card renders the collection itself.
+ */
 export interface ItemWithRelations extends Item {
   type: ItemType;
-  collection: Collection | null;
 }
