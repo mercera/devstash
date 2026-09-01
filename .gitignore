@@ -46,6 +46,12 @@ yarn-error.log*
 # auto-generated mirror of .claude/skills — .claude is the source of truth
 /.agents
 
+# auto-generated mirror of .claude/agents, written by the codex desktop app
+/.codex
+
+# playwright mcp scratch output (page snapshots, screenshots)
+/.playwright-mcp
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
