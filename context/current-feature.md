@@ -1,18 +1,58 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Auth Setup — NextAuth + GitHub Provider (Phase 1)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Install NextAuth v5 (`next-auth@beta`) and `@auth/prisma-adapter`
+- Set up the split auth config pattern for edge compatibility
+- Add the GitHub OAuth provider
+- Protect `/dashboard/*` routes using the Next.js 16 proxy
+- Redirect unauthenticated users to the sign-in page
+- Use NextAuth's default sign-in page (no custom UI this phase)
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/auth-phase-1-spec.md`
+
+Files to create:
+
+1. `src/auth.config.ts` — edge-compatible config (providers only, no adapter)
+2. `src/auth.ts` — full config with the Prisma adapter and JWT strategy
+3. `src/app/api/auth/[...nextauth]/route.ts` — export handlers from `auth.ts`
+4. `src/proxy.ts` — route protection with redirect logic
+5. `src/types/next-auth.d.ts` — extend the `Session` type with `user.id`
+
+Key gotchas (verify current conventions with Context7 before implementing):
+
+- Install `next-auth@beta` — `@latest` still resolves to v4
+- The proxy file must sit at `src/proxy.ts`, the same level as `app/`
+- Named export: `export const proxy = auth(...)`, not a default export
+- `session: { strategy: 'jwt' }` is required with the split config pattern
+- Don't set a custom `pages.signIn` — use NextAuth's default page
+
+Environment variables to add: `AUTH_SECRET`, `AUTH_GITHUB_ID`,
+`AUTH_GITHUB_SECRET`.
+
+Testing (manual, in the browser):
+
+1. Visit `/dashboard` — should redirect to sign-in
+2. Click "Sign in with GitHub"
+3. Verify the redirect back to `/dashboard` after auth
+
+References:
+
+- Edge compatibility: https://authjs.dev/getting-started/installation#edge-compatibility
+- Prisma adapter: https://authjs.dev/getting-started/adapters/prisma
+
+Existing context that will interact with this:
+
+- `prisma/schema.prisma` already has the NextAuth `Account`, `Session` and
+  `VerificationToken` models from the database feature
+- Every `src/lib/db/*` getter is hardcoded to `seed-user-demo`. This phase only
+  adds auth; swapping those to the session user is a later phase
 
 ## History
 
