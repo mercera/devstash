@@ -1,58 +1,18 @@
-# Current Feature: Auth Setup — NextAuth + GitHub Provider (Phase 1)
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Install NextAuth v5 (`next-auth@beta`) and `@auth/prisma-adapter`
-- Set up the split auth config pattern for edge compatibility
-- Add the GitHub OAuth provider
-- Protect `/dashboard/*` routes using the Next.js 16 proxy
-- Redirect unauthenticated users to the sign-in page
-- Use NextAuth's default sign-in page (no custom UI this phase)
+<!-- Goals & requirements -->
 
 ## Notes
 
-Spec: `context/features/auth-phase-1-spec.md`
-
-Files to create:
-
-1. `src/auth.config.ts` — edge-compatible config (providers only, no adapter)
-2. `src/auth.ts` — full config with the Prisma adapter and JWT strategy
-3. `src/app/api/auth/[...nextauth]/route.ts` — export handlers from `auth.ts`
-4. `src/proxy.ts` — route protection with redirect logic
-5. `src/types/next-auth.d.ts` — extend the `Session` type with `user.id`
-
-Key gotchas (verify current conventions with Context7 before implementing):
-
-- Install `next-auth@beta` — `@latest` still resolves to v4
-- The proxy file must sit at `src/proxy.ts`, the same level as `app/`
-- Named export: `export const proxy = auth(...)`, not a default export
-- `session: { strategy: 'jwt' }` is required with the split config pattern
-- Don't set a custom `pages.signIn` — use NextAuth's default page
-
-Environment variables to add: `AUTH_SECRET`, `AUTH_GITHUB_ID`,
-`AUTH_GITHUB_SECRET`.
-
-Testing (manual, in the browser):
-
-1. Visit `/dashboard` — should redirect to sign-in
-2. Click "Sign in with GitHub"
-3. Verify the redirect back to `/dashboard` after auth
-
-References:
-
-- Edge compatibility: https://authjs.dev/getting-started/installation#edge-compatibility
-- Prisma adapter: https://authjs.dev/getting-started/adapters/prisma
-
-Existing context that will interact with this:
-
-- `prisma/schema.prisma` already has the NextAuth `Account`, `Session` and
-  `VerificationToken` models from the database feature
-- Every `src/lib/db/*` getter is hardcoded to `seed-user-demo`. This phase only
-  adds auth; swapping those to the session user is a later phase
+<!-- Any extra notes -->
 
 ## History
 
@@ -596,3 +556,102 @@ Decisions worth carrying forward:
   history and a working login the moment auth lands — worth randomizing and
   refusing to seed against production first) and a duplicated
   `` `/collections/${slug}` `` literal in `Sidebar.tsx`
+
+### Auth Setup — NextAuth + GitHub Provider (Phase 1) — Completed (2026-09-03)
+
+Stood up Auth.js v5 with GitHub OAuth and put `/dashboard/*` behind a session.
+Branch `feature/auth-phase-1`. Five new source files, no existing source file
+touched. Spec: `context/features/auth-phase-1-spec.md`.
+
+- Installed `next-auth@5.0.0-beta.32` (the `beta` tag — `@latest` still resolves
+  to v4) and `@auth/prisma-adapter@2.11.3`
+- Added `src/auth.config.ts` — the edge-safe half, holding only
+  `providers: [GitHub]` behind `satisfies NextAuthConfig`. GitHub reads
+  `AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET` from the environment by convention, so
+  no `clientId`/`clientSecret` is passed
+- Added `src/auth.ts` — spreads the base config, then adds
+  `PrismaAdapter(prisma)`, `session: { strategy: "jwt" }` and a `session`
+  callback. Exports `auth`, `handlers`, `signIn`, `signOut`
+- Added `src/app/api/auth/[...nextauth]/route.ts` —
+  `export const { GET, POST } = handlers`
+- Added `src/proxy.ts` — `export const proxy = auth(...)` with
+  `matcher: ["/dashboard/:path*"]`. Anonymous requests are redirected to
+  `/api/auth/signin` with the original path **and query string** preserved as
+  `callbackUrl`
+- Added `src/types/next-auth.d.ts` — augments `Session["user"]` with a required
+  `id: string`
+- Documented `AUTH_SECRET`, `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET` in
+  `.env.example`, including the localhost callback URL. `.env` already had all
+  three set
+- Verified in the browser: `/dashboard` → `/api/auth/signin?callbackUrl=%2Fdashboard`;
+  `/dashboard?tab=recent` round-trips the query string into `callbackUrl`; `/`
+  stays public; the default sign-in page renders one GitHub button that hands
+  off with the right `client_id`, PKCE challenge,
+  `redirect_uri=…/api/auth/callback/github` and scope `read:user user:email`
+- The authenticated path was verified by minting a session JWT locally with
+  `AUTH_SECRET` (`@auth/core/jwt`'s `encode`, salt = the cookie name):
+  `/api/auth/session` returned `user.id`, and `/dashboard` rendered fully —
+  stats 18/5/5/2, all four sections, zero console errors
+- The real GitHub round trip was completed by the user. Confirmed in the Neon
+  dev branch afterwards: a new `User` row (name, email, image, `password` NULL)
+  with its matching `Account` row (`provider=github`, `type=oauth`,
+  scope `read:user,user:email`), and `Session` still empty — correct for JWT
+  sessions, which write no session rows
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the build
+  registers `ƒ Proxy (Middleware)` and `ƒ /api/auth/[...nextauth]`
+
+Decisions worth carrying forward:
+
+- **The user id comes from `token.sub`, not a custom claim, and there is no
+  `jwt` callback.** Auth.js already writes `sub: user.id` when it mints the
+  token (`@auth/core/lib/actions/callback/index.js`). The documented
+  `token.id = user.id` approach was tried first and fails to typecheck:
+  `declare module "next-auth/jwt"` never merges, because that module is a bare
+  `export * from "@auth/core/jwt"` re-export, so `token.id` stays `unknown` and
+  truthiness-narrows to `{}`. Using `sub` avoids augmenting a third-party
+  module path entirely
+- **The `Session` augmentation in `src/types/next-auth.d.ts` does apply** — the
+  base `User.id` is `string | undefined`, so a passing typecheck alone proves
+  nothing. Confirmed with a throwaway probe asserting `Session["user"]["id"]`
+  rejects `undefined`
+- **Next.js 16's `proxy` runs on the nodejs runtime and cannot use edge**
+  (confirmed via Context7 against the v16 upgrade guide), so the split config is
+  no longer strictly required for edge compatibility. It was kept as specced
+  anyway: it keeps Prisma and the Neon driver out of the proxy bundle, which is
+  the real win. The proxy instantiates its own `NextAuth(authConfig)`; with no
+  adapter it defaults to JWT sessions, matching what `auth.ts` sets explicitly,
+  so both halves read the same cookie
+- `matcher: ["/dashboard/:path*"]` covers `/dashboard` itself — `:path*` matches
+  zero or more segments
+- The proxy **hardcodes** `/api/auth/signin` as the redirect target. Correct
+  while the spec forbids `pages.signIn`, but it will silently keep pointing at
+  the default page once a custom sign-in page lands. The alternative — an
+  `authorized` callback in `auth.config.ts`, which lets Auth.js redirect to
+  whatever sign-in page is configured — was rejected because the spec defines
+  that file as providers-only and asks for the redirect logic in the proxy
+- **Only `/dashboard` is protected.** The sidebar already links to
+  `/items/[slug]` and `/collections/[slug]`, which do not exist yet; when they
+  land they will be unprotected unless the matcher is extended, and nothing
+  fails loudly
+- **The session cookie is `httpOnly`**, so `document.cookie` can neither read
+  nor clear it. An early "signed out" check looked like the proxy had stopped
+  redirecting; in fact `/api/auth/session` had re-issued the cookie server-side.
+  Clear cookies at the Playwright **context** level, not from page JS
+- `TaskStop` on a backgrounded `npm run dev` kills only the npm wrapper — the
+  `next dev` process and its `start-server.js` child survive and keep holding
+  :3000. Kill the tree by PID (`taskkill /PID <pid> /T /F`)
+- `signIn`/`signOut` are exported from `auth.ts` but unused so far; the sign-in
+  and sign-out UI is a later phase
+- Left deliberately out of scope: **`.env.production` has only `DATABASE_URL`
+  and `DIRECT_URL`** — none of the three `AUTH_*` vars. Locally this is masked
+  because Next loads `.env.production` *and* `.env`, but `.env*` is gitignored,
+  so a real deploy needs all three set in the host's dashboard or Auth.js throws
+  `MissingSecret` at runtime. The GitHub OAuth app is also registered only for
+  `http://localhost:3000/api/auth/callback/github`
+- The seeded demo user still holds the bcrypt hash of `12345678` flagged by the
+  earlier audit. Not reachable yet — there is no credentials provider — but it
+  becomes a working login the moment one is added
+- The dashboard still renders `seed-user-demo`'s data regardless of who signs
+  in; every `src/lib/db/*` getter is hardcoded to that id. Moving them onto the
+  session user is a later phase. The dev database now holds two users, and
+  `npm run db:seed` knows about only the seeded one
