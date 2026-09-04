@@ -20,7 +20,24 @@ import GitHub from "next-auth/providers/github";
  */
 export const CREDENTIALS_PROVIDER_ID = "credentials";
 
+/**
+ * The custom sign-in page. Shared so `pages.signIn` and the proxy's redirect
+ * cannot drift apart — Auth.js sends its own errors here, and the proxy sends
+ * anonymous requests here.
+ */
+export const SIGN_IN_PATH = "/sign-in";
+
 export default {
+  pages: {
+    signIn: SIGN_IN_PATH,
+    // Auth.js routes an error to `pages[error.kind]`. `SignInError` subclasses
+    // (`CredentialsSignin`, `OAuthAccountNotLinked`) have kind `signIn`, but
+    // `AccessDenied`, `Configuration` and `Verification` have kind `error` and
+    // would otherwise fall back to the stock `/api/auth/error` page. Pointing
+    // both at `/sign-in` keeps every failure on our own UI, where the error
+    // code is turned into a message.
+    error: SIGN_IN_PATH,
+  },
   providers: [
     GitHub,
     Credentials({

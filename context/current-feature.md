@@ -1,18 +1,68 @@
 # Current Feature
 
-<!-- Feature Name -->
+Auth UI — Sign In, Register & Sign Out (Phase 3)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress — branch `feature/auth-phase-3`
 
 ## Goals
 
-<!-- Goals & requirements -->
+Replace the NextAuth default pages with custom UI, and put a real user menu in
+the sidebar footer. Spec: `context/features/auth-phase-3-spec.md`.
+
+**Sign in page (`/sign-in`)**
+
+- Email and password input fields
+- "Sign in with GitHub" button
+- Link to the register page
+- Form validation and error display
+
+**Register page (`/register`)**
+
+- Name, email, password, confirm password fields
+- Form validation (passwords match, email format)
+- Submits to `POST /api/auth/register`
+- Redirects to sign-in on success
+
+**Sidebar footer**
+
+- User avatar — GitHub `image` when present, otherwise initials from the name
+  (e.g. "Brad Traversy" → "BT")
+- User name displayed
+- Dropdown (opening upward) on avatar click, containing "Sign out"
+- Clicking the avatar/icon navigates to `/profile`
+
+**Reusable avatar component**
+
+- One component handling both the image and initials cases
 
 ## Notes
 
-<!-- Any extra notes -->
+- Phase 1 left the proxy hardcoding `/api/auth/signin` as the redirect target
+  for anonymous `/dashboard` requests. Once `/sign-in` exists, `pages.signIn`
+  should be set and the proxy updated, or protected routes will keep landing on
+  the default Auth.js page.
+- `/sign-in` and `/register` must stay public — the proxy matcher currently only
+  covers `/dashboard/:path*`, so no change is needed there, but they must not be
+  added to it.
+- `POST /api/auth/register` already exists from Phase 2 and returns
+  201/409/422/400/500 in the `{ success, data, error }` shape — the register form
+  consumes it rather than reimplementing validation server-side.
+- `registerSchema` / `signInSchema` in `src/lib/validations/auth.ts` are the
+  shared validation source; the client forms should reuse them.
+- Credentials sign-in failures collapse to a generic `CredentialsSignin` error by
+  design (Phase 2), so the sign-in form can only show one generic message.
+- The sidebar footer today renders name/email/avatar from `getCurrentUser()` in
+  `src/lib/db/user.ts`, which is **hardcoded to `seed-user-demo`**. The spec asks
+  for the signed-in user — decide during implementation whether this phase moves
+  the footer onto the session or stays on the seeded user.
+- `/profile` does not exist yet; the spec only asks the avatar to link there.
+- The spec's testing step 4 says "top bar", but the requirements section says
+  sidebar footer — the sidebar footer is what exists today and what the other
+  requirements describe.
+- Needs the ShadCN `dropdown-menu` component, which was deliberately deleted
+  during Dashboard Phase 2 as unused.
 
 ## History
 
