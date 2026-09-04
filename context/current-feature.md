@@ -1,74 +1,18 @@
-# Current Feature: Email Verification Feature Flag
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- One flag turns email verification on and off. Nothing else needs editing to
-  switch it — no code change, no migration
-- **Off:** registration sends no email and lands on `/sign-in?registered=1`;
-  credentials sign-in never checks `emailVerified`; `/verify-email` does not
-  strand anyone
-- **On:** exactly today's behaviour, unchanged
-- The flag is read through **one module** that owns the decision, so no route,
-  action or component reads `process.env` directly and there is a single place
-  to change the mechanism later
-- Flipping the flag back **on** must not permanently lock out accounts created
-  while it was off — there has to be a documented way back in
-- `.env.example` documents the flag, its default, and *why* you would turn it
-  off (no verified Resend domain yet)
+<!-- Goals & requirements -->
 
 ## Notes
 
-**Recommendation: an env var, read through `src/lib/flags.ts`.**
-`EMAIL_VERIFICATION_ENABLED`, parsed once, exported as a boolean. An env var
-is the only option of the three that changes without a code edit *and* can
-differ between local, preview and production. A hardcoded constant needs a
-commit per flip; a `Setting` table is real infrastructure (migration, cache,
-admin UI) for a value that changes about twice a year. If it ever needs to be
-runtime-togglable per environment, `flags.ts` is the one file that changes.
-
-- **Default to ON when the var is unset.** A missing or typo'd variable must
-  never silently disable a security control. That means `.env` needs an
-  explicit `EMAIL_VERIFICATION_ENABLED="false"` today to get the behaviour
-  being asked for — worth stating plainly in `.env.example`
-- Parse leniently but decide strictly: treat `"false"`, `"0"`, `"off"`, `"no"`
-  (case-insensitive) as off, everything else as on
-- **No `NEXT_PUBLIC_` prefix.** Every consumer is server-side — `authorize` in
-  `src/auth.ts`, the register route, the actions, the `/verify-email` page.
-  The one client-side consumer is `RegisterForm`, which decides where to go
-  after a 201; give it the answer by adding a field to the register response
-  body (next to the existing `emailSent`) rather than exposing the flag to the
-  browser
-- **Open decision — what `emailVerified` holds when the flag is off.** Two
-  options, and it decides how bad the flip back on is:
-  - *Leave it null* (recommended). The data never claims an address was
-    verified when it wasn't. Turning the flag back on blocks those accounts,
-    but `/verify-email` already exists and will mail them a fresh link, so the
-    way back in is self-serve
-  - *Stamp it at registration.* Flipping back on is seamless, but every such
-    row is a lie, and there is then no way to tell a genuinely verified
-    address from one that was waved through
-- `/verify-email` and `GET /api/auth/verify-email` should not become dead ends
-  when the flag is off — decide between redirecting to `/sign-in` and leaving
-  them working. The resend action must no-op either way
-- **The `?registered=1` notice has to come back.** The email verification
-  feature replaced it with `?verified=1` on `src/app/(auth)/sign-in/page.tsx`;
-  with the flag off there is nothing to verify, so registration needs its old
-  "Account created. Sign in to continue." landing again. Both notices now have
-  to coexist
-- Touch points, all already written: `src/auth.ts` (`authorize` throws
-  `EmailNotVerifiedError`), `src/app/api/auth/register/route.ts` (calls
-  `issueEmailVerification`), `src/actions/auth.ts`
-  (`resendVerificationEmail`), `src/app/(auth)/verify-email/page.tsx`,
-  `src/components/auth/RegisterForm.tsx`
-- Verification of this feature has to cover **both** flag states, and the
-  off → on transition for an account registered while off
-- Unrelated but adjacent: the real fix for the underlying problem is verifying
-  a domain at resend.com/domains and repointing `EMAIL_FROM`. This flag is the
-  stopgap that makes the app usable until then, not a replacement for it
+<!-- Any extra notes -->
 
 ## History
 
@@ -1036,3 +980,104 @@ Decisions worth carrying forward:
   `VerificationToken` by hand — that table has no foreign key to `User`, so
   nothing cascades it — and refuses to run when `demo@devstash.io` is missing,
   since "everything except demo" with no demo row is just "everything"
+
+### Email Verification Feature Flag — Completed (2026-09-04)
+
+Made the email verification requirement switchable without a code change.
+Branch `feature/email-verification-flag`. One new source file, eight existing
+files touched, no new dependencies, no migration. Loaded from an inline
+description rather than a spec file.
+
+- Added `src/lib/flags.ts` — `isEmailVerificationEnabled()`, the one module
+  that owns the decision. `grep process.env src/` confirms
+  `EMAIL_VERIFICATION_ENABLED` is read nowhere else
+- `src/auth.ts`'s `authorize` skips the `emailVerified` gate when the flag is
+  off; `EmailNotVerifiedError` is otherwise untouched
+- `POST /api/auth/register` issues no link when off, and reports
+  `verificationRequired` on the 201 body alongside the existing `emailSent`
+- `RegisterForm` gained `destinationAfterRegister()` — `/sign-in?registered=1`
+  when nothing needs confirming, `/verify-email?email=…` otherwise
+- `src/app/(auth)/sign-in/page.tsx` collapsed its two notices into one
+  `notice` value, restoring "Account created. Sign in to continue." on
+  `?registered=1` beside "Email verified…" on `?verified=1`
+- `/verify-email` redirects to `SIGN_IN_PATH` when the flag is off, and
+  `resendVerificationEmail` returns its usual neutral reply without sending.
+  The message moved to a shared `NEUTRAL_RESEND_MESSAGE` constant now that
+  two branches return it
+- `.env.example` documents the flag, its default and why you would turn it off;
+  `.env` was set to `"false"` locally
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
+
+One defect was found by the build and fixed:
+
+- **`/verify-email` silently became a static route.** The flag check runs
+  before `await searchParams`, so `next build` prerendered the page, took
+  whichever branch the *build machine's* environment gave, and baked in a
+  static redirect that no longer responded to the flag at runtime. Caught in
+  the build output — the route dropped from `ƒ` to `○`. Fixed with
+  `export const dynamic = "force-dynamic"`, same remedy as the dashboard's
+  frozen-snapshot problem, and confirmed back to `ƒ`
+
+Verified in the browser across **both** flag states. Off: register →
+`/sign-in?registered=1` with the restored notice, immediate sign-in works, and
+`/verify-email` redirects to `/sign-in` from all three of its states — with
+**zero** verification links, **zero** Resend calls and **zero**
+`VerificationToken` inserts in the server log. On: registration returns to
+`/verify-email`, the page renders normally. The off → on transition was walked
+end to end: `flag-off@devstash.io` registered while off, then blocked after the
+flip with the session still `null`, then recovered through the resend form →
+fresh link → verified → signed in as **FO / Flag Off**. The parser was checked
+across 15 inputs (unset, `""`, `TRUE`, `banana`, `"  false  "`, `OFF`, …) with a
+throwaway `tsx` probe, since the project has no test runner. Zero console
+errors.
+
+Decisions worth carrying forward:
+
+- **On unless explicitly disabled.** Unset, empty, misspelled or dropped during
+  a deploy all mean ON; only `"false"`, `"0"`, `"off"`, `"no"` (any case,
+  trimmed) mean OFF. A variable that goes missing must never silently switch a
+  protection off — the cost is that turning it off takes a deliberate setting
+- **Read per call, not captured at module load.** A module-scope `const` is
+  evaluated while `next build` collects page data, which turns a runtime toggle
+  into a build-time one. This is the same trap the `force-dynamic` fix above
+  addresses from the other end
+- **No `NEXT_PUBLIC_` prefix.** Every consumer is server-side. The one client
+  component that has to branch — `RegisterForm`, deciding where to go after a
+  201 — is told by the server on the response body instead
+- **`emailVerified` is left null when the flag is off, not stamped.** The
+  column never claims an address was confirmed when it wasn't, so a
+  waved-through account stays distinguishable from a genuinely verified one.
+  The price is that flipping the flag back on blocks those accounts; the way
+  back in is `/verify-email`, which is self-serve and was verified end to end
+- **`GET /api/auth/verify-email` is deliberately not gated.** Turning the flag
+  off stops the app requiring and sending verification; it must not strand a
+  link already sitting in an inbox. Honouring one is harmless — the address
+  really was confirmed
+- The resend action's no-op branch is unreachable through the UI (its page
+  redirects), so it was verified by capturing the server-action POST with the
+  flag on — `Next-Action` header plus the multipart body — and replaying it
+  with the flag off. Neutral message returned, link count unchanged
+- **A deploy from this state cannot register anyone.** `.env.production` holds
+  `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID` and
+  `AUTH_GITHUB_SECRET` — but no `EMAIL_VERIFICATION_ENABLED`, no
+  `RESEND_API_KEY` and no `AUTH_URL`. So production defaults to verification
+  ON, `sendEmail` finds no API key, every sign-up lands on "We couldn't send
+  that email", and the resend button fails the same way. The safe default
+  failing closed is working as designed, but production needs a deliberate
+  setting: either the flag off until the Resend domain is verified, or all of
+  `RESEND_API_KEY` + `AUTH_URL` + a verified `EMAIL_FROM`. (This also corrects
+  the Phase 1 note that `.env.production` has none of the `AUTH_*` vars — it
+  now has all three)
+- **Known, pre-existing, not introduced here:** `issueEmailVerification` does
+  two unguarded Prisma writes, so a database fault there propagates to the
+  register route's catch and returns a 500 for an account that has *already*
+  been created — after which a retry gets a 409. The "deliberately not fatal"
+  comment only holds for *send* failures. A one-line try/catch fixes it; left
+  alone as out of scope for a flag feature
+- Minor and accepted: with the flag off, a bad verification link double
+  redirects (`?error=invalid` → `/verify-email` → `/sign-in`) and the visitor
+  gets no explanation. Not a dead end, and arguably right when there is nothing
+  to verify
+- `flag-off@devstash.io` / `flag-on@devstash.io` were left in the Neon **dev**
+  database by the walkthrough. `npm run db:delete-users -- --confirm` clears
+  them
