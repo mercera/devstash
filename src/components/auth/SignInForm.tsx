@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 
 import { signInWithCredentials, type SignInState } from "@/actions/auth";
 import { FieldError, FormError } from "@/components/auth/FieldError";
@@ -32,6 +33,18 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
       <input type="hidden" name="callbackUrl" value={callbackUrl} />
 
       <FormError message={error} />
+
+      {/* An unverified account is not a dead end — offer the way out of it. */}
+      {state.needsVerification && (
+        <p className="text-sm text-muted-foreground">
+          <Link
+            href={`/verify-email?${new URLSearchParams({ email: state.email ?? "" })}`}
+            className="font-medium text-foreground hover:underline"
+          >
+            Resend the verification email
+          </Link>
+        </p>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>

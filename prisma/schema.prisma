@@ -213,8 +213,13 @@ model Session {
 }
 
 model VerificationToken {
+  /// Namespaced so one flow's tokens can never be consumed by another — email
+  /// verification writes `email-verification:<email>`. See
+  /// `src/lib/email-verification.ts`.
   identifier String
-  token      String
+  /// SHA-256 of the token that was emailed; the raw value is never stored.
+  /// Unique so a link can be looked up, and consumed atomically, by token alone.
+  token      String   @unique
   expires    DateTime
 
   @@id([identifier, token])

@@ -19,8 +19,26 @@ interface RegisterErrorBody {
   issues?: FieldIssues;
 }
 
-/** Where a created account is sent. `registered` drives the sign-in notice. */
-const SIGN_IN_AFTER_REGISTER = "/sign-in?registered=1";
+/** The subset of its 201 body this form reads. */
+interface RegisterSuccessBody {
+  data?: { emailSent?: boolean };
+}
+
+/**
+ * A new account cannot sign in until its address is confirmed, so registration
+ * ends on the "check your inbox" page rather than at sign-in. The email is
+ * carried over to prefill the resend form, and `sent=0` switches that page to
+ * its "we couldn't send it" wording.
+ */
+function verifyEmailUrl(email: string, emailSent: boolean): string {
+  const params = new URLSearchParams({ email });
+
+  if (!emailSent) {
+    params.set("sent", "0");
+  }
+
+  return `/verify-email?${params}`;
+}
 
 export function RegisterForm() {
   const router = useRouter();
@@ -62,7 +80,13 @@ export function RegisterForm() {
 
       if (response.status === 201) {
         created = true;
-        router.push(SIGN_IN_AFTER_REGISTER);
+
+        const body: RegisterSuccessBody = await response.json().catch(() => ({}));
+
+        // The account exists whatever the send did, so a missing flag is read
+        // as "not sent" — the worst that follows is an offer to resend.
+        router.push(verifyEmailUrl(parsed.data.email, body.data?.emailSent ?? false));
+
         return;
       }
 
