@@ -1,68 +1,18 @@
 # Current Feature
 
-Auth UI — Sign In, Register & Sign Out (Phase 3)
+<!-- Feature Name -->
 
 ## Status
 
-In Progress — branch `feature/auth-phase-3`
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-Replace the NextAuth default pages with custom UI, and put a real user menu in
-the sidebar footer. Spec: `context/features/auth-phase-3-spec.md`.
-
-**Sign in page (`/sign-in`)**
-
-- Email and password input fields
-- "Sign in with GitHub" button
-- Link to the register page
-- Form validation and error display
-
-**Register page (`/register`)**
-
-- Name, email, password, confirm password fields
-- Form validation (passwords match, email format)
-- Submits to `POST /api/auth/register`
-- Redirects to sign-in on success
-
-**Sidebar footer**
-
-- User avatar — GitHub `image` when present, otherwise initials from the name
-  (e.g. "Brad Traversy" → "BT")
-- User name displayed
-- Dropdown (opening upward) on avatar click, containing "Sign out"
-- Clicking the avatar/icon navigates to `/profile`
-
-**Reusable avatar component**
-
-- One component handling both the image and initials cases
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Phase 1 left the proxy hardcoding `/api/auth/signin` as the redirect target
-  for anonymous `/dashboard` requests. Once `/sign-in` exists, `pages.signIn`
-  should be set and the proxy updated, or protected routes will keep landing on
-  the default Auth.js page.
-- `/sign-in` and `/register` must stay public — the proxy matcher currently only
-  covers `/dashboard/:path*`, so no change is needed there, but they must not be
-  added to it.
-- `POST /api/auth/register` already exists from Phase 2 and returns
-  201/409/422/400/500 in the `{ success, data, error }` shape — the register form
-  consumes it rather than reimplementing validation server-side.
-- `registerSchema` / `signInSchema` in `src/lib/validations/auth.ts` are the
-  shared validation source; the client forms should reuse them.
-- Credentials sign-in failures collapse to a generic `CredentialsSignin` error by
-  design (Phase 2), so the sign-in form can only show one generic message.
-- The sidebar footer today renders name/email/avatar from `getCurrentUser()` in
-  `src/lib/db/user.ts`, which is **hardcoded to `seed-user-demo`**. The spec asks
-  for the signed-in user — decide during implementation whether this phase moves
-  the footer onto the session or stays on the seeded user.
-- `/profile` does not exist yet; the spec only asks the avatar to link there.
-- The spec's testing step 4 says "top bar", but the requirements section says
-  sidebar footer — the sidebar footer is what exists today and what the other
-  requirements describe.
-- Needs the ShadCN `dropdown-menu` component, which was deliberately deleted
-  during Dashboard Phase 2 as unused.
+<!-- Any extra notes -->
 
 ## History
 
@@ -790,3 +740,110 @@ Decisions worth carrying forward:
 - `test@test.com` / `password123` was left in the Neon **dev** database by the
   curl walkthrough, and the demo user's password is now a random value from the
   last seed run
+
+### Auth UI — Sign In, Register & Sign Out (Phase 3) — Completed (2026-09-04)
+
+Replaced the Auth.js default pages with custom UI and put a real account menu
+in the sidebar footer. Branch `feature/auth-phase-3`. Eleven new source files,
+four existing files touched, no new dependencies. Spec:
+`context/features/auth-phase-3-spec.md`.
+
+- Installed the ShadCN `dropdown-menu` and `label` components (the
+  `dropdown-menu` deleted as unused back in Dashboard Phase 2)
+- Added `src/app/(auth)/layout.tsx` — a route group, so `/sign-in` and
+  `/register` get a shared centered card shell without a URL segment. Holds the
+  logo linking back to `/`
+- Added `src/app/(auth)/sign-in/page.tsx` — server component. Sanitises
+  `?callbackUrl`, redirects to `/dashboard` if a session already exists, maps
+  Auth.js `?error=` codes to messages, and shows an "Account created" notice on
+  `?registered=1`
+- Added `src/app/(auth)/register/page.tsx` — same session bounce, wraps the form
+- Added `src/actions/auth.ts` — `signInWithCredentials` (for `useActionState`),
+  `signInWithGitHub` and `signOutAction`, sharing one `toSafeRedirect` guard
+- Added `src/components/auth/`: `SignInForm` (`useActionState`),
+  `RegisterForm` (client-side `registerSchema` pass, then `fetch` to
+  `/api/auth/register`), `GitHubSignInButton`, `UserAvatar`, `UserMenu`,
+  `SubmitButton` (`useFormStatus`) and `FieldError`/`FormError`
+- `src/auth.config.ts` gained `pages: { signIn, error }` and exports
+  `SIGN_IN_PATH`; `src/proxy.ts` imports that constant instead of hardcoding
+  `/api/auth/signin`
+- `src/lib/db/user.ts`'s `getCurrentUser()` now resolves the session user
+  instead of `seed-user-demo`
+- `Sidebar.tsx` dropped its local `getInitials`, the avatar block and the
+  display-only settings gear in favour of `<UserMenu />` (net −37 lines)
+- Verified in the browser end to end: anonymous `/dashboard?tab=recent` →
+  `/sign-in?callbackUrl=%2Fdashboard%3Ftab%3Drecent`; wrong password → "Invalid
+  email or password" with the email retained and the password cleared; `a@b` →
+  per-field message with `aria-invalid`; register's three validation rules,
+  409 duplicate and happy path → `/sign-in?registered=1`; signing in as the new
+  account rendered the footer as **BT / Brad Traversy**; sign-out → `/sign-in`;
+  signed-in visits to `/sign-in` and `/register` bounce to `/dashboard`; GitHub
+  handed off with the same `client_id`, PKCE S256, `redirect_uri` and scope as
+  Phase 1. Zero console errors
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the build
+  registers `ƒ /sign-in` and `ƒ /register`
+
+Three defects were found and fixed during the review pass:
+
+- **`pages.error` was unset**, so the stock Auth.js error page — the very thing
+  this feature exists to replace — was still reachable. Auth.js routes by
+  `error.kind`: `CredentialsSignin` and `OAuthAccountNotLinked` extend
+  `SignInError` (kind `signIn` → `pages.signIn`), but `AccessDenied`,
+  `Configuration` and `Verification` extend `AuthError` directly (kind `error`)
+  and fell through to `/api/auth/error`. Two of the four `ERROR_MESSAGES`
+  entries were dead code as a result. Confirmed against
+  `@auth/core/index.js:135` and `@auth/core/errors.js:41`, then in the browser
+- **The `AuthError` catch was too wide.** `MissingSecret`, adapter faults and
+  every other Auth.js failure are also `AuthError`, so a real misconfiguration
+  would have told the user their password was wrong with nothing logged.
+  Narrowed to `error.type === "CredentialsSignin"`; everything else logs and
+  returns a generic message
+- **The sign-out pending state was unreachable** — Radix unmounts the menu item
+  on select, so `isSigningOut` rendered into a dead tree. `event.preventDefault()`
+  in `onSelect` keeps the menu open for the round trip
+
+Decisions worth carrying forward:
+
+- **`SIGN_IN_PATH` is exported from `auth.config.ts` and used three ways** —
+  `pages.signIn`, `pages.error` and the proxy's redirect. Phase 1 flagged the
+  hardcoded `/api/auth/signin` as something that would silently rot once a
+  custom page landed; one shared constant is what stops that recurring
+- **`pages.error` points at `/sign-in`, not a separate error page.** Auth.js
+  guards against an error page that itself requires authentication
+  (`ErrorPageLoop`); `/sign-in` is public, so this is safe, and it keeps every
+  failure on one surface
+- The **sign-in form is a server action** (`useActionState`) while the
+  **register form is a client `fetch`**. Not an inconsistency: the spec pins
+  registration to the existing `POST /api/auth/register`, and sign-in has to go
+  through Auth.js's server-side `signIn` to get the cookie set
+- `toSafeRedirect` rejects anything not starting with a single `/`. `//evil.com`
+  is protocol-relative and browsers normalise `/\evil.com` to the same thing.
+  Not exploitable on its own — Auth.js's `redirect` callback prefixes the origin
+  for any `/`-leading URL — but the value is attacker-controlled, so the guard
+  is defence in depth. Verified at both layers: the query param never reaches
+  the hidden field, and a hand-tampered DOM value still landed on `/dashboard`
+- **lucide-react v1 dropped its brand icons**, so there is no `<Github />` to
+  import. The mark is inlined as an SVG in `GitHubSignInButton.tsx`
+- **The `shadcn` CLI generated both components with `import { cn } from "cn"`
+  and installed a junk `cn` package to match.** Fixed the imports to
+  `@/lib/utils` and uninstalled it — `package.json` and the lockfile are
+  unchanged by this feature. Check generated imports after any `shadcn add`
+- The spec asks for both "dropdown on avatar click" and "clicking on the icon
+  should go to `/profile`". Resolved as one trigger opening a menu whose first
+  item is Profile, which also retires the display-only settings gear. Revisit
+  if a separate direct-link icon is wanted
+- `UserAvatar` exports `getUserInitials` separately — the name splits on `@` and
+  `.` as well as whitespace, so a nameless GitHub account falls back to
+  `demo@devstash.io` → "DD" rather than one letter
+- **Only `getCurrentUser()` moved onto the session.** Every other `src/lib/db/*`
+  getter is still hardcoded to `seed-user-demo`, so the footer shows the real
+  signed-in user while the stats, types and collections still show demo data.
+  That mismatch is now visible in the UI and wants its own phase
+- `/profile` still does not exist; the menu item links ahead of it
+- The **real GitHub OAuth round trip was not completed** — verified only as far
+  as the authorize URL. `OAuthAccountNotLinked` now has a message and a route to
+  display it, but reaching it still needs a live GitHub sign-in
+- **No rate limiting** on sign-in or register, carried over from Phase 2 and now
+  more exposed with a real login form. Still worth a dedicated pass
+- `phase3@devstash.io` / `phase3password` (name "Brad Traversy") was left in the
+  Neon **dev** database by the walkthrough, alongside Phase 2's `test@test.com`
