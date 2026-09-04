@@ -1,60 +1,18 @@
-# Current Feature: Auth Credentials — Email/Password Provider (Phase 2)
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Add a Credentials provider so users can sign in with email + password,
-  alongside the existing GitHub OAuth
-- Hash and verify passwords with `bcryptjs` (already installed, used by the seed)
-- Add a registration endpoint at `POST /api/auth/register` that accepts
-  `name`, `email`, `password`, `confirmPassword`; validates the passwords match,
-  rejects an email that already exists, hashes the password and creates the user;
-  returns a success/error response
-- `auth.config.ts`: add the Credentials provider as a placeholder with
-  `authorize: () => null`
-- `auth.ts`: override that provider with the real bcrypt validation
-- `User.password` already exists in `prisma/schema.prisma` (`String?`,
-  [schema.prisma:44](prisma/schema.prisma#L44)) — no migration needed unless
-  something else changes
+<!-- Goals & requirements -->
 
 ## Notes
 
-Spec: [auth-phase-2-spec.md](context/features/auth-phase-2-spec.md).
-Builds on Phase 1 (Auth.js v5 + GitHub, JWT sessions, `/dashboard/*` behind the
-proxy) — see the Phase 1 history entry below for the split-config rationale.
-
-**Split-config pattern**: `auth.config.ts` is the edge-safe half and must not
-import Prisma or bcrypt, hence the `authorize: () => null` placeholder there and
-the real implementation in `auth.ts`.
-
-**Testing (from the spec)**:
-
-1. Register via curl:
-   ```bash
-   curl -X POST http://localhost:3000/api/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"name":"Test","email":"test@test.com","password":"password123","confirmPassword":"password123"}'
-   ```
-2. Go to `/api/auth/signin`, sign in with email/password
-3. Verify the redirect to `/dashboard`
-4. Verify GitHub OAuth still works
-
-Reference: https://authjs.dev/getting-started/authentication/credentials
-
-**Carried-over risk**: the seeded demo user (`demo@devstash.io`) holds the bcrypt
-hash of `12345678`, committed in `prisma/seed.ts`. A credentials provider makes
-that a working login — flagged as low severity by an earlier audit and still
-open. Worth deciding on during this phase.
-
-Open questions to settle at `start`:
-
-- Validation library — the standards say "validate all inputs with Zod"; Zod is
-  not yet a dependency
-- Whether the sign-in page stays the Auth.js default (Phase 1 deliberately set no
-  `pages.signIn`, and the proxy hardcodes `/api/auth/signin`)
+<!-- Any extra notes -->
 
 ## History
 
@@ -697,3 +655,88 @@ Decisions worth carrying forward:
   in; every `src/lib/db/*` getter is hardcoded to that id. Moving them onto the
   session user is a later phase. The dev database now holds two users, and
   `npm run db:seed` knows about only the seeded one
+
+### Auth Credentials — Email/Password Provider (Phase 2) — Completed (2026-09-04)
+
+Added email/password sign-in alongside GitHub OAuth, plus a registration
+endpoint. Branch `feature/auth-phase-2`. Three new source files, two existing
+auth files touched. Spec: `context/features/auth-phase-2-spec.md`.
+
+- Installed `zod@4.5.4` — the coding standards require Zod for input
+  validation and it was not yet a dependency
+- Added `src/lib/validations/auth.ts` — `registerSchema` and `signInSchema`,
+  shared by the route handler and `authorize`
+- `src/auth.config.ts` gained the Credentials **placeholder**
+  (`authorize: () => null`) and exports `CREDENTIALS_PROVIDER_ID`. The file
+  still imports no Prisma, no bcrypt and no Zod, so the split holds
+- `src/auth.ts` replaces that placeholder by mapping over
+  `authConfig.providers`, so GitHub is not re-declared. The real `authorize`
+  parses the credentials, looks the user up by email and `bcrypt.compare`s
+- Added `src/app/api/auth/register/route.ts` — `POST /api/auth/register`
+  returning 201/409/422/400/500 in the `{ success, data, error }` shape, with a
+  P2002 catch so two concurrent registrations settle on the unique index
+- `prisma/seed.ts` no longer hardcodes the demo password: it reads
+  `SEED_DEMO_PASSWORD`, else generates a random one and prints it once.
+  Documented in `.env.example`
+- Verified end to end against the dev server. Registration: happy path 201,
+  duplicate 409, mismatched passwords / bad email / short password / blank name
+  422 with per-field issues, malformed JSON 400. Sign-in: correct password
+  302 → `/dashboard` with `user.id` on the session; `/dashboard` then 200;
+  wrong password and unknown email both → the same generic
+  `CredentialsSignin`, session null
+- Security paths confirmed: the GitHub-only user (`password` NULL) cannot sign
+  in with credentials, and registering that account's email returns 409 rather
+  than overwriting it. GitHub OAuth handoff unchanged — same `client_id`,
+  `redirect_uri`, scope and PKCE S256 as Phase 1
+- Seed change confirmed: the generated password signs in, the old `12345678`
+  no longer does, and `SEED_DEMO_PASSWORD` suppresses generation
+- Also driven through the real UI in a clean browser: signed in as the demo
+  user via the Auth.js sign-in form, `/dashboard` rendered, zero console errors
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the build
+  registers `ƒ /api/auth/register`
+
+Decisions worth carrying forward:
+
+- **The placeholder is swapped by `.map()` over `authConfig.providers`**, not by
+  rebuilding the array. Rebuilding would mean re-declaring GitHub in `auth.ts`
+  and having two places to keep in sync. `isCredentialsPlaceholder` has to guard
+  `typeof provider !== "function"` first — Auth.js allows a provider to be a
+  bare function (GitHub is passed unwrapped), and those have no `.id`
+- **`authorize` returns null on every failure, never throws.** Throwing would
+  let Auth.js surface a distinguishable error; returning null collapses unknown
+  email and wrong password into one `CredentialsSignin`
+- Sign-in validation is deliberately **looser** than registration —
+  `signInSchema` only requires a non-empty password. Re-applying the
+  registration rules at sign-in would lock out existing accounts the moment
+  those rules are tightened
+- The registration route is an API route rather than a Server Action because it
+  is a public endpoint with a status-code contract, and the standards list
+  "endpoints for future mobile/CLI clients" as the case for route handlers
+- **Known limitation, deliberately left in place:** `MAX_PASSWORD_LENGTH` caps
+  at 72 *characters*, but bcrypt truncates at 72 *bytes*. Verified: `'a'×60 +
+  'é'×12` is 72 characters but 84 bytes, and it compares equal against a hash of
+  its 72-byte prefix. So two distinct passwords can collide. The comment in
+  `src/lib/validations/auth.ts` overstates the guarantee. A
+  `Buffer.byteLength`/`TextEncoder` refinement fixes it in one line; skipped by
+  request as low impact
+- Two other review findings were also left as-is by request: the credentials
+  field block (`id`, `name`, `credentials`) is duplicated verbatim between
+  `auth.config.ts` and `auth.ts` — only the `auth.ts` copy ever renders — and
+  `RegisterInput` is exported but never imported
+- **No rate limiting** on `/api/auth/register` or credentials sign-in. Both are
+  brute-forceable; this is the app's first public write endpoint. Out of scope
+  here, worth a dedicated pass
+- An unknown email skips `bcrypt.compare` and so returns faster than a wrong
+  password. Enumeration is already possible through the registration 409, so
+  the timing channel adds nothing new and no dummy compare was added
+- **Untested path:** registering an email, then signing in via GitHub with that
+  same email. Auth.js should return `OAuthAccountNotLinked` (account linking is
+  off by default, which is the safe behaviour), but confirming it needs a real
+  GitHub round trip
+- No sign-in or sign-up **UI** was built — the Auth.js default page already
+  renders both providers, and the spec scopes the UI to a later phase.
+  `pages.signIn` is still unset, so the Phase 1 proxy's hardcoded
+  `/api/auth/signin` target remains correct
+- `test@test.com` / `password123` was left in the Neon **dev** database by the
+  curl walkthrough, and the demo user's password is now a random value from the
+  last seed run
