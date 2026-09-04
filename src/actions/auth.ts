@@ -4,6 +4,11 @@ import { AuthError } from "next-auth";
 
 import { signIn, signOut } from "@/auth";
 import { CREDENTIALS_PROVIDER_ID, SIGN_IN_PATH } from "@/auth.config";
+import { isEmailNotVerifiedError } from "@/lib/auth-errors";
+import {
+  resendEmailVerification,
+  VERIFICATION_TOKEN_TTL_HOURS,
+} from "@/lib/email-verification";
 import { signInSchema } from "@/lib/validations/auth";
 
 /** Where a successful sign-in lands when no callback URL was supplied. */
@@ -16,6 +21,11 @@ export interface SignInState {
   issues?: Partial<Record<"email" | "password", string[]>>;
   /** Echoed back so a failed submit does not clear what was typed. */
   email?: string;
+  /**
+   * Set when the password was right but the address is not confirmed. The form
+   * turns this into a link to the resend page rather than a dead end.
+   */
+  needsVerification?: boolean;
 }
 
 /**
@@ -71,6 +81,17 @@ export async function signInWithCredentials(
       redirectTo: toSafeRedirect(formData.get("callbackUrl")),
     });
   } catch (error) {
+    // Thrown by `authorize` once the password has matched but the address has
+    // not been confirmed. Checked before the generic branch below, which would
+    // otherwise report it as a bad password.
+    if (isEmailNotVerifiedError(error)) {
+      return {
+        error: "Verify your email address before signing in. Check your inbox for the link.",
+        email,
+        needsVerification: true,
+      };
+    }
+
     if (error instanceof AuthError) {
       // Only a rejected credential is the user's problem. Every other
       // `AuthError` — a missing `AUTH_SECRET`, an adapter fault — is a server
@@ -103,4 +124,46 @@ export async function signInWithGitHub(formData: FormData): Promise<void> {
 /** Clears the session and returns to the sign-in page. */
 export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: SIGN_IN_PATH });
+}
+
+export interface ResendVerificationState {
+  /** Shown once the request has been handled, whatever the outcome. */
+  message?: string;
+  /** A malformed address — the only failure this form can report. */
+  error?: string;
+  /** Echoed back so the field keeps its value. */
+  email?: string;
+}
+
+/**
+ * Sends another verification link.
+ *
+ * The confirmation is deliberately non-committal and identical for every
+ * address: an unknown email, an already-verified account and a GitHub-only
+ * account all look the same here, so this form cannot be used to find out who
+ * has an account. Only the shape of the input can fail visibly.
+ */
+export async function resendVerificationEmail(
+  _prevState: ResendVerificationState,
+  formData: FormData,
+): Promise<ResendVerificationState> {
+  const email = String(formData.get("email") ?? "");
+  const parsed = signInSchema.shape.email.safeParse(email);
+
+  if (!parsed.success) {
+    return { error: "Enter a valid email address", email };
+  }
+
+  try {
+    await resendEmailVerification(parsed.data);
+  } catch (error) {
+    console.error("Failed to resend verification email:", error);
+
+    return { error: "Something went wrong. Please try again.", email };
+  }
+
+  return {
+    message: `If that address needs verifying, a new link is on its way. It expires in ${VERIFICATION_TOKEN_TTL_HOURS} hours.`,
+    email,
+  };
 }

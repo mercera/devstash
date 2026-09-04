@@ -1,18 +1,50 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Email Verification on Register
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Registering with email/password creates the user **unverified** and sends a
+  verification email containing a single-use link
+- The link lands on a verification route that validates the token, stamps
+  `User.emailVerified`, consumes the token, and sends the user on to `/sign-in`
+  with a success notice
+- Credentials sign-in is **blocked** until the email is verified, with a clear
+  message telling the user to check their inbox (not the generic "invalid email
+  or password")
+- Expired / already-used / unknown tokens each render a distinct, friendly state
+  rather than a stack trace
+- A "resend verification email" path exists so a user with an expired or lost
+  link can get a new one
+- Email is sent through **Resend** (`RESEND_API_KEY`, already present in `.env`),
+  from `onboarding@resend.dev` for now
+- GitHub OAuth users are unaffected — they never see a verification gate
 
 ## Notes
 
-<!-- Any extra notes -->
+- Registration endpoint is the existing `POST /api/auth/register`
+  (`src/app/api/auth/register/route.ts`); the credentials gate belongs in
+  `authorize` in `src/auth.ts`
+- `User.emailVerified` (`DateTime?`) and the NextAuth `VerificationToken` model
+  (`identifier` + `token` + `expires`, composite PK) already exist in
+  `prisma/schema.prisma` — reuse `VerificationToken` rather than adding a table
+- Store a **hash** of the token, not the raw value; the raw token goes in the
+  emailed URL only
+- Resend needs a new dependency (`resend`) and `RESEND_API_KEY` +
+  `AUTH_URL`/base-URL documented in `.env.example`. `.env.production` still has
+  none of the `AUTH_*` vars (see Phase 1 notes) — this adds another
+- **Resend in test mode:** `onboarding@resend.dev` can only deliver to the
+  Resend account owner's own address. Verification against a real inbox is
+  limited to that address until a domain is verified; other addresses will need
+  the token pulled from the DB or the dev log
+- Registration must not fail if the email send fails — decide and document
+  whether the user is created anyway with a resend path, or the send is awaited
+- Existing dev-database users (`demo@devstash.io`, `test@test.com`,
+  `phase3@devstash.io`) have `emailVerified` NULL and will be locked out by the
+  new gate unless backfilled or the gate only applies to accounts created from
+  now on
 
 ## History
 

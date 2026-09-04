@@ -52,7 +52,8 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
     ? (ERROR_MESSAGES[errorCode] ?? "Could not sign you in. Please try again.")
     : undefined;
 
-  const justRegistered = firstParam(params.registered) === "1";
+  // Set by `/api/auth/verify-email` after it consumes a link successfully.
+  const justVerified = firstParam(params.verified) === "1";
 
   return (
     <Card>
@@ -62,9 +63,9 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {justRegistered && (
+        {justVerified && (
           <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            Account created. Sign in to continue.
+            Email verified. Sign in to continue.
           </p>
         )}
 

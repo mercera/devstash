@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
 
 import authConfig, { CREDENTIALS_PROVIDER_ID } from "@/auth.config";
+import { EmailNotVerifiedError } from "@/lib/auth-errors";
 import { prisma } from "@/lib/prisma";
 import { signInSchema } from "@/lib/validations/auth";
 
@@ -16,6 +17,10 @@ import { signInSchema } from "@/lib/validations/auth";
  * generic `CredentialsSignin` error and the response cannot be used to tell an
  * unknown email from a wrong password. Accounts created through GitHub have a
  * null `password` and so can never sign in this way.
+ *
+ * The single exception is an unverified address, which throws so the sign-in
+ * page can say what is actually wrong. That branch is only reachable once the
+ * password has already matched, so it reveals nothing on its own.
  */
 const credentialsProvider = Credentials({
   id: CREDENTIALS_PROVIDER_ID,
@@ -35,7 +40,14 @@ const credentialsProvider = Credentials({
 
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, name: true, email: true, image: true, password: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        password: true,
+        emailVerified: true,
+      },
     });
 
     if (!user?.password) {
@@ -44,6 +56,10 @@ const credentialsProvider = Credentials({
 
     if (!(await bcrypt.compare(password, user.password))) {
       return null;
+    }
+
+    if (!user.emailVerified) {
+      throw new EmailNotVerifiedError();
     }
 
     return { id: user.id, name: user.name, email: user.email, image: user.image };
