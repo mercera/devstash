@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
-import authConfig from "@/auth.config";
+import authConfig, { SIGN_IN_PATH } from "@/auth.config";
 
 /**
  * Route protection for `/dashboard/*`.
@@ -21,7 +21,7 @@ export const proxy = auth((req) => {
     return NextResponse.next();
   }
 
-  const signInUrl = new URL("/api/auth/signin", req.nextUrl.origin);
+  const signInUrl = new URL(SIGN_IN_PATH, req.nextUrl.origin);
   signInUrl.searchParams.set(
     "callbackUrl",
     `${req.nextUrl.pathname}${req.nextUrl.search}`,

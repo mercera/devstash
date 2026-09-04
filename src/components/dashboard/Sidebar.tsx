@@ -3,9 +3,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Folder, Layers, Settings, Star } from "lucide-react";
+import { ChevronDown, Folder, Layers, Star } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -21,12 +20,12 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { UserMenu } from "@/components/auth/UserMenu";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
 import { getAccentDotClass, getAccentTextClass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -38,17 +37,6 @@ import type {
 
 /** Item types reserved for the Pro plan — their rows are marked with a badge. */
 const PRO_TYPE_SLUGS = new Set(["file", "image"]);
-
-/** Avatar fallback: initials from the user's name, or their email otherwise. */
-function getInitials(user: CurrentUser): string {
-  return (user.name ?? user.email)
-    .split(/[\s@.]+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
 
 interface SidebarProps {
   itemTypes: ItemTypeWithCount[];
@@ -182,26 +170,7 @@ export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
         <SidebarFooter className="border-t border-sidebar-border">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg">
-                <Avatar className="size-8">
-                  <AvatarImage src={user.image ?? undefined} alt="" />
-                  <AvatarFallback className="text-xs">
-                    {getInitials(user)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate font-medium">
-                    {user.name ?? user.email}
-                  </span>
-                  <span className="truncate text-xs text-sidebar-foreground/50">
-                    {user.email}
-                  </span>
-                </div>
-              </SidebarMenuButton>
-              <SidebarMenuAction className="top-1/2 -translate-y-1/2 text-sidebar-foreground/50">
-                <Settings />
-                <span className="sr-only">Settings</span>
-              </SidebarMenuAction>
+              <UserMenu user={user} />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
