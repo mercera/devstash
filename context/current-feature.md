@@ -1,50 +1,18 @@
-# Current Feature: Email Verification on Register
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Registering with email/password creates the user **unverified** and sends a
-  verification email containing a single-use link
-- The link lands on a verification route that validates the token, stamps
-  `User.emailVerified`, consumes the token, and sends the user on to `/sign-in`
-  with a success notice
-- Credentials sign-in is **blocked** until the email is verified, with a clear
-  message telling the user to check their inbox (not the generic "invalid email
-  or password")
-- Expired / already-used / unknown tokens each render a distinct, friendly state
-  rather than a stack trace
-- A "resend verification email" path exists so a user with an expired or lost
-  link can get a new one
-- Email is sent through **Resend** (`RESEND_API_KEY`, already present in `.env`),
-  from `onboarding@resend.dev` for now
-- GitHub OAuth users are unaffected — they never see a verification gate
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Registration endpoint is the existing `POST /api/auth/register`
-  (`src/app/api/auth/register/route.ts`); the credentials gate belongs in
-  `authorize` in `src/auth.ts`
-- `User.emailVerified` (`DateTime?`) and the NextAuth `VerificationToken` model
-  (`identifier` + `token` + `expires`, composite PK) already exist in
-  `prisma/schema.prisma` — reuse `VerificationToken` rather than adding a table
-- Store a **hash** of the token, not the raw value; the raw token goes in the
-  emailed URL only
-- Resend needs a new dependency (`resend`) and `RESEND_API_KEY` +
-  `AUTH_URL`/base-URL documented in `.env.example`. `.env.production` still has
-  none of the `AUTH_*` vars (see Phase 1 notes) — this adds another
-- **Resend in test mode:** `onboarding@resend.dev` can only deliver to the
-  Resend account owner's own address. Verification against a real inbox is
-  limited to that address until a domain is verified; other addresses will need
-  the token pulled from the DB or the dev log
-- Registration must not fail if the email send fails — decide and document
-  whether the user is created anyway with a resend path, or the send is awaited
-- Existing dev-database users (`demo@devstash.io`, `test@test.com`,
-  `phase3@devstash.io`) have `emailVerified` NULL and will be locked out by the
-  new gate unless backfilled or the gate only applies to accounts created from
-  now on
+<!-- Any extra notes -->
 
 ## History
 
@@ -879,3 +847,136 @@ Decisions worth carrying forward:
   more exposed with a real login form. Still worth a dedicated pass
 - `phase3@devstash.io` / `phase3password` (name "Brad Traversy") was left in the
   Neon **dev** database by the walkthrough, alongside Phase 2's `test@test.com`
+
+### Email Verification on Register — Completed (2026-09-04)
+
+New accounts are created unverified and emailed a single-use link through
+Resend; credentials sign-in is gated on confirming it. Branch
+`feature/email-verification`. Six new source files plus a migration and a
+maintenance script, six existing files touched. Loaded from an inline
+description rather than a spec file.
+
+- Installed `resend@6.26.0` — the only new dependency
+- Added `src/lib/email.ts` — Resend client singleton and the verification
+  email (HTML + plain-text). `sendEmail` returns a boolean and never throws;
+  the SDK reports provider failures in the payload rather than by throwing, so
+  both that and a transport error are logged and collapsed to `false`
+- Added `src/lib/email-verification.ts` — `issueEmailVerification`,
+  `verifyEmailWithToken` and `resendEmailVerification`, plus
+  `VERIFICATION_TOKEN_TTL_HOURS = 24` (imported by the UI copy so the number
+  is stated in exactly one place)
+- Added `src/lib/auth-errors.ts` — `EmailNotVerifiedError extends
+  CredentialsSignin` with `code = "email_not_verified"`, and the
+  `isEmailNotVerifiedError` narrowing helper
+- Added `GET /api/auth/verify-email` — the link target. Consumes the token,
+  then redirects to `/sign-in?verified=1`, or to `/verify-email` with
+  `?error=expired&email=…` / `?error=invalid`
+- Added `/verify-email` (in the existing `(auth)` route group) with four
+  states — `pending`, `unsent`, `expired`, `invalid` — and
+  `ResendVerificationForm`, a client form over a new `resendVerificationEmail`
+  action
+- `src/auth.ts`'s `authorize` now selects `emailVerified` and throws
+  `EmailNotVerifiedError` once the password has already matched
+- `src/actions/auth.ts` checks that error **before** the existing
+  `AuthError` branch and returns `needsVerification`, which `SignInForm` turns
+  into a "Resend the verification email" link carrying the address
+- `POST /api/auth/register` issues the link after the insert and returns
+  `emailSent` on the 201 body; `RegisterForm` routes to
+  `/verify-email?email=…` (plus `&sent=0` when the send failed) instead of
+  the old `/sign-in?registered=1`. The sign-in page's `?registered=1` notice
+  was replaced by `?verified=1`
+- Migration `20260904120000_verification_token_unique` adds `@unique` to
+  `VerificationToken.token`; `prisma migrate status` reports the schema up to
+  date
+- Added `scripts/delete-users.ts` + `npm run db:delete-users` — deletes every
+  user except `demo@devstash.io` and everything they own. Dry run by default,
+  `-- --confirm` to act. Run once with `--confirm`: 5 accounts removed
+  (including the Phase 1 GitHub `Account` row), demo's 18 items / 5
+  collections / 29 tags and the 7 system types untouched
+- Documented `AUTH_URL`, `RESEND_API_KEY` and `EMAIL_FROM` in `.env.example`
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the build
+  registers `ƒ /verify-email` and `ƒ /api/auth/verify-email`
+
+Verified in the browser end to end: register → `/verify-email`; unverified
+sign-in → "Verify your email address before signing in" with the resend link
+and `/api/auth/session` still `null`; wrong password and unknown email → the
+unchanged generic "Invalid email or password"; a resend supersedes the
+previous link (old token → invalid); valid link → `/sign-in?verified=1` →
+sign in → dashboard with the footer reading **VT / Verify Tester**; replayed
+link → invalid; missing `?token=` → invalid; expired link (TTL temporarily
+set to 0, then reverted) → the expired state with the address prefilled, and
+the account stayed blocked; resend for unknown / already-verified / seeded
+addresses returned the identical neutral message and issued **zero** tokens
+(confirmed by the unchanged dev-log count); GitHub handed off with the same
+`client_id`, PKCE S256, `redirect_uri` and scope as Phase 1. Zero console
+errors across all four page states.
+
+Decisions worth carrying forward:
+
+- **A thrown `CredentialsSignin` subclass survives out of Auth.js intact**,
+  which is what makes a specific "verify your email" message possible at all.
+  Confirmed by reading the installed source rather than guessing:
+  `@auth/core/lib/actions/callback/index.js:385` rethrows any `AuthError`
+  instead of wrapping it in `CallbackRouteError`, and `@auth/core/index.js:123`
+  rethrows again when `raw` is set and `X-Auth-Return-Redirect` is not — which
+  is exactly how `next-auth/lib/actions.js` calls `Auth` from a server action.
+  `AuthError`'s constructor reads `this.constructor.type`, so a subclass still
+  reports `type === "CredentialsSignin"` through static inheritance
+- **The gate throws where every other failure returns null.** Phase 2's rule
+  still holds for unknown email and wrong password — both stay
+  indistinguishable. This branch is only reachable *after* `bcrypt.compare`
+  succeeds, so naming the reason reveals nothing the caller could not already
+  determine
+- **The link target is a route handler, not a page.** A server component that
+  consumed the token during render would burn it on any RSC re-fetch or
+  prefetch, and could not cleanly end on a different URL. Always redirecting
+  also keeps the token out of the address bar and out of the `Referer` header
+- **Single use is enforced by the delete, not by a flag.** `findUnique` →
+  `delete` by the now-unique token; whoever deletes the row first owns it, and
+  the loser gets "invalid". The expiry check happens *after* the delete so an
+  expired link is cleaned up rather than left to rot
+- **Identifiers are namespaced** as `email-verification:<email>`.
+  `VerificationToken` is NextAuth's shared table; without the prefix, issuing a
+  link would delete a pending magic-link token for the same address, and
+  `verifyEmailWithToken` would happily consume one. The prefix check is what
+  lets it leave a foreign token alone rather than deleting it to find out
+- **Only the SHA-256 of the token is stored.** A plain hash is right here where
+  bcrypt would be wrong — the token is 256 bits of CSPRNG output, so there is
+  nothing to brute-force and the cost would buy nothing
+- **A failed send is never fatal.** The user row is already committed, so
+  failing the request would leave an account the caller believes was never
+  created. The 201 carries `emailSent` and the UI offers a resend
+- **The resend path is deliberately silent.** Unknown address, already-verified
+  account and OAuth-only account all do nothing and return the identical
+  message, so the form cannot be used to enumerate accounts. Only a malformed
+  address fails visibly
+- **`prisma migrate dev` cannot run non-interactively when it has a warning to
+  confirm** — adding a unique index triggers one. The migration file was
+  hand-written into `prisma/migrations/` and applied with `migrate deploy`;
+  same history, same result. Worth remembering for any future index or
+  constraint addition
+- The verification URL is `console.log`ged in development only. The sandbox
+  sender cannot reach any address but the Resend account owner's, so without it
+  the flow is untestable locally
+- **Resend's sandbox sender is confirmed working but restricted.** A real send
+  returned `403 validation_error`: *"You can only send testing emails to your
+  own email address (mercera36@gmail.com)"* — the key and payload are good, the
+  sender is the only blocker. **Nothing reaches any other recipient until a
+  domain is verified and `EMAIL_FROM` is repointed.** The rendered email was
+  never inbox-checked; the user opted to confirm that manually
+- **`AUTH_URL` is new and required on a deployment.** It is what builds the
+  absolute link; without it every verification email points at `localhost:3000`.
+  `.env.production` still has none of the `AUTH_*` vars (Phase 1) and now needs
+  `RESEND_API_KEY` too
+- The demo user was already seeded with `emailVerified` set, so the seed needed
+  no change. The Phase 2/3 throwaway accounts were left locked out by choice
+  rather than backfilled — then removed entirely by `db:delete-users`
+- **No rate limiting**, carried over from Phases 2 and 3 and now more exposed:
+  the resend form is a third unauthenticated public write, and it triggers an
+  outbound email. The strongest case yet for a dedicated pass
+- `scripts/delete-users.ts` deletes items **before** users on purpose:
+  `Item.type` is `onDelete: Restrict`, so a user's custom `ItemType` cannot be
+  cascaded away while their own items still reference it. It also sweeps
+  `VerificationToken` by hand — that table has no foreign key to `User`, so
+  nothing cascades it — and refuses to run when `demo@devstash.io` is missing,
+  since "everything except demo" with no demo row is just "everything"
