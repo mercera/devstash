@@ -14,6 +14,8 @@
  */
 import "dotenv/config";
 
+import { randomBytes } from "node:crypto";
+
 import bcrypt from "bcryptjs";
 
 import { prisma } from "../src/lib/prisma";
@@ -420,8 +422,27 @@ kubectl rollout status deployment/devstash`,
   },
 ];
 
+/**
+ * The demo account's password.
+ *
+ * Never hardcoded: a committed password becomes a working login the moment a
+ * credentials provider exists, and it stays in git history afterwards. Set
+ * `SEED_DEMO_PASSWORD` to choose one, otherwise a random password is generated
+ * and printed once — copy it from the seed output if you want to sign in.
+ */
+function resolveDemoPassword(): { password: string; generated: boolean } {
+  const fromEnv = process.env.SEED_DEMO_PASSWORD?.trim();
+
+  if (fromEnv) {
+    return { password: fromEnv, generated: false };
+  }
+
+  return { password: randomBytes(12).toString("base64url"), generated: true };
+}
+
 async function seedUser() {
-  const passwordHash = await bcrypt.hash("12345678", 12);
+  const { password, generated } = resolveDemoPassword();
+  const passwordHash = await bcrypt.hash(password, 12);
 
   const user = await prisma.user.upsert({
     where: { email: "demo@devstash.io" },
@@ -442,6 +463,12 @@ async function seedUser() {
   });
 
   console.log(`✓ demo user (${user.email})`);
+
+  if (generated) {
+    console.log(`  generated password: ${password}`);
+    console.log("  set SEED_DEMO_PASSWORD to pin it across runs");
+  }
+
   return user;
 }
 

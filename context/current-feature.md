@@ -1,18 +1,60 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Auth Credentials — Email/Password Provider (Phase 2)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Add a Credentials provider so users can sign in with email + password,
+  alongside the existing GitHub OAuth
+- Hash and verify passwords with `bcryptjs` (already installed, used by the seed)
+- Add a registration endpoint at `POST /api/auth/register` that accepts
+  `name`, `email`, `password`, `confirmPassword`; validates the passwords match,
+  rejects an email that already exists, hashes the password and creates the user;
+  returns a success/error response
+- `auth.config.ts`: add the Credentials provider as a placeholder with
+  `authorize: () => null`
+- `auth.ts`: override that provider with the real bcrypt validation
+- `User.password` already exists in `prisma/schema.prisma` (`String?`,
+  [schema.prisma:44](prisma/schema.prisma#L44)) — no migration needed unless
+  something else changes
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: [auth-phase-2-spec.md](context/features/auth-phase-2-spec.md).
+Builds on Phase 1 (Auth.js v5 + GitHub, JWT sessions, `/dashboard/*` behind the
+proxy) — see the Phase 1 history entry below for the split-config rationale.
+
+**Split-config pattern**: `auth.config.ts` is the edge-safe half and must not
+import Prisma or bcrypt, hence the `authorize: () => null` placeholder there and
+the real implementation in `auth.ts`.
+
+**Testing (from the spec)**:
+
+1. Register via curl:
+   ```bash
+   curl -X POST http://localhost:3000/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Test","email":"test@test.com","password":"password123","confirmPassword":"password123"}'
+   ```
+2. Go to `/api/auth/signin`, sign in with email/password
+3. Verify the redirect to `/dashboard`
+4. Verify GitHub OAuth still works
+
+Reference: https://authjs.dev/getting-started/authentication/credentials
+
+**Carried-over risk**: the seeded demo user (`demo@devstash.io`) holds the bcrypt
+hash of `12345678`, committed in `prisma/seed.ts`. A credentials provider makes
+that a working login — flagged as low severity by an earlier audit and still
+open. Worth deciding on during this phase.
+
+Open questions to settle at `start`:
+
+- Validation library — the standards say "validate all inputs with Zod"; Zod is
+  not yet a dependency
+- Whether the sign-in page stays the Auth.js default (Phase 1 deliberately set no
+  `pages.signIn`, and the proxy hardcodes `/api/auth/signin`)
 
 ## History
 
