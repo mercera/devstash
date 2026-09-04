@@ -1,14 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { MailCheck, MailWarning, MailX } from "lucide-react";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { ResendVerificationForm } from "@/components/auth/ResendVerificationForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VERIFICATION_TOKEN_TTL_HOURS } from "@/lib/email-verification";
+import { isEmailVerificationEnabled } from "@/lib/flags";
 
 export const metadata: Metadata = {
   title: "Verify your email · DevStash",
 };
+
+/**
+ * Required, not incidental. The flag check below runs before `searchParams` is
+ * awaited, so without this Next prerenders the page during `next build` and
+ * bakes in whichever branch the *build machine's* environment happened to take
+ * — a static redirect that no longer responds to the flag at runtime. Confirmed
+ * in the build output: the route dropped from `ƒ` to `○` until this was added.
+ */
+export const dynamic = "force-dynamic";
 
 /**
  * Every state this page can be in. `pending` is the one reached straight after
@@ -61,6 +73,13 @@ function resolveState(error: string | undefined, sent: string | undefined): Stat
 }
 
 export default async function VerifyEmailPage({ searchParams }: PageProps<"/verify-email">) {
+  // With verification disabled there is nothing to confirm, and every state
+  // this page can render tells the visitor to go and check an inbox that will
+  // never receive anything. Send them somewhere useful instead.
+  if (!isEmailVerificationEnabled()) {
+    redirect(SIGN_IN_PATH);
+  }
+
   const params = await searchParams;
 
   const state = resolveState(firstParam(params.error), firstParam(params.sent));

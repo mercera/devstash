@@ -6,6 +6,7 @@ import type { Provider } from "next-auth/providers";
 
 import authConfig, { CREDENTIALS_PROVIDER_ID } from "@/auth.config";
 import { EmailNotVerifiedError } from "@/lib/auth-errors";
+import { isEmailVerificationEnabled } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { signInSchema } from "@/lib/validations/auth";
 
@@ -58,7 +59,10 @@ const credentialsProvider = Credentials({
       return null;
     }
 
-    if (!user.emailVerified) {
+    // With verification disabled nobody was ever sent a link, so every account
+    // would fail this check. The flag is read here rather than around the whole
+    // provider so that flipping it needs no restart of anything but the server.
+    if (isEmailVerificationEnabled() && !user.emailVerified) {
       throw new EmailNotVerifiedError();
     }
 

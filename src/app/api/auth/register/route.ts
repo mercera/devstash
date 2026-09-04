@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { issueEmailVerification } from "@/lib/email-verification";
+import { isEmailVerificationEnabled } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations/auth";
 
@@ -15,9 +16,17 @@ type RegisterResponse =
         name: string | null;
         email: string;
         /**
+         * Whether this account has to confirm its address before it can sign
+         * in. Mirrors the `EMAIL_VERIFICATION_ENABLED` flag, and is how the
+         * sign-up form learns the answer without the flag being exposed to the
+         * browser.
+         */
+        verificationRequired: boolean;
+        /**
          * Whether the verification email actually went out. The account exists
          * either way; the sign-up form uses this to decide between "check your
-         * inbox" and "we could not send it, try again".
+         * inbox" and "we could not send it, try again". Always false when
+         * `verificationRequired` is false — nothing was sent.
          */
         emailSent: boolean;
       };
@@ -75,20 +84,27 @@ export async function POST(request: Request): Promise<NextResponse<RegisterRespo
       );
     }
 
-    // `emailVerified` stays null: the account exists but cannot sign in with a
-    // password until the link below is clicked (see `authorize` in `src/auth.ts`).
+    // `emailVerified` stays null either way. When verification is required it
+    // is the link below that fills it in (see `authorize` in `src/auth.ts`);
+    // when it is not, the column stays honest — nothing has confirmed this
+    // address, and stamping it would make a waved-through account
+    // indistinguishable from a genuinely verified one.
     const user = await prisma.user.create({
       data: { name, email, password: await bcrypt.hash(password, BCRYPT_ROUNDS) },
       select: { id: true, name: true, email: true },
     });
 
+    const verificationRequired = isEmailVerificationEnabled();
+
     // Deliberately not fatal. The row is committed, so failing the request here
     // would leave an account the caller believes was never created; the sign-up
     // form offers a resend instead.
-    const emailSent = await issueEmailVerification(user.email, user.name);
+    const emailSent = verificationRequired
+      ? await issueEmailVerification(user.email, user.name)
+      : false;
 
     return NextResponse.json(
-      { success: true, data: { ...user, emailSent } },
+      { success: true, data: { ...user, verificationRequired, emailSent } },
       { status: 201 },
     );
   } catch (error) {

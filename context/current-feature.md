@@ -1,18 +1,74 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Email Verification Feature Flag
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- One flag turns email verification on and off. Nothing else needs editing to
+  switch it — no code change, no migration
+- **Off:** registration sends no email and lands on `/sign-in?registered=1`;
+  credentials sign-in never checks `emailVerified`; `/verify-email` does not
+  strand anyone
+- **On:** exactly today's behaviour, unchanged
+- The flag is read through **one module** that owns the decision, so no route,
+  action or component reads `process.env` directly and there is a single place
+  to change the mechanism later
+- Flipping the flag back **on** must not permanently lock out accounts created
+  while it was off — there has to be a documented way back in
+- `.env.example` documents the flag, its default, and *why* you would turn it
+  off (no verified Resend domain yet)
 
 ## Notes
 
-<!-- Any extra notes -->
+**Recommendation: an env var, read through `src/lib/flags.ts`.**
+`EMAIL_VERIFICATION_ENABLED`, parsed once, exported as a boolean. An env var
+is the only option of the three that changes without a code edit *and* can
+differ between local, preview and production. A hardcoded constant needs a
+commit per flip; a `Setting` table is real infrastructure (migration, cache,
+admin UI) for a value that changes about twice a year. If it ever needs to be
+runtime-togglable per environment, `flags.ts` is the one file that changes.
+
+- **Default to ON when the var is unset.** A missing or typo'd variable must
+  never silently disable a security control. That means `.env` needs an
+  explicit `EMAIL_VERIFICATION_ENABLED="false"` today to get the behaviour
+  being asked for — worth stating plainly in `.env.example`
+- Parse leniently but decide strictly: treat `"false"`, `"0"`, `"off"`, `"no"`
+  (case-insensitive) as off, everything else as on
+- **No `NEXT_PUBLIC_` prefix.** Every consumer is server-side — `authorize` in
+  `src/auth.ts`, the register route, the actions, the `/verify-email` page.
+  The one client-side consumer is `RegisterForm`, which decides where to go
+  after a 201; give it the answer by adding a field to the register response
+  body (next to the existing `emailSent`) rather than exposing the flag to the
+  browser
+- **Open decision — what `emailVerified` holds when the flag is off.** Two
+  options, and it decides how bad the flip back on is:
+  - *Leave it null* (recommended). The data never claims an address was
+    verified when it wasn't. Turning the flag back on blocks those accounts,
+    but `/verify-email` already exists and will mail them a fresh link, so the
+    way back in is self-serve
+  - *Stamp it at registration.* Flipping back on is seamless, but every such
+    row is a lie, and there is then no way to tell a genuinely verified
+    address from one that was waved through
+- `/verify-email` and `GET /api/auth/verify-email` should not become dead ends
+  when the flag is off — decide between redirecting to `/sign-in` and leaving
+  them working. The resend action must no-op either way
+- **The `?registered=1` notice has to come back.** The email verification
+  feature replaced it with `?verified=1` on `src/app/(auth)/sign-in/page.tsx`;
+  with the flag off there is nothing to verify, so registration needs its old
+  "Account created. Sign in to continue." landing again. Both notices now have
+  to coexist
+- Touch points, all already written: `src/auth.ts` (`authorize` throws
+  `EmailNotVerifiedError`), `src/app/api/auth/register/route.ts` (calls
+  `issueEmailVerification`), `src/actions/auth.ts`
+  (`resendVerificationEmail`), `src/app/(auth)/verify-email/page.tsx`,
+  `src/components/auth/RegisterForm.tsx`
+- Verification of this feature has to cover **both** flag states, and the
+  off → on transition for an account registered while off
+- Unrelated but adjacent: the real fix for the underlying problem is verifying
+  a domain at resend.com/domains and repointing `EMAIL_FROM`. This flag is the
+  stopgap that makes the app usable until then, not a replacement for it
 
 ## History
 
