@@ -9,6 +9,7 @@ import {
   resendEmailVerification,
   VERIFICATION_TOKEN_TTL_HOURS,
 } from "@/lib/email-verification";
+import { isEmailVerificationEnabled } from "@/lib/flags";
 import { signInSchema } from "@/lib/validations/auth";
 
 /** Where a successful sign-in lands when no callback URL was supplied. */
@@ -126,6 +127,15 @@ export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: SIGN_IN_PATH });
 }
 
+/**
+ * The single reply the resend form ever gives on success. Identical for an
+ * unknown address, an already-verified account, an OAuth-only account and a
+ * disabled flag, so none of those can be told apart from the outside.
+ */
+const NEUTRAL_RESEND_MESSAGE =
+  `If that address needs verifying, a new link is on its way. ` +
+  `It expires in ${VERIFICATION_TOKEN_TTL_HOURS} hours.`;
+
 export interface ResendVerificationState {
   /** Shown once the request has been handled, whatever the outcome. */
   message?: string;
@@ -154,6 +164,14 @@ export async function resendVerificationEmail(
     return { error: "Enter a valid email address", email };
   }
 
+  // The page that hosts this form redirects away when verification is off, but
+  // the action is a public endpoint in its own right — sending a link nobody is
+  // being asked for would be pure noise. The reply is unchanged either way,
+  // which is the same reason it says nothing about unknown addresses.
+  if (!isEmailVerificationEnabled()) {
+    return { message: NEUTRAL_RESEND_MESSAGE, email };
+  }
+
   try {
     await resendEmailVerification(parsed.data);
   } catch (error) {
@@ -162,8 +180,5 @@ export async function resendVerificationEmail(
     return { error: "Something went wrong. Please try again.", email };
   }
 
-  return {
-    message: `If that address needs verifying, a new link is on its way. It expires in ${VERIFICATION_TOKEN_TTL_HOURS} hours.`,
-    email,
-  };
+  return { message: NEUTRAL_RESEND_MESSAGE, email };
 }

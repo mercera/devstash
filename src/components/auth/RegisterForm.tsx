@@ -21,14 +21,17 @@ interface RegisterErrorBody {
 
 /** The subset of its 201 body this form reads. */
 interface RegisterSuccessBody {
-  data?: { emailSent?: boolean };
+  data?: { verificationRequired?: boolean; emailSent?: boolean };
 }
 
+/** Where a created account lands when it can sign in straight away. */
+const SIGN_IN_AFTER_REGISTER = "/sign-in?registered=1";
+
 /**
- * A new account cannot sign in until its address is confirmed, so registration
- * ends on the "check your inbox" page rather than at sign-in. The email is
- * carried over to prefill the resend form, and `sent=0` switches that page to
- * its "we couldn't send it" wording.
+ * A new account that has to confirm its address cannot sign in yet, so
+ * registration ends on the "check your inbox" page. The email is carried over
+ * to prefill the resend form, and `sent=0` switches that page to its "we
+ * couldn't send it" wording.
  */
 function verifyEmailUrl(email: string, emailSent: boolean): string {
   const params = new URLSearchParams({ email });
@@ -38,6 +41,21 @@ function verifyEmailUrl(email: string, emailSent: boolean): string {
   }
 
   return `/verify-email?${params}`;
+}
+
+/**
+ * Whether verification is required is decided on the server and reported on the
+ * 201 body, so the `EMAIL_VERIFICATION_ENABLED` flag never has to be exposed to
+ * the browser.
+ */
+function destinationAfterRegister(email: string, body: RegisterSuccessBody): string {
+  if (!body.data?.verificationRequired) {
+    return SIGN_IN_AFTER_REGISTER;
+  }
+
+  // The account exists whatever the send did, so a missing flag is read as
+  // "not sent" — the worst that follows is an offer to resend.
+  return verifyEmailUrl(email, body.data.emailSent ?? false);
 }
 
 export function RegisterForm() {
@@ -83,9 +101,7 @@ export function RegisterForm() {
 
         const body: RegisterSuccessBody = await response.json().catch(() => ({}));
 
-        // The account exists whatever the send did, so a missing flag is read
-        // as "not sent" — the worst that follows is an offer to resend.
-        router.push(verifyEmailUrl(parsed.data.email, body.data?.emailSent ?? false));
+        router.push(destinationAfterRegister(parsed.data.email, body));
 
         return;
       }

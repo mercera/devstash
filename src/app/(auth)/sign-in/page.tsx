@@ -52,8 +52,15 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
     ? (ERROR_MESSAGES[errorCode] ?? "Could not sign you in. Please try again.")
     : undefined;
 
-  // Set by `/api/auth/verify-email` after it consumes a link successfully.
-  const justVerified = firstParam(params.verified) === "1";
+  // `verified=1` is set by `/api/auth/verify-email` after it consumes a link.
+  // `registered=1` comes straight from the sign-up form when verification is
+  // disabled and there is nothing to confirm. Only one can ever be set, and
+  // `verified` wins if both somehow are.
+  const notice = firstParam(params.verified) === "1"
+    ? "Email verified. Sign in to continue."
+    : firstParam(params.registered) === "1"
+      ? "Account created. Sign in to continue."
+      : undefined;
 
   return (
     <Card>
@@ -63,9 +70,9 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {justVerified && (
+        {notice && (
           <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            Email verified. Sign in to continue.
+            {notice}
           </p>
         )}
 

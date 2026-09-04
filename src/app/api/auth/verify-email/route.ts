@@ -16,6 +16,12 @@ const VERIFY_EMAIL_PATH = "/verify-email";
  *
  * Always ends in a redirect, so the token never stays in the address bar or
  * leaks through a `Referer` header to whatever the user visits next.
+ *
+ * Deliberately **not** gated on `EMAIL_VERIFICATION_ENABLED`. Turning the flag
+ * off stops the app requiring and sending verification; it should not strand a
+ * link already sitting in someone's inbox from when it was on. Honouring one is
+ * harmless — the address really was confirmed — and the alternative is a dead
+ * link with no explanation.
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const token = new URL(request.url).searchParams.get("token");
