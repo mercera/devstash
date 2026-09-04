@@ -1,8 +1,58 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import bcrypt from "bcryptjs";
 import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import type { Provider } from "next-auth/providers";
 
-import authConfig from "@/auth.config";
+import authConfig, { CREDENTIALS_PROVIDER_ID } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
+import { signInSchema } from "@/lib/validations/auth";
+
+/**
+ * The real email/password provider. It replaces the placeholder from
+ * `auth.config.ts`, keeping that file free of Prisma and bcrypt.
+ *
+ * Every failure path returns null rather than throwing, so Auth.js reports one
+ * generic `CredentialsSignin` error and the response cannot be used to tell an
+ * unknown email from a wrong password. Accounts created through GitHub have a
+ * null `password` and so can never sign in this way.
+ */
+const credentialsProvider = Credentials({
+  id: CREDENTIALS_PROVIDER_ID,
+  name: "Email and password",
+  credentials: {
+    email: { label: "Email", type: "email", placeholder: "you@example.com" },
+    password: { label: "Password", type: "password" },
+  },
+  async authorize(credentials) {
+    const parsed = signInSchema.safeParse(credentials);
+
+    if (!parsed.success) {
+      return null;
+    }
+
+    const { email, password } = parsed.data;
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, email: true, image: true, password: true },
+    });
+
+    if (!user?.password) {
+      return null;
+    }
+
+    if (!(await bcrypt.compare(password, user.password))) {
+      return null;
+    }
+
+    return { id: user.id, name: user.name, email: user.email, image: user.image };
+  },
+});
+
+function isCredentialsPlaceholder(provider: Provider): boolean {
+  return typeof provider !== "function" && provider.id === CREDENTIALS_PROVIDER_ID;
+}
 
 /**
  * Full Auth.js config: the edge-safe providers from `auth.config.ts` plus the
@@ -10,10 +60,15 @@ import { prisma } from "@/lib/prisma";
  *
  * The adapter still persists `User` and `Account` rows, but sessions are JWTs
  * rather than `Session` rows — the split config pattern needs a strategy the
- * proxy can verify without a database round trip.
+ * proxy can verify without a database round trip. A JWT strategy is also what
+ * the Credentials provider requires: it creates no `Account` row for the
+ * adapter to look a session up against.
  */
 export const { auth, handlers, signIn, signOut } = NextAuth({
   ...authConfig,
+  providers: authConfig.providers.map((provider) =>
+    isCredentialsPlaceholder(provider) ? credentialsProvider : provider,
+  ),
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   callbacks: {
