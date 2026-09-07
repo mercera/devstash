@@ -7,6 +7,7 @@ import { FieldError, FormError } from "@/components/auth/FieldError";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { MIN_PASSWORD_LENGTH } from "@/lib/validations/auth";
 
 const INITIAL_STATE: ResetPasswordState = {};
@@ -21,6 +22,8 @@ interface ResetPasswordFormProps {
 
 export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const [state, formAction] = useActionState(resetPassword, INITIAL_STATE);
+
+  useRateLimitToast(state);
 
   return (
     <form action={formAction} className="space-y-4">

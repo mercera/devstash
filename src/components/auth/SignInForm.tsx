@@ -8,6 +8,7 @@ import { FieldError, FormError } from "@/components/auth/FieldError";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
 
 const INITIAL_STATE: SignInState = {};
@@ -24,6 +25,8 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
     signInWithCredentials,
     INITIAL_STATE,
   );
+
+  useRateLimitToast(state);
 
   // The action's own result supersedes the error Auth.js put in the URL, which
   // would otherwise keep showing after a later, different failure.

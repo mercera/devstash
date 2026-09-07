@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { FieldError, FormError } from "@/components/auth/FieldError";
 import { Button } from "@/components/ui/button";
@@ -107,8 +108,17 @@ export function RegisterForm() {
       }
 
       const body: RegisterErrorBody = await response.json().catch(() => ({}));
+      const message = body.error ?? "Something went wrong. Please try again.";
 
-      setError(body.error ?? "Something went wrong. Please try again.");
+      // This form posts to the route directly rather than through a Server
+      // Action, so it reads the rate limiter's refusal off the status code
+      // instead of a `rateLimited` flag. Shown inline as well as in the toast,
+      // matching what `useRateLimitToast` does for the other four forms.
+      if (response.status === 429) {
+        toast.error(message);
+      }
+
+      setError(message);
       setIssues(body.issues ?? {});
     } catch {
       setError("Could not reach the server. Please try again.");

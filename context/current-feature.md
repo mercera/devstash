@@ -1,18 +1,104 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Rate Limiting for Auth
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Add a reusable rate limiting utility at `src/lib/rate-limit.ts`, backed by
+  Upstash Redis via `@upstash/ratelimit`, using the sliding window algorithm
+- Return `{ success, remaining, reset }` from every rate limit check
+- Derive the client IP from `x-forwarded-for` (Vercel) with a request fallback,
+  and combine IP + email where the spec asks for a tighter key
+- Protect the five auth surfaces at the specced limits:
+  - Credentials sign-in — 5 / 15 min, keyed by IP + email
+  - Register — 3 / 1 hour, keyed by IP
+  - Forgot password — 3 / 1 hour, keyed by IP
+  - Reset password — 5 / 15 min, keyed by IP
+  - Resend verification — 3 / 15 min, keyed by IP + email
+- API routes respond `429` with `{ error: "Too many attempts. Please try again
+  in X minutes." }` and a `Retry-After` header
+- The frontend surfaces the limit message to the user
+- Fail **open** — if Upstash is unreachable or unconfigured, allow the request
+- Document `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` in
+  `.env.example`
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/rate-limiting-spec.md`.
+
+This is the dedicated rate limiting pass flagged as missing in Auth Phase 2,
+Phase 3, Email Verification and Forgot Password. There are now four
+unauthenticated public writes, three of which send an outbound email.
+
+### Decisions taken at load time
+
+The spec's endpoint table does not match this codebase's shape. Three
+divergences were raised and resolved before implementation:
+
+1. **The 429 / `Retry-After` status-code contract applies to
+   `POST /api/auth/register` only.** It is the one real API route of the five.
+   Forgot password, reset password and resend verification are Server Actions
+   in `src/actions/auth.ts` (`requestPasswordResetEmail`, `resetPassword`,
+   `resendVerificationEmail`) and cannot return a status code or a response
+   header to their caller — they keep returning the existing
+   `{ success, error }` shape, carrying the same "Too many attempts. Please try
+   again in X minutes." message. They are **not** being converted to routes.
+
+2. **Credentials sign-in is limited inside `authorize` in `src/auth.ts`**, at
+   the top, before the user lookup. Rejected: wrapping `handlers.POST` in
+   `src/app/api/auth/[...nextauth]/route.ts`. Reasons, each confirmed against
+   the installed source rather than assumed:
+   - `authorize` is the **only** chokepoint both paths share.
+     `signInWithCredentials` calls next-auth's server-side `signIn()`, which
+     builds a `Request` and calls `Auth()` in process
+     (`next-auth/lib/actions.js:44`) — it never makes an HTTP request, so a
+     wrapper around the route's `POST` would miss the entire UI path.
+   - **`authorize` receives the original `Request` as its second argument**
+     (`CredentialsConfig.authorize(credentials, request)` in
+     `@auth/core/providers/credentials.d.ts`), so the IP is read straight from
+     `request.headers.get("x-forwarded-for")` — no `next/headers`, and it works
+     identically on both paths. The headers really are the caller's:
+     `@auth/core/lib/actions/callback/index.js:233` reconstructs the request
+     with the incoming `headers` verbatim, and the server action seeds them
+     from `await nextHeaders()`.
+   - A route wrapper would also have to sniff the pathname (one `POST` serves
+     signin, callback, signout and csrf) and consume the body to reach the
+     email, then rebuild the request for the handler.
+   - **The error already has a proven rail out.** A `CredentialsSignin`
+     subclass survives out of Auth.js intact — that is exactly how
+     `EmailNotVerifiedError` works today, and the provider docs bless the
+     pattern. So a `RateLimitedError extends CredentialsSignin` with
+     `code = "rate_limited"` reaches `signInWithCredentials`, which already
+     narrows on `isEmailNotVerifiedError` and gains a sibling check.
+   - The limit is consumed **before** the `prisma.user.findUnique`, so it fires
+     identically for a registered and an unregistered address and adds no
+     enumeration channel.
+
+3. **Install the ShadCN `sonner` toast component** and surface the limit
+   message through it, per the spec. The existing inline `FormError` /
+   `FieldError` pattern stays for field-level validation.
+
+### Other constraints
+
+- `@upstash/ratelimit` and `@upstash/redis` are new dependencies; nothing
+  Upstash-related exists in the code yet. Both `UPSTASH_REDIS_REST_URL` and
+  `UPSTASH_REDIS_REST_TOKEN` **are already set in `.env`** — they still need
+  documenting in `.env.example`.
+- Fail-open must cover **missing env vars**, not just a network fault.
+  `.env.production` has neither variable, so a deploy from this state must not
+  lock everyone out of signing in.
+- Read the Upstash config **per call, not at module load** — the flag trap from
+  Email Verification, where a module-scope `const` is evaluated while
+  `next build` collects page data and freezes a runtime setting into the build.
+- Existing security posture to preserve: sign-in failures stay
+  indistinguishable (unknown email vs wrong password), and the resend /
+  forgot-password replies stay neutral so they cannot be used to enumerate
+  accounts. A 429 that only fires for real addresses would undo that.
+- Every attempt consumes a token, including a successful one — that is the
+  literal reading of "5 attempts / 15 min" and is generous for a human. If it
+  proves annoying, the alternative is to only consume on failure.
 
 ## History
 

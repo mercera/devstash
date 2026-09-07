@@ -1,11 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 
 import { signIn, signOut } from "@/auth";
 import { CREDENTIALS_PROVIDER_ID, SIGN_IN_PATH } from "@/auth.config";
-import { isEmailNotVerifiedError } from "@/lib/auth-errors";
+import { isEmailNotVerifiedError, isRateLimitedError } from "@/lib/auth-errors";
 import {
   resendEmailVerification,
   VERIFICATION_TOKEN_TTL_HOURS,
@@ -17,11 +18,41 @@ import {
   requestPasswordReset,
   resetPasswordWithToken,
 } from "@/lib/password-reset";
+import {
+  checkRateLimit,
+  getClientIp,
+  ipAndEmailKey,
+  rateLimitMessage,
+  retryAfterSeconds,
+  type RateLimitName,
+} from "@/lib/rate-limit";
 import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
 import { resetPasswordSchema, signInSchema } from "@/lib/validations/auth";
 
 /** Where a successful sign-in lands when no callback URL was supplied. */
 const DEFAULT_REDIRECT = "/dashboard";
+
+/**
+ * Rate limits an action, returning the message to show if the caller is over
+ * the limit and `null` if they are not.
+ *
+ * A Server Action has no response of its own, so unlike
+ * `POST /api/auth/register` it cannot answer 429 or set `Retry-After`. The
+ * refusal travels back through the same result shape as every other failure,
+ * flagged with `rateLimited` so the form can raise a toast for it.
+ *
+ * `headers()` are those of the request the action was invoked from, so the
+ * address is the browser's rather than the server's.
+ */
+async function rateLimitFailure(
+  name: RateLimitName,
+  identify: (ip: string) => string = (ip) => ip,
+): Promise<string | null> {
+  const ip = getClientIp(await headers());
+  const limit = await checkRateLimit(name, identify(ip));
+
+  return limit.success ? null : rateLimitMessage(retryAfterSeconds(limit.reset));
+}
 
 export interface SignInState {
   /** Message shown above the form. */
@@ -35,6 +66,8 @@ export interface SignInState {
    * turns this into a link to the resend page rather than a dead end.
    */
   needsVerification?: boolean;
+  /** Set when the attempt was refused by the rate limiter, not by Auth.js. */
+  rateLimited?: boolean;
 }
 
 /**
@@ -90,9 +123,18 @@ export async function signInWithCredentials(
       redirectTo: toSafeRedirect(formData.get("callbackUrl")),
     });
   } catch (error) {
-    // Thrown by `authorize` once the password has matched but the address has
-    // not been confirmed. Checked before the generic branch below, which would
-    // otherwise report it as a bad password.
+    // Both of these are thrown by `authorize` and rethrown untouched by
+    // Auth.js, so they arrive here as the very objects it threw. Checked
+    // before the generic branch below, which would otherwise report either
+    // one as a bad password.
+    if (isRateLimitedError(error)) {
+      return {
+        error: rateLimitMessage(error.retryAfterSeconds),
+        email,
+        rateLimited: true,
+      };
+    }
+
     if (isEmailNotVerifiedError(error)) {
       return {
         error: "Verify your email address before signing in. Check your inbox for the link.",
@@ -147,10 +189,12 @@ const NEUTRAL_RESEND_MESSAGE =
 export interface ResendVerificationState {
   /** Shown once the request has been handled, whatever the outcome. */
   message?: string;
-  /** A malformed address — the only failure this form can report. */
+  /** A malformed address, or a refusal from the rate limiter. */
   error?: string;
   /** Echoed back so the field keeps its value. */
   email?: string;
+  /** Set when the attempt was refused by the rate limiter. */
+  rateLimited?: boolean;
 }
 
 /**
@@ -170,6 +214,18 @@ export async function resendVerificationEmail(
 
   if (!parsed.success) {
     return { error: "Enter a valid email address", email };
+  }
+
+  // Keyed by address as well as IP, per the spec. Consumed before any of the
+  // branches below, so being over the limit looks the same for an unknown
+  // address, an already-verified one and a disabled flag — which is the
+  // same property the neutral message exists to protect.
+  const limited = await rateLimitFailure("resendVerification", (ip) =>
+    ipAndEmailKey(ip, parsed.data),
+  );
+
+  if (limited) {
+    return { error: limited, email, rateLimited: true };
   }
 
   // The page that hosts this form redirects away when verification is off, but
@@ -203,10 +259,12 @@ const NEUTRAL_RESET_MESSAGE =
 export interface RequestPasswordResetState {
   /** Shown once the request has been handled, whatever the outcome. */
   message?: string;
-  /** A malformed address — the only failure this form can report. */
+  /** A malformed address, or a refusal from the rate limiter. */
   error?: string;
   /** Echoed back so the field keeps its value. */
   email?: string;
+  /** Set when the attempt was refused by the rate limiter. */
+  rateLimited?: boolean;
 }
 
 /**
@@ -228,6 +286,15 @@ export async function requestPasswordResetEmail(
     return { error: "Enter a valid email address", email };
   }
 
+  // Keyed by IP alone, per the spec — this caps how many reset emails one
+  // caller can trigger at all, which keying on the address would let them
+  // sidestep by varying it.
+  const limited = await rateLimitFailure("forgotPassword");
+
+  if (limited) {
+    return { error: limited, email, rateLimited: true };
+  }
+
   try {
     await requestPasswordReset(parsed.data);
   } catch (error) {
@@ -244,6 +311,8 @@ export interface ResetPasswordState {
   error?: string;
   /** Per-field validation messages, keyed by input name. */
   issues?: Partial<Record<"password" | "confirmPassword", string[]>>;
+  /** Set when the attempt was refused by the rate limiter. */
+  rateLimited?: boolean;
 }
 
 /**
@@ -260,6 +329,15 @@ export async function resetPassword(
   _prevState: ResetPasswordState,
   formData: FormData,
 ): Promise<ResetPasswordState> {
+  // Keyed by IP alone: the token is the secret being guessed, and keying on it
+  // would hand every guess its own fresh budget. Checked first so a flood of
+  // tokens costs nothing but this lookup.
+  const limited = await rateLimitFailure("resetPassword");
+
+  if (limited) {
+    return { error: limited, rateLimited: true };
+  }
+
   const token = String(formData.get("token") ?? "");
   const parsed = resetPasswordSchema.safeParse({
     password: formData.get("password"),
