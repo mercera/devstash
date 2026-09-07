@@ -2,7 +2,12 @@ import { sendPasswordResetEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { RESET_PASSWORD_PATH } from "@/lib/routes";
-import { createToken, getBaseUrl, hashToken } from "@/lib/tokens";
+import {
+  createToken,
+  getBaseUrl,
+  hashToken,
+  PASSWORD_RESET_PREFIX,
+} from "@/lib/tokens";
 
 /**
  * How long a reset link stays usable.
@@ -18,7 +23,7 @@ export const PASSWORD_RESET_TOKEN_TTL_HOURS = 1;
  * verification flow, so both namespace their identifier. Nothing here will read
  * or delete a row belonging to another flow — see `src/lib/email-verification.ts`.
  */
-const IDENTIFIER_PREFIX = "password-reset:";
+const IDENTIFIER_PREFIX = PASSWORD_RESET_PREFIX;
 
 
 function identifierFor(email: string): string {

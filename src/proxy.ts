@@ -32,5 +32,8 @@ export const proxy = auth((req) => {
 
 export const config = {
   // `:path*` matches zero or more segments, so this covers `/dashboard` itself.
-  matcher: ["/dashboard/:path*"],
+  // `/profile` has no children, so it is listed on its own. These must stay
+  // literal — Next.js reads the matcher statically at build time and cannot
+  // resolve an imported constant.
+  matcher: ["/dashboard/:path*", "/profile"],
 };

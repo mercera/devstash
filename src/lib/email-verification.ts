@@ -1,6 +1,11 @@
 import { sendVerificationEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
-import { createToken, getBaseUrl, hashToken } from "@/lib/tokens";
+import {
+  createToken,
+  EMAIL_VERIFICATION_PREFIX,
+  getBaseUrl,
+  hashToken,
+} from "@/lib/tokens";
 
 /** How long an emailed link stays usable. */
 export const VERIFICATION_TOKEN_TTL_HOURS = 24;
@@ -13,7 +18,7 @@ export const VERIFICATION_TOKEN_TTL_HOURS = 24;
  * `verifyEmailWithToken` would happily burn one. The same holds for a
  * magic-link provider if one is ever added.
  */
-const IDENTIFIER_PREFIX = "email-verification:";
+const IDENTIFIER_PREFIX = EMAIL_VERIFICATION_PREFIX;
 
 /** Where the verification link points. */
 const VERIFY_PATH = "/api/auth/verify-email";

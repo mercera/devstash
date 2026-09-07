@@ -1,18 +1,72 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Profile Page
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- **`/profile` route**, protected — a signed-out visitor is sent to `/sign-in`
+  with `?callbackUrl=%2Fprofile`, like `/dashboard`
+- **User info card** — email, name, avatar (the GitHub `image` when present,
+  otherwise initials via the existing `getUserInitials`) and the account
+  creation date from `User.createdAt`
+- **Usage stats** — total items, total collections, and a per-type breakdown
+  covering all seven system types (snippets, prompts, commands, notes, files,
+  images, links), including the ones reading zero
+- **Change password** — current + new + confirm, shown **only** for accounts
+  with a password set. A GitHub-only account has none, so the section is absent
+  rather than disabled
+- **Delete account** — behind a confirmation dialog, removes the user and
+  everything they own, then signs the session out
+- **Existing surfaces unchanged** — `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass, and `/profile` builds as `ƒ (Dynamic)`
 
 ## Notes
 
-<!-- Any extra notes -->
+Three things in the spec collide with the current state of the code. All are
+now decided.
+
+- **Stats stay on the demo-scoped getters — decided.** `getItemTypesWithCounts`
+  and `getItemStats` in `src/lib/db/items.ts` and `getCollectionStats` in
+  `src/lib/db/collections.ts` all scope to `DEMO_USER_ID = "seed-user-demo"`,
+  and they stay that way: the spec does not ask for the signed-in user's own
+  numbers, and moving them would widen this feature into the dashboard. The
+  consequence is visible and accepted — the profile shows the real signed-in
+  identity beside demo usage numbers. Moving every getter onto the session is
+  its own future feature (first flagged in Auth Phase 3).
+  **This applies to reads only.** Change password and delete account are
+  mutations: both must resolve the session user and must never touch
+  `DEMO_USER_ID`, or any signed-in user could rewrite or destroy the demo
+  account
+- **Change password requires the current password — decided.** The normal bar,
+  and it stops anyone who reaches an unlocked browser. Partial by nature: the
+  JWT session cookie survives a password change either way
+- **`/profile` joins the proxy matcher — decided.** It is
+  `["/dashboard/:path*"]` today, so the route is unprotected. The page also
+  resolves the session for its own data, so an anonymous request cannot render
+  it even if the proxy is bypassed
+- **Deleting a user is not a plain cascade.** `Item.type` is
+  `onDelete: Restrict`, so a user's own `ItemType` rows cannot be cascaded away
+  while their items still reference them, and `VerificationToken` has no foreign
+  key to `User` so nothing sweeps it. `scripts/delete-users.ts` already solves
+  exactly this and its ordering should be mirrored rather than rediscovered
+- **The session survives account deletion.** Sessions are JWT, so the cookie
+  still names a row that no longer exists — the same limitation written up for
+  password reset. `getCurrentUser()` already tolerates a missing row, but the
+  delete action must sign out explicitly rather than assume the session dies
+  with the data
+- **No dialog component is installed yet** — `src/components/ui/` has no
+  `dialog` or `alert-dialog`. Check the generated imports after
+  `shadcn add`: the CLI wrote `import { cn } from "cn"` and installed a junk
+  package to match during Auth Phase 3
+- Already in place and worth reusing: `UserAvatar` / `getUserInitials`,
+  `hashPassword` (`src/lib/password.ts`), the password rules in
+  `src/lib/validations/auth.ts`, and the `{ success, data, error }` action
+  shape. `UserMenu` already links to `/profile`
+- `formatShortDate` renders `Jan 15` with no year, so a joined-on date needs a
+  new formatter rather than that one
+- Spec: `context/features/profile-spec.md` (currently untracked in git)
 
 ## History
 
