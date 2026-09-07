@@ -4,6 +4,12 @@ import { NextResponse } from "next/server";
 import { issueEmailVerification } from "@/lib/email-verification";
 import { isEmailVerificationEnabled } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
+import {
+  checkRateLimit,
+  getClientIp,
+  rateLimitMessage,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 import { registerSchema } from "@/lib/validations/auth";
 
 const BCRYPT_ROUNDS = 12;
@@ -43,8 +49,28 @@ type RegisterResponse =
  *
  * Sign-in itself stays with Auth.js; this only writes the `User` row that the
  * Credentials provider in `src/auth.ts` later reads.
+ *
+ * Being a real route handler, this is the one rate-limited auth surface that
+ * can answer with a status code — 429 plus `Retry-After`. The other four live
+ * in Server Actions, which have no response for a header to travel on and so
+ * report the same refusal through their existing result shape instead.
  */
 export async function POST(request: Request): Promise<NextResponse<RegisterResponse>> {
+  // Keyed by IP alone: the point is to cap how many accounts one caller
+  // can create, and keying on the submitted email would let them sidestep it
+  // by varying the address — which is the whole activity being limited.
+  // Checked before the body is even parsed, so a flood costs nothing.
+  const limit = await checkRateLimit("register", getClientIp(request.headers));
+
+  if (!limit.success) {
+    const retryAfter = retryAfterSeconds(limit.reset);
+
+    return NextResponse.json(
+      { success: false, error: rateLimitMessage(retryAfter) },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
   let body: unknown;
 
   try {

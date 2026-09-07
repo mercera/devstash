@@ -7,6 +7,7 @@ import { FieldError } from "@/components/auth/FieldError";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 
 const INITIAL_STATE: ResendVerificationState = {};
 
@@ -22,6 +23,8 @@ export function ResendVerificationForm({
   submitLabel = "Resend verification email",
 }: ResendVerificationFormProps) {
   const [state, formAction] = useActionState(resendVerificationEmail, INITIAL_STATE);
+
+  useRateLimitToast(state);
 
   return (
     <form action={formAction} className="space-y-4">

@@ -5,9 +5,15 @@ import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
 
 import authConfig, { CREDENTIALS_PROVIDER_ID } from "@/auth.config";
-import { EmailNotVerifiedError } from "@/lib/auth-errors";
+import { EmailNotVerifiedError, RateLimitedError } from "@/lib/auth-errors";
 import { isEmailVerificationEnabled } from "@/lib/flags";
 import { prisma } from "@/lib/prisma";
+import {
+  checkRateLimit,
+  getClientIp,
+  ipAndEmailKey,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 import { signInSchema } from "@/lib/validations/auth";
 
 /**
@@ -19,9 +25,18 @@ import { signInSchema } from "@/lib/validations/auth";
  * unknown email from a wrong password. Accounts created through GitHub have a
  * null `password` and so can never sign in this way.
  *
- * The single exception is an unverified address, which throws so the sign-in
- * page can say what is actually wrong. That branch is only reachable once the
- * password has already matched, so it reveals nothing on its own.
+ * There are two exceptions, both of which throw so the sign-in page can say
+ * what is actually wrong. An unverified address is only reachable once the
+ * password has already matched, so it reveals nothing on its own; a rate
+ * limit is checked before the account is looked up, so it fires the same way
+ * whether or not the address exists.
+ *
+ * This is also where sign-in rate limiting lives, because it is the only point
+ * both entry paths share. `signInWithCredentials` calls next-auth's
+ * server-side `signIn()`, which builds a request and invokes Auth.js in
+ * process rather than over HTTP, so a wrapper around the `[...nextauth]` route
+ * handler would never see it. The original request arrives here as the second
+ * argument, carrying the caller's headers.
  */
 const credentialsProvider = Credentials({
   id: CREDENTIALS_PROVIDER_ID,
@@ -30,7 +45,7 @@ const credentialsProvider = Credentials({
     email: { label: "Email", type: "email", placeholder: "you@example.com" },
     password: { label: "Password", type: "password" },
   },
-  async authorize(credentials) {
+  async authorize(credentials, request) {
     const parsed = signInSchema.safeParse(credentials);
 
     if (!parsed.success) {
@@ -38,6 +53,20 @@ const credentialsProvider = Credentials({
     }
 
     const { email, password } = parsed.data;
+
+    // Consumed before the lookup below, so a blocked caller learns nothing
+    // about whether the address is registered. Keyed by address as well as IP
+    // so one person fumbling their own password cannot lock out everyone
+    // behind a shared exit node - at the cost of not, on its own, throttling
+    // a spray of one password across many different accounts.
+    const limit = await checkRateLimit(
+      "signIn",
+      ipAndEmailKey(getClientIp(request.headers), email),
+    );
+
+    if (!limit.success) {
+      throw new RateLimitedError(retryAfterSeconds(limit.reset));
+    }
 
     const user = await prisma.user.findUnique({
       where: { email },
