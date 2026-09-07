@@ -1,73 +1,18 @@
-# Current Feature: Forgot Password
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- **"Forgot password?" link** on the sign-in form, next to the password field,
-  pointing at a new `/forgot-password` page in the existing `(auth)` route group
-- **`/forgot-password` page** — email field, submits and always returns the same
-  neutral confirmation regardless of whether the address exists, so the form
-  cannot be used to enumerate accounts (same rule as the resend-verification form)
-- **Reset email through Resend** — a new `sendPasswordResetEmail` alongside
-  `sendVerificationEmail` in `src/lib/email.ts`, same inline-styled HTML +
-  plain-text shape
-- **Tokens stored in the existing `VerificationToken` model** — no schema change,
-  no migration. Follow the email-verification pattern exactly: a
-  `randomBytes(32)` base64url token, only its SHA-256 stored, a namespaced
-  `password-reset:<email>` identifier so the rows never collide with
-  `email-verification:` ones, and a short TTL
-- **`/reset-password?token=…` page** — new password + confirm, validated with a
-  Zod schema reusing the existing password rules, submitting to a server action
-  or route handler that consumes the token, bcrypt-hashes the new password
-  (12 rounds, matching register/seed) and redirects to `/sign-in` with a success
-  notice
-- **Single use and expiry enforced by the delete**, as in
-  `verifyEmailWithToken` — whoever deletes the row first owns it; an expired or
-  already-used link lands on a clear "link expired / invalid" state with a way to
-  request a new one
-- **Existing sign-in, register and verification flows unchanged** —
-  `npx tsc --noEmit`, `npm run lint` and `npm run build` all pass, and the new
-  routes build as `ƒ (Dynamic)`
+<!-- Goals & requirements -->
 
 ## Notes
 
-- New module: `src/lib/password-reset.ts`, mirroring
-  `src/lib/email-verification.ts` (`issuePasswordReset`, `resetPasswordWithToken`)
-  so the token lifecycle lives in one place per flow
-- **TTL is 1 hour** — deliberately shorter than verification's 24, because a
-  reset link takes over an account rather than confirming one. Exported as
-  `PASSWORD_RESET_TOKEN_TTL_HOURS`, the way `VERIFICATION_TOKEN_TTL_HOURS` is,
-  and imported into the UI copy so the number is stated once
-- **OAuth-only accounts** (`password` NULL, e.g. the GitHub user) — **decided:
-  silent no-op.** A request for one of these addresses sends nothing and returns
-  the same neutral message as every other outcome, matching
-  `resendEmailVerification`'s precedent. A reset must not be able to attach a
-  credentials login to an account that previously existed only behind GitHub,
-  and naming the provider in the response would leak whether an address is
-  registered and how. The cost is that a GitHub user who has forgotten which
-  provider they used gets a confirmation and then no email; revisit only if
-  account linking is specced
-- **A successful reset stamps `emailVerified`** if it was still null. Clicking
-  the link proves control of the inbox, which is the same thing verification
-  asks for, so leaving the account blocked at sign-in immediately after a
-  successful reset would be a dead end. The `EMAIL_VERIFICATION_ENABLED` flag
-  (`src/lib/flags.ts`) does **not** gate this feature — password reset must work
-  in both flag states
-- **Outstanding sessions survive a reset** — accepted, documented, not solved
-  here. Sessions are JWT (`strategy: "jwt"`), so there is no session table to
-  clear and an already-issued cookie stays valid until it expires. Revoking them
-  needs either a token version column checked in the `jwt`/`session` callback or
-  a switch to database sessions; both are larger than this feature
-- Same **local email constraint** as verification: Resend's sandbox sender only
-  delivers to the account owner's address, so the reset URL needs the
-  development-only `console.log` to be testable locally
-- **Still no rate limiting** — this adds a fourth unauthenticated public write
-  that triggers an outbound email. Carried over from Phases 2/3 and email
-  verification; out of scope here but the case keeps growing
-- Loaded from an inline description; no spec file in `context/features/`
+<!-- Any extra notes -->
 
 ## History
 
@@ -1136,3 +1081,101 @@ Decisions worth carrying forward:
 - `flag-off@devstash.io` / `flag-on@devstash.io` were left in the Neon **dev**
   database by the walkthrough. `npm run db:delete-users -- --confirm` clears
   them
+
+### Forgot Password — Completed (2026-09-07)
+
+Self-serve password reset, built on the existing `VerificationToken` model so
+no schema change or migration was needed. Branch `feature/forgot-password`.
+Eight new source files, eight existing files touched, no new dependencies.
+Loaded from an inline description rather than a spec file.
+
+- Added `src/lib/password-reset.ts` — `requestPasswordReset`,
+  `checkPasswordResetToken`, `resetPasswordWithToken` and
+  `PASSWORD_RESET_TOKEN_TTL_HOURS = 1`, mirroring `src/lib/email-verification.ts`
+- Added `src/lib/tokens.ts` (`createToken`, `hashToken`, `getBaseUrl`) and
+  `src/lib/password.ts` (`hashPassword`, owning the bcrypt cost factor). Both
+  extract what the two emailed-link flows would otherwise have duplicated;
+  `email-verification.ts` and the register route were moved onto them
+- Added `src/lib/routes.ts` — `FORGOT_PASSWORD_PATH` / `RESET_PASSWORD_PATH`
+- `src/lib/email.ts` gained `sendPasswordResetEmail`, and both messages now
+  render through one `renderActionEmailHtml`/`renderActionEmailText` pair
+- Added `/forgot-password` (states `request`, `expired`, `invalid`) and
+  `/reset-password`, plus `ForgotPasswordForm` and `ResetPasswordForm`
+- `src/actions/auth.ts` gained `requestPasswordResetEmail` and `resetPassword`;
+  `resetPasswordSchema` was added to `src/lib/validations/auth.ts`
+- `SignInForm` gained the "Forgot password?" link beside the password label;
+  the sign-in page's notice logic moved into `resolveNotice` and gained
+  `?reset=1`
+- Added `formatHours` to `src/lib/format.ts` — the two flows' lifetimes differ
+  (1 hour vs 24), so neither the email nor the page can hardcode the noun
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the build
+  registers `ƒ /forgot-password` and `ƒ /reset-password`
+
+Verified in the browser end to end, zero console errors throughout: unknown,
+OAuth-only and real addresses all returned a byte-identical neutral reply while
+the dev log showed **exactly one** link issued, for the real address only; a
+malformed address was the one visible failure; reset → old password rejected
+with the unchanged generic message, new password → dashboard; a replayed link,
+a garbage token and a missing token all landed on `?error=invalid`; an expired
+link (TTL temporarily 0, then reverted) landed on `?error=expired` with the
+address prefilled; pending `email-verification:` rows survived both resets
+untouched. With the flag **on**, an account registered and then blocked at
+sign-in recovered through a reset and signed in immediately with no separate
+verification step.
+
+Decisions worth carrying forward:
+
+- **The reset page is a page; the verification link is a route handler.** They
+  differ because a verification link finishes on click while a reset link does
+  not — a new password still has to be typed. So `/reset-password` only *reads*
+  the token (`checkPasswordResetToken`), and `resetPassword` claims it on
+  submit. An RSC re-fetch or a browser prefetch therefore cannot burn the link
+  before it has been used
+- **A link that will not work never renders a form.** Both the page's
+  pre-check and the action's post-check redirect to `/forgot-password` with
+  `?error=expired|invalid`, so there is one surface that explains a dead link
+  and offers another. The expired branch carries the address so the form is
+  prefilled
+- **TTL is 1 hour, not verification's 24** — a reset link takes over an account
+  rather than confirming one
+- **OAuth-only accounts are a silent no-op.** Letting a reset set a password
+  would attach a credentials login to an account that until then existed only
+  behind GitHub, available to anyone who reached that inbox; naming the provider
+  in the reply would leak whether an address is registered and how
+- **A successful reset stamps `emailVerified` when it was null.** Clicking the
+  link proves the same inbox control verification asks for, so without this an
+  account could reset its password and still be turned away at sign-in with no
+  way forward. Confirmed by contrast: `reset-me@devstash.io` registered and
+  never reset is still null, while `reset-flow@` was stamped by its reset. An
+  already-verified account keeps its original date
+- **Not gated on `EMAIL_VERIFICATION_ENABLED`.** Being unable to sign in is a
+  problem whether or not the app is asking anyone to confirm addresses. Walked
+  in both flag states
+- **`src/lib/routes.ts` exists because of the client boundary.** `SignInForm` is
+  a client component, and importing `FORGOT_PASSWORD_PATH` from
+  `password-reset.ts` would have pulled Prisma, bcrypt and the Resend client
+  into the browser bundle
+- The email refactor leaves the verification message **unchanged** — same
+  literals, same subject, and `formatHours(24)` renders the same `"24 hours"`.
+  `intro` is stored without trailing punctuation because the HTML ends it with a
+  full stop and the plain-text version with a colon
+- **Both new routes build as `ƒ` without `force-dynamic`**, because each awaits
+  `searchParams` before any branching. This is the other side of the
+  `/verify-email` trap from the previous feature: what made that page static
+  was a flag check that ran *before* the await
+- **Sessions survive a reset.** Sessions are JWT, so there is no session table
+  to clear and an already-issued cookie stays valid until it expires. Revoking
+  them needs a token version column checked in the `jwt`/`session` callback, or
+  database sessions — both larger than this feature
+- **Expired token rows linger.** The page's pre-check is read-only, so an
+  expired link stays in the table until it is superseded or submitted. The
+  verification flow behaves the same way; neither has a cleanup job
+- **Resend's sandbox restriction is unchanged** — sends still only reach
+  `mercera36@gmail.com`, so the whole walkthrough ran on the development-only
+  `console.log` link and the reset email was never inbox-checked
+- **Still no rate limiting.** This adds a fourth unauthenticated public write
+  that triggers an outbound email, carried over from Phases 2/3 and email
+  verification
+- `reset-flow@`, `reset-me@`, `reset-verify@` and an `oauth-only@devstash.io`
+  row (created with `password` NULL to exercise the no-op path) were left in the
+  Neon **dev** database. `npm run db:delete-users -- --confirm` clears them
