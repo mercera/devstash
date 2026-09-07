@@ -1,18 +1,73 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Forgot Password
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- **"Forgot password?" link** on the sign-in form, next to the password field,
+  pointing at a new `/forgot-password` page in the existing `(auth)` route group
+- **`/forgot-password` page** — email field, submits and always returns the same
+  neutral confirmation regardless of whether the address exists, so the form
+  cannot be used to enumerate accounts (same rule as the resend-verification form)
+- **Reset email through Resend** — a new `sendPasswordResetEmail` alongside
+  `sendVerificationEmail` in `src/lib/email.ts`, same inline-styled HTML +
+  plain-text shape
+- **Tokens stored in the existing `VerificationToken` model** — no schema change,
+  no migration. Follow the email-verification pattern exactly: a
+  `randomBytes(32)` base64url token, only its SHA-256 stored, a namespaced
+  `password-reset:<email>` identifier so the rows never collide with
+  `email-verification:` ones, and a short TTL
+- **`/reset-password?token=…` page** — new password + confirm, validated with a
+  Zod schema reusing the existing password rules, submitting to a server action
+  or route handler that consumes the token, bcrypt-hashes the new password
+  (12 rounds, matching register/seed) and redirects to `/sign-in` with a success
+  notice
+- **Single use and expiry enforced by the delete**, as in
+  `verifyEmailWithToken` — whoever deletes the row first owns it; an expired or
+  already-used link lands on a clear "link expired / invalid" state with a way to
+  request a new one
+- **Existing sign-in, register and verification flows unchanged** —
+  `npx tsc --noEmit`, `npm run lint` and `npm run build` all pass, and the new
+  routes build as `ƒ (Dynamic)`
 
 ## Notes
 
-<!-- Any extra notes -->
+- New module: `src/lib/password-reset.ts`, mirroring
+  `src/lib/email-verification.ts` (`issuePasswordReset`, `resetPasswordWithToken`)
+  so the token lifecycle lives in one place per flow
+- **TTL is 1 hour** — deliberately shorter than verification's 24, because a
+  reset link takes over an account rather than confirming one. Exported as
+  `PASSWORD_RESET_TOKEN_TTL_HOURS`, the way `VERIFICATION_TOKEN_TTL_HOURS` is,
+  and imported into the UI copy so the number is stated once
+- **OAuth-only accounts** (`password` NULL, e.g. the GitHub user) — **decided:
+  silent no-op.** A request for one of these addresses sends nothing and returns
+  the same neutral message as every other outcome, matching
+  `resendEmailVerification`'s precedent. A reset must not be able to attach a
+  credentials login to an account that previously existed only behind GitHub,
+  and naming the provider in the response would leak whether an address is
+  registered and how. The cost is that a GitHub user who has forgotten which
+  provider they used gets a confirmation and then no email; revisit only if
+  account linking is specced
+- **A successful reset stamps `emailVerified`** if it was still null. Clicking
+  the link proves control of the inbox, which is the same thing verification
+  asks for, so leaving the account blocked at sign-in immediately after a
+  successful reset would be a dead end. The `EMAIL_VERIFICATION_ENABLED` flag
+  (`src/lib/flags.ts`) does **not** gate this feature — password reset must work
+  in both flag states
+- **Outstanding sessions survive a reset** — accepted, documented, not solved
+  here. Sessions are JWT (`strategy: "jwt"`), so there is no session table to
+  clear and an already-issued cookie stays valid until it expires. Revoking them
+  needs either a token version column checked in the `jwt`/`session` callback or
+  a switch to database sessions; both are larger than this feature
+- Same **local email constraint** as verification: Resend's sandbox sender only
+  delivers to the account owner's address, so the reset URL needs the
+  development-only `console.log` to be testable locally
+- **Still no rate limiting** — this adds a fourth unauthenticated public write
+  that triggers an outbound email. Carried over from Phases 2/3 and email
+  verification; out of scope here but the case keeps growing
+- Loaded from an inline description; no spec file in `context/features/`
 
 ## History
 

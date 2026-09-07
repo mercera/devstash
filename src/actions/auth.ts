@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 
 import { signIn, signOut } from "@/auth";
@@ -10,7 +11,14 @@ import {
   VERIFICATION_TOKEN_TTL_HOURS,
 } from "@/lib/email-verification";
 import { isEmailVerificationEnabled } from "@/lib/flags";
-import { signInSchema } from "@/lib/validations/auth";
+import { formatHours } from "@/lib/format";
+import {
+  PASSWORD_RESET_TOKEN_TTL_HOURS,
+  requestPasswordReset,
+  resetPasswordWithToken,
+} from "@/lib/password-reset";
+import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
+import { resetPasswordSchema, signInSchema } from "@/lib/validations/auth";
 
 /** Where a successful sign-in lands when no callback URL was supplied. */
 const DEFAULT_REDIRECT = "/dashboard";
@@ -181,4 +189,116 @@ export async function resendVerificationEmail(
   }
 
   return { message: NEUTRAL_RESEND_MESSAGE, email };
+}
+
+/**
+ * The single reply the forgot-password form ever gives on success. Identical
+ * for an unknown address, a real account and a GitHub-only one, so the form
+ * cannot be used to find out who has an account.
+ */
+const NEUTRAL_RESET_MESSAGE =
+  `If that address has a password account, a reset link is on its way. ` +
+  `It expires in ${formatHours(PASSWORD_RESET_TOKEN_TTL_HOURS)}.`;
+
+export interface RequestPasswordResetState {
+  /** Shown once the request has been handled, whatever the outcome. */
+  message?: string;
+  /** A malformed address — the only failure this form can report. */
+  error?: string;
+  /** Echoed back so the field keeps its value. */
+  email?: string;
+}
+
+/**
+ * Starts a password reset.
+ *
+ * Mirrors `resendVerificationEmail`: only the shape of the input can fail
+ * visibly, and every other outcome looks the same from outside. Unlike that
+ * one, this is not gated on `EMAIL_VERIFICATION_ENABLED` — being unable to sign
+ * in is a problem whether or not the app is asking anyone to confirm addresses.
+ */
+export async function requestPasswordResetEmail(
+  _prevState: RequestPasswordResetState,
+  formData: FormData,
+): Promise<RequestPasswordResetState> {
+  const email = String(formData.get("email") ?? "");
+  const parsed = signInSchema.shape.email.safeParse(email);
+
+  if (!parsed.success) {
+    return { error: "Enter a valid email address", email };
+  }
+
+  try {
+    await requestPasswordReset(parsed.data);
+  } catch (error) {
+    console.error("Failed to send password reset email:", error);
+
+    return { error: "Something went wrong. Please try again.", email };
+  }
+
+  return { message: NEUTRAL_RESET_MESSAGE, email };
+}
+
+export interface ResetPasswordState {
+  /** Message shown above the form. */
+  error?: string;
+  /** Per-field validation messages, keyed by input name. */
+  issues?: Partial<Record<"password" | "confirmPassword", string[]>>;
+}
+
+/**
+ * Finishes a password reset.
+ *
+ * Only a problem with what was typed keeps the visitor on this page. A link
+ * that turned out to be dead sends them back to `/forgot-password`, which is
+ * where they can do something about it — leaving them on a form whose token no
+ * longer works would be a dead end.
+ *
+ * `redirect` throws, so every call to it sits outside the try block below.
+ */
+export async function resetPassword(
+  _prevState: ResetPasswordState,
+  formData: FormData,
+): Promise<ResetPasswordState> {
+  const token = String(formData.get("token") ?? "");
+  const parsed = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+
+  // Checked after the password, so someone who mistypes their new password on a
+  // dead link is told about the link rather than about the typo.
+  if (!parsed.success) {
+    return {
+      error: "Please check the details you entered",
+      issues: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  if (!token) {
+    redirect(`${FORGOT_PASSWORD_PATH}?error=invalid`);
+  }
+
+  let result;
+
+  try {
+    result = await resetPasswordWithToken(token, parsed.data.password);
+  } catch (error) {
+    console.error("Failed to reset password:", error);
+
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  if (result.status === "expired") {
+    // The address is carried through so the form on the other side is prefilled.
+    const params = new URLSearchParams({ error: "expired", email: result.email });
+
+    redirect(`${FORGOT_PASSWORD_PATH}?${params}`);
+  }
+
+  if (result.status === "invalid") {
+    redirect(`${FORGOT_PASSWORD_PATH}?error=invalid`);
+  }
+
+  redirect(`${SIGN_IN_PATH}?reset=1`);
 }

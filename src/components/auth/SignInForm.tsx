@@ -8,6 +8,7 @@ import { FieldError, FormError } from "@/components/auth/FieldError";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
 
 const INITIAL_STATE: SignInState = {};
 
@@ -63,7 +64,15 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="password">Password</Label>
+          <Link
+            href={FORGOT_PASSWORD_PATH}
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Input
           id="password"
           name="password"
