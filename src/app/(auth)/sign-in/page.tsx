@@ -30,6 +30,32 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+/**
+ * One-off confirmations set by whatever sent the visitor here.
+ *
+ * `verified=1` comes from `/api/auth/verify-email` after it consumes a link,
+ * `reset=1` from the `resetPassword` action, and `registered=1` straight from
+ * the sign-up form when verification is disabled and there is nothing to
+ * confirm. Only one is ever set in practice; the order below decides if not.
+ */
+function resolveNotice(
+  params: Awaited<PageProps<"/sign-in">["searchParams"]>,
+): string | undefined {
+  if (firstParam(params.verified) === "1") {
+    return "Email verified. Sign in to continue.";
+  }
+
+  if (firstParam(params.reset) === "1") {
+    return "Password updated. Sign in with your new password.";
+  }
+
+  if (firstParam(params.registered) === "1") {
+    return "Account created. Sign in to continue.";
+  }
+
+  return undefined;
+}
+
 export default async function SignInPage({ searchParams }: PageProps<"/sign-in">) {
   const params = await searchParams;
 
@@ -52,15 +78,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
     ? (ERROR_MESSAGES[errorCode] ?? "Could not sign you in. Please try again.")
     : undefined;
 
-  // `verified=1` is set by `/api/auth/verify-email` after it consumes a link.
-  // `registered=1` comes straight from the sign-up form when verification is
-  // disabled and there is nothing to confirm. Only one can ever be set, and
-  // `verified` wins if both somehow are.
-  const notice = firstParam(params.verified) === "1"
-    ? "Email verified. Sign in to continue."
-    : firstParam(params.registered) === "1"
-      ? "Account created. Sign in to continue."
-      : undefined;
+  const notice = resolveNotice(params);
 
   return (
     <Card>

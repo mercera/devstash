@@ -44,3 +44,20 @@ export const signInSchema = z.object({
   email,
   password: z.string().min(1),
 });
+
+/**
+ * The new-password form behind a reset link. Same password rules as
+ * registration, since this writes to the same column.
+ *
+ * The token is not part of this: it is not a field the user fills in, and a bad
+ * one is a problem with the link rather than with anything they typed.
+ */
+export const resetPasswordSchema = z
+  .object({
+    password,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });

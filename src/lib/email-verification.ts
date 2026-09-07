@@ -1,44 +1,25 @@
-import { createHash, randomBytes } from "node:crypto";
-
 import { sendVerificationEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { createToken, getBaseUrl, hashToken } from "@/lib/tokens";
 
 /** How long an emailed link stays usable. */
 export const VERIFICATION_TOKEN_TTL_HOURS = 24;
 
 /**
- * `VerificationToken` is NextAuth's shared table. Namespacing the identifier
- * keeps this flow's rows from colliding with a magic-link provider's if one is
- * ever added — without it, issuing a verification link would delete a pending
- * sign-in link for the same address, and `verifyEmailWithToken` would happily
- * burn one.
+ * `VerificationToken` is NextAuth's shared table, and the password reset flow
+ * (`src/lib/password-reset.ts`) stores its links in it too. Namespacing the
+ * identifier is what keeps the two apart — without it, issuing a verification
+ * link would delete the user's pending reset link for the same address, and
+ * `verifyEmailWithToken` would happily burn one. The same holds for a
+ * magic-link provider if one is ever added.
  */
 const IDENTIFIER_PREFIX = "email-verification:";
 
 /** Where the verification link points. */
 const VERIFY_PATH = "/api/auth/verify-email";
 
-/**
- * Only the SHA-256 of a token is stored, so a leaked database dump cannot be
- * replayed into a verified account. The raw value exists only in the email.
- * A plain hash is right here where bcrypt would not be: the token is 256 bits
- * of CSPRNG output, so there is nothing to brute-force.
- */
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
 function identifierFor(email: string): string {
   return `${IDENTIFIER_PREFIX}${email}`;
-}
-
-/**
- * Absolute base for links that are opened outside the app, where there is no
- * request to derive an origin from. `AUTH_URL` is Auth.js's own convention, so
- * a deployment that sets it for OAuth callbacks gets this for free.
- */
-function getBaseUrl(): string {
-  return process.env.AUTH_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
 }
 
 /**
@@ -56,7 +37,7 @@ export async function issueEmailVerification(
   email: string,
   name: string | null,
 ): Promise<boolean> {
-  const token = randomBytes(32).toString("base64url");
+  const token = createToken();
   const identifier = identifierFor(email);
 
   await prisma.verificationToken.deleteMany({ where: { identifier } });
