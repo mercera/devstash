@@ -61,3 +61,25 @@ export const resetPasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+/**
+ * Changing a password from the profile page.
+ *
+ * The current password is only checked for presence — it is validated by
+ * comparing it against the stored hash, and applying the length rules to it
+ * would reject anyone whose password predates those rules.
+ */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password"),
+    password,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.password !== data.currentPassword, {
+    message: "New password must be different from the current one",
+    path: ["password"],
+  });

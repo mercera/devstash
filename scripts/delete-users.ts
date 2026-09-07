@@ -16,18 +16,10 @@
 import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
+import { linkTokenIdentifiersFor } from "../src/lib/tokens";
 
 /** The one account that always survives. */
 const KEEP_EMAIL = "demo@devstash.io";
-
-/**
- * `VerificationToken` has no foreign key to `User` — it is keyed on a free-text
- * identifier — so its rows are never cascaded away and have to be swept by
- * hand. Email verification namespaces its identifiers (see
- * `src/lib/email-verification.ts`); the bare address is also matched in case a
- * magic-link provider is ever added.
- */
-const VERIFICATION_IDENTIFIER_PREFIX = "email-verification:";
 
 interface DoomedUser {
   id: string;
@@ -120,10 +112,13 @@ async function deleteUsers(users: DoomedUser[]): Promise<void> {
 
     // Whatever is left is keyed to an address that no longer has an account.
     const survivors = await tx.user.findMany({ select: { email: true } });
-    const keepIdentifiers = survivors.flatMap((user) => [
-      user.email,
-      `${VERIFICATION_IDENTIFIER_PREFIX}${user.email}`,
-    ]);
+    // `VerificationToken` has no foreign key to `User`, so nothing cascades
+    // it and the rows have to be swept by hand. The keep-list has to name every
+    // namespace a surviving user could hold a token under — miss one and this
+    // deletes their pending link instead of an orphan.
+    const keepIdentifiers = survivors.flatMap((user) =>
+      linkTokenIdentifiersFor(user.email),
+    );
 
     const tokens = await tx.verificationToken.deleteMany({
       where: { identifier: { notIn: keepIdentifiers } },

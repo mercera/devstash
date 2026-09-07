@@ -15,3 +15,12 @@ export function formatShortDate(date: Date): string {
 export function formatHours(hours: number): string {
   return `${hours} ${hours === 1 ? "hour" : "hours"}`;
 }
+
+/** Full calendar date, e.g. `January 15, 2026`. */
+export function formatLongDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}

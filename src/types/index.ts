@@ -102,3 +102,15 @@ export interface CurrentUser {
 export interface ItemWithRelations extends Item {
   type: ItemType;
 }
+
+/**
+ * The signed-in user as the profile page renders them.
+ *
+ * `hasPassword` stands in for the password column itself — the page needs to
+ * know whether a credentials login exists (a GitHub-only account has none and
+ * gets no change-password section), and the hash must never leave the server.
+ */
+export interface ProfileUser extends CurrentUser {
+  createdAt: Date;
+  hasPassword: boolean;
+}

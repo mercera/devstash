@@ -36,3 +36,29 @@ export function hashToken(token: string): string {
 export function getBaseUrl(): string {
   return process.env.AUTH_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
 }
+
+/**
+ * The identifier namespaces the two emailed-link flows write under.
+ *
+ * `VerificationToken` is NextAuth's shared table, keyed on a free-text
+ * identifier, so each flow prefixes its rows to stay clear of the other's — and
+ * of a magic-link provider's, if one is ever added. Keeping both names here
+ * means anything that has to sweep a user's tokens cannot silently miss a flow
+ * that was added later.
+ */
+export const EMAIL_VERIFICATION_PREFIX = "email-verification:";
+export const PASSWORD_RESET_PREFIX = "password-reset:";
+
+/**
+ * Every identifier under which a link token could exist for an address.
+ *
+ * The bare address is included because that is what a magic-link provider would
+ * write, and because deleting an account should not leave one behind.
+ */
+export function linkTokenIdentifiersFor(email: string): string[] {
+  return [
+    email,
+    `${EMAIL_VERIFICATION_PREFIX}${email}`,
+    `${PASSWORD_RESET_PREFIX}${email}`,
+  ];
+}
