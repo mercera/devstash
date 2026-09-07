@@ -1,72 +1,18 @@
-# Current Feature: Profile Page
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- **`/profile` route**, protected — a signed-out visitor is sent to `/sign-in`
-  with `?callbackUrl=%2Fprofile`, like `/dashboard`
-- **User info card** — email, name, avatar (the GitHub `image` when present,
-  otherwise initials via the existing `getUserInitials`) and the account
-  creation date from `User.createdAt`
-- **Usage stats** — total items, total collections, and a per-type breakdown
-  covering all seven system types (snippets, prompts, commands, notes, files,
-  images, links), including the ones reading zero
-- **Change password** — current + new + confirm, shown **only** for accounts
-  with a password set. A GitHub-only account has none, so the section is absent
-  rather than disabled
-- **Delete account** — behind a confirmation dialog, removes the user and
-  everything they own, then signs the session out
-- **Existing surfaces unchanged** — `npx tsc --noEmit`, `npm run lint` and
-  `npm run build` pass, and `/profile` builds as `ƒ (Dynamic)`
+<!-- Goals & requirements -->
 
 ## Notes
 
-Three things in the spec collide with the current state of the code. All are
-now decided.
-
-- **Stats stay on the demo-scoped getters — decided.** `getItemTypesWithCounts`
-  and `getItemStats` in `src/lib/db/items.ts` and `getCollectionStats` in
-  `src/lib/db/collections.ts` all scope to `DEMO_USER_ID = "seed-user-demo"`,
-  and they stay that way: the spec does not ask for the signed-in user's own
-  numbers, and moving them would widen this feature into the dashboard. The
-  consequence is visible and accepted — the profile shows the real signed-in
-  identity beside demo usage numbers. Moving every getter onto the session is
-  its own future feature (first flagged in Auth Phase 3).
-  **This applies to reads only.** Change password and delete account are
-  mutations: both must resolve the session user and must never touch
-  `DEMO_USER_ID`, or any signed-in user could rewrite or destroy the demo
-  account
-- **Change password requires the current password — decided.** The normal bar,
-  and it stops anyone who reaches an unlocked browser. Partial by nature: the
-  JWT session cookie survives a password change either way
-- **`/profile` joins the proxy matcher — decided.** It is
-  `["/dashboard/:path*"]` today, so the route is unprotected. The page also
-  resolves the session for its own data, so an anonymous request cannot render
-  it even if the proxy is bypassed
-- **Deleting a user is not a plain cascade.** `Item.type` is
-  `onDelete: Restrict`, so a user's own `ItemType` rows cannot be cascaded away
-  while their items still reference them, and `VerificationToken` has no foreign
-  key to `User` so nothing sweeps it. `scripts/delete-users.ts` already solves
-  exactly this and its ordering should be mirrored rather than rediscovered
-- **The session survives account deletion.** Sessions are JWT, so the cookie
-  still names a row that no longer exists — the same limitation written up for
-  password reset. `getCurrentUser()` already tolerates a missing row, but the
-  delete action must sign out explicitly rather than assume the session dies
-  with the data
-- **No dialog component is installed yet** — `src/components/ui/` has no
-  `dialog` or `alert-dialog`. Check the generated imports after
-  `shadcn add`: the CLI wrote `import { cn } from "cn"` and installed a junk
-  package to match during Auth Phase 3
-- Already in place and worth reusing: `UserAvatar` / `getUserInitials`,
-  `hashPassword` (`src/lib/password.ts`), the password rules in
-  `src/lib/validations/auth.ts`, and the `{ success, data, error }` action
-  shape. `UserMenu` already links to `/profile`
-- `formatShortDate` renders `Jan 15` with no year, so a joined-on date needs a
-  new formatter rather than that one
-- Spec: `context/features/profile-spec.md` (currently untracked in git)
+<!-- Any extra notes -->
 
 ## History
 
@@ -1233,3 +1179,109 @@ Decisions worth carrying forward:
 - `reset-flow@`, `reset-me@`, `reset-verify@` and an `oauth-only@devstash.io`
   row (created with `password` NULL to exercise the no-op path) were left in the
   Neon **dev** database. `npm run db:delete-users -- --confirm` clears them
+
+### Profile Page — Completed (2026-09-07)
+
+The account page at `/profile` — identity, usage, change password and delete
+account. Branch `feature/profile-page`. Seven new source files, nine existing
+files touched, no new dependencies. Spec:
+`context/features/profile-spec.md`.
+
+- Installed the ShadCN `alert-dialog` component
+- Added `src/app/profile/page.tsx` — a server component with
+  `export const dynamic = "force-dynamic"`; identity card, four stat cards,
+  the per-type breakdown, and the two account sections
+- Added `getProfileUser()` to `src/lib/db/user.ts` and the `ProfileUser` type,
+  which carries `createdAt` and a `hasPassword` boolean. The password hash is
+  never selected — the page only needs to know whether one exists
+- Added `src/actions/profile.ts` — `changePassword` and `deleteAccount`, both
+  resolving the session user
+- Added `changePasswordSchema` to `src/lib/validations/auth.ts` and
+  `src/lib/validations/profile.ts` (`DELETE_CONFIRMATION_WORD`,
+  `deleteAccountSchema`)
+- Added `ChangePasswordForm` and `DeleteAccountDialog` under
+  `src/components/profile/`
+- `src/proxy.ts`'s matcher gained `/profile`
+- Added `formatLongDate` to `src/lib/format.ts` (`January 15, 2026`)
+- Moved both emailed-link identifier prefixes into `src/lib/tokens.ts` behind
+  `EMAIL_VERIFICATION_PREFIX`, `PASSWORD_RESET_PREFIX` and
+  `linkTokenIdentifiersFor()`; `email-verification.ts` and `password-reset.ts`
+  now import theirs from there
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the build
+  registers `ƒ /profile`
+
+Verified in the browser end to end, zero console errors throughout: anonymous
+`/profile` → `/sign-in?callbackUrl=%2Fprofile` and back to `/profile` after
+signing in; the identity card read the real session user with initials, long
+join date and "Email account"; stats 18/5/5/2 and all seven types at
+4/3/5/0/0/0/6 = 18 including the zeros. Change password rejected a wrong
+current password, a new password equal to the current one, a mismatched
+confirmation and a too-short password, each with the right per-field message,
+then succeeded with the three fields cleared — after which the new password
+signed in and the old one did not. A **minted session** for the OAuth-only
+account (it cannot sign in with a password) showed "GitHub account" with zero
+change-password headings and zero password fields. The delete dialog named the
+account, stayed disabled until the exact word was typed, **rejected a
+DOM-tampered submit server-side**, and on a real confirmation redirected to
+`/sign-in` with the session cleared. The database afterwards: user, custom item
+type, item, collection, tag and both token rows all gone, with the demo account
+intact at 18 items / 5 collections / 7 system types. The reset-link flow and the
+dashboard were re-checked after the prefix refactor and were unaffected.
+
+Decisions worth carrying forward:
+
+- **Reads stay demo-scoped, writes are session-scoped.** By request, the usage
+  stats keep reading `seed-user-demo` through the existing
+  `getItemStats`/`getItemTypesWithCounts`/`getCollectionStats`, so the page
+  shows the real signed-in identity above demo numbers. That is written into
+  the page's doc comment so it reads as a decision, not a bug. The **actions
+  must not** follow suit: pointing `changePassword` or `deleteAccount` at
+  `DEMO_USER_ID` would let any signed-in user rewrite or destroy the demo
+  account. Moving every getter onto the session is still its own feature,
+  first flagged in Auth Phase 3
+- **The delete confirmation is enforced on the server**, not by the disabled
+  button. Proved by stripping `disabled` in the DOM, blanking the field and
+  posting anyway — the action returned "Type DELETE to confirm." The constant
+  lives in `src/lib/validations/profile.ts` because a `"use server"` module may
+  only export async functions, so it could not be shared from the action
+- **The delete button is a plain `Button`, not `AlertDialogAction`.** The
+  latter closes the dialog on click, which unmounts the form and cancels its
+  own submit before the action runs — the same trap as the Phase 3 sign-out
+  menu item. The dialog stays open for the round trip and the redirect takes
+  it down
+- **The change-password section is absent for a GitHub account, not disabled.**
+  The action refuses too: setting a first password there would attach a
+  credentials login to an account that existed only behind OAuth, matching the
+  rule established for password reset
+- `ChangePasswordForm` clears itself with a `key` that flips on success. The
+  three inputs are uncontrolled, so a re-render alone would leave the old
+  values sitting in them
+- **Closing the dialog on error via `useEffect` fails lint**
+  (`react-hooks/set-state-in-effect`) and was the wrong design anyway — the
+  error now renders inside the dialog, where it can actually be read
+- **`/profile` sits outside the dashboard segment**, so it does not inherit the
+  sidebar; the header carries a "Back to dashboard" link instead. Sharing the
+  shell would mean restructuring both routes into a route group
+- The page redirects when `getProfileUser()` returns null. The proxy already
+  turns anonymous requests away, but a JWT outlives the `User` row it names, so
+  a deleted account's session would otherwise reach a page with nothing to render
+- **A bug from the previous feature was fixed here.**
+  `scripts/delete-users.ts` built its keep-list from `email-verification:`
+  identifiers only, so once password reset landed it would have deleted
+  surviving users' *pending* reset tokens rather than orphans. Both namespaces
+  now come from `linkTokenIdentifiersFor()`, which the delete action uses too —
+  so a flow added later cannot be silently missed by either
+- **The `shadcn` CLI reproduced the Auth Phase 3 bug exactly** — it generated
+  `import { cn } from "cn"` and installed a junk `cn` package to match. It also
+  prompts to overwrite `button.tsx` and hangs on a non-interactive stdin; pipe
+  `n` into it. Import fixed and the package removed, so this feature adds no
+  dependencies. Check generated imports after every `shadcn add`
+- **Sessions still survive both actions.** A password change does not
+  invalidate an already-issued JWT, and neither does deleting the account —
+  `deleteAccount` has to call `signOut` explicitly. Revoking other devices'
+  cookies needs a token version or database sessions, unchanged from the
+  password reset write-up
+- `profile-delete@devstash.io` was created and then deleted by the walkthrough,
+  so it left nothing behind. `reset-flow@devstash.io`'s password is now
+  `profilepass3`, and the `oauth-only@devstash.io` row remains in the Neon
+  **dev** database for the no-password branch
