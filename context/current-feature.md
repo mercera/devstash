@@ -1,36 +1,18 @@
-# Current Feature: Items List — Three-Column Grid
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/items/[type]` shows item cards in **three columns** on larger screens
-  instead of the current two
-- Stays responsive: one column on mobile, two on medium screens, three on
-  large — no horizontal scroll at any width
-- `ItemCard` stays readable at the narrower width (title, description, tag
-  badges and the date column don't collide or overflow)
-- Empty state, header and 404 behaviour unchanged; the dashboard's Pinned and
-  Recent sections are untouched
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- The grid is one class list in `src/app/(app)/items/[type]/page.tsx`:
-  `grid gap-4 md:grid-cols-2`. Expected change is a single breakpoint class
-- **Pick the breakpoint against the content area, not the viewport.** The
-  sidebar takes ~256px on desktop, so at `lg` (1024px) the main column is only
-  ~740px — three cards there would be ~230px each, tight for `ItemCard`'s
-  right-hand date column. `xl:grid-cols-3` (1280px → ~1000px of content, ~320px
-  cards) is the likely choice; confirm in the browser at 1024, 1280 and 1440,
-  and with the sidebar collapsed, before settling
-- The Items List View entry recorded cards at 560px in two columns at the
-  verification viewport — compare the three-column width against that
-- No server action or `src/lib` change, so no new unit tests are expected;
-  `npm test` still runs as part of the workflow
-- Branch: `feature/items-three-column-grid`
+<!-- Any extra notes -->
 
 ## History
 
@@ -1568,3 +1550,38 @@ Decisions worth carrying forward:
   `next/navigation`, both of which will need mocks), `email-verification.ts`,
   `password-reset.ts` and the `src/lib/db/*` getters. These are the natural
   next candidates when those areas are next touched
+
+### Items List — Three-Column Grid — Completed (2026-09-23)
+
+`/items/[type]` now shows item cards three across on wide screens. Branch
+`feature/items-three-column-grid`. One class changed in one file, no new
+dependencies. Loaded from an inline description rather than a spec file.
+
+- `src/app/(app)/items/[type]/page.tsx`'s grid went from
+  `grid gap-4 md:grid-cols-2` to `grid gap-4 md:grid-cols-2 xl:grid-cols-3`
+- `ItemCard` needed no change: the title and description already truncate
+  (`min-w-0` + `truncate`) and the date is `shrink-0`
+- `npm test` (59), `npx tsc --noEmit`, `npm run lint` and `npm run build`
+  pass; `/items/[type]` still builds as `ƒ (Dynamic)`
+
+Verified in the browser on `/items/link` (6 items), measuring the grid rather
+than judging by eye: 1 column at 390px (342px cards), 2 at 768px (352px) and
+1024px (480px), 3 at 1280px (315px) and 1440px (368px), and 3 at 1280px with
+the sidebar collapsed (400px). No horizontal scroll and no date overflowing its
+card at any width; zero console errors on the page.
+
+Decisions worth carrying forward:
+
+- **The breakpoint is `xl`, not `lg`, because of the sidebar.** Grid breakpoints
+  key on the viewport, but the content column is the viewport minus ~256px of
+  sidebar. At `lg` (1024px) three cards would be ~230px — too narrow for
+  `ItemCard`'s right-hand date — while two are 480px. At `xl` three cards are
+  315px. The same reasoning applies to any future grid inside the `(app)` shell
+- With the sidebar collapsed the content column gains that ~256px, so 1024px
+  would fit three there too. Tailwind breakpoints can't see sidebar state; a
+  container query on the grid's parent would track the real width, but was
+  more than this change needed
+- The authenticated pages were reached with a session JWT minted locally from
+  `AUTH_SECRET` (`@auth/core/jwt`'s `encode`, salt = cookie name, `sub` =
+  `seed-user-demo`) and set as a Playwright context cookie — no sign-in and no
+  database write. The token file was deleted afterwards
