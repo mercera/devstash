@@ -1,18 +1,36 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Items List — Three-Column Grid
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/[type]` shows item cards in **three columns** on larger screens
+  instead of the current two
+- Stays responsive: one column on mobile, two on medium screens, three on
+  large — no horizontal scroll at any width
+- `ItemCard` stays readable at the narrower width (title, description, tag
+  badges and the date column don't collide or overflow)
+- Empty state, header and 404 behaviour unchanged; the dashboard's Pinned and
+  Recent sections are untouched
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- The grid is one class list in `src/app/(app)/items/[type]/page.tsx`:
+  `grid gap-4 md:grid-cols-2`. Expected change is a single breakpoint class
+- **Pick the breakpoint against the content area, not the viewport.** The
+  sidebar takes ~256px on desktop, so at `lg` (1024px) the main column is only
+  ~740px — three cards there would be ~230px each, tight for `ItemCard`'s
+  right-hand date column. `xl:grid-cols-3` (1280px → ~1000px of content, ~320px
+  cards) is the likely choice; confirm in the browser at 1024, 1280 and 1440,
+  and with the sidebar collapsed, before settling
+- The Items List View entry recorded cards at 560px in two columns at the
+  verification viewport — compare the three-column width against that
+- No server action or `src/lib` change, so no new unit tests are expected;
+  `npm test` still runs as part of the workflow
+- Branch: `feature/items-three-column-grid`
 
 ## History
 
