@@ -1,18 +1,49 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Items List View
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Dynamic route `/items/[type]` that lists the user's items of one type
+- Items fetched from Prisma, filtered by type, in a new `src/lib/db/items.ts`
+  getter that reuses `itemInclude` / `toItemWithRelations`
+- Responsive grid of the existing `ItemCard` — one column on mobile, two from
+  `md` up
+- Each card keeps its type-colored left border (already built into `ItemCard`
+  via `getAccentBorderClass`)
+- Unknown type slug → `notFound()`
+- Follow existing patterns: server component, `force-dynamic`, data through
+  `src/lib/db/*`
+
+Spec: `context/features/item-list-view-spec.md`.
 
 ## Notes
 
-<!-- Any extra notes -->
+The spec and the codebase disagree in a few places. The first three use the
+proposed resolution below. For the fourth, the user chose option (a), the
+shared `(app)` route group:
+
+- **Singular slug in the URL.** The spec's examples are `/items/snippets` and
+  `/items/notes`, but `ItemType.slug` is singular (`snippet`, `note`) and the
+  sidebar already links to `/items/${type.slug}`. Proposed: follow the data, as
+  decided in Dashboard Phase 2, so the existing sidebar links resolve with no
+  change
+- **Route protection.** `src/proxy.ts`'s matcher covers only `/dashboard/:path*`
+  and `/profile`, so `/items/*` would be public. Auth Phase 1 flagged this
+  exact gap. Proposed: add `/items/:path*`
+- **Data scope.** Every `src/lib/db/*` getter is still hardcoded to
+  `seed-user-demo`. Proposed: keep the new getter on `DEMO_USER_ID` like its
+  siblings, so the list matches the sidebar counts. Moving reads onto the
+  session is still its own feature
+- **Shell (decided: a).** The sidebar and top bar live in
+  `src/app/dashboard/layout.tsx`, so a top-level `/items/[type]` gets neither.
+  Options: (a) move `dashboard/` and `items/` into a shared `(app)` route group
+  with that layout, keeping both URLs unchanged; (b) nest the route at
+  `/dashboard/items/[type]` and repoint the sidebar links; (c) ship it without
+  the shell. (a) is the recommendation, but it moves an existing layout and so
+  counts as an architectural change
 
 ## History
 

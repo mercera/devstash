@@ -7,7 +7,7 @@
 
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { prisma } from "@/lib/prisma";
-import type { ItemTypeWithCount, ItemWithRelations } from "@/types";
+import type { ItemType, ItemTypeWithCount, ItemWithRelations } from "@/types";
 
 const DEMO_USER_ID = "seed-user-demo";
 
@@ -74,6 +74,43 @@ export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
   });
 
   return items.map(toItemWithRelations);
+}
+
+/**
+ * One item type, looked up by slug, with all of the user's items of that type,
+ * most recently updated first. Returns null when no type the user can see has
+ * that slug.
+ *
+ * The type is resolved first rather than filtering items through the relation
+ * (`type: { slug }`): a slug is unique only per owner, so a filter could match
+ * a system type and a same-slug custom type at once, and an unknown slug must
+ * be told apart from a known type with no items.
+ */
+export async function getItemsByType(
+  slug: string,
+): Promise<{ type: ItemType; items: ItemWithRelations[] } | null> {
+  const type = await prisma.itemType.findFirst({
+    where: { slug, OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      icon: true,
+      color: true,
+      isSystem: true,
+    },
+  });
+
+  if (type === null) return null;
+
+  const items = await prisma.item.findMany({
+    where: { userId: DEMO_USER_ID, typeId: type.id },
+    orderBy: { updatedAt: "desc" },
+    include: itemInclude,
+  });
+
+  return { type, items: items.map(toItemWithRelations) };
 }
 
 /**
