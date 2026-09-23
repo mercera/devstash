@@ -211,6 +211,7 @@ model ItemTag {
 | CSS/UI       | Tailwind CSS v4 + ShadCN     |
 | Auth         | NextAuth v5 (email + GitHub) |
 | AI           | OpenAI gpt-5-nano            |
+| Unit Testing | Vitest (actions + utilities) |
 | Deployment   | Vercel (likely)              |
 | Monitoring   | Sentry (later)               |
 

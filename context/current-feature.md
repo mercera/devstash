@@ -1,18 +1,44 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Vitest Unit Testing Setup
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Install Vitest and add `npm test` (single run) and `npm run test:watch`
+- `vitest.config.ts` running in the `node` environment, resolving the `@/`
+  alias from `tsconfig.json`, picking up `src/**/*.test.ts` only
+- Scope is **server actions and utilities** — no component tests, no jsdom,
+  no React Testing Library
+- A small set of starter tests that prove the setup and establish the patterns:
+  pure utilities, Zod schemas, and one server action with `@/auth` and
+  `@/lib/prisma` mocked
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
+- Update the workflow in `context/ai-interaction.md` and the other docs that
+  mention testing or list commands
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- Tests must never touch the Neon database or any external service — server
+  actions are tested with Prisma, Auth.js and other I/O mocked
+- The `feature` skill's `test` action (`.claude/skills/feature/actions/test.md`)
+  already expects `npm test`
+- **Vitest 4.1.11, not 5.** `vitest@5.0.1` (npm `latest`) peers on
+  `@types/node` `^22 || >=24` and the project pins `^20`, so npm refuses the
+  install. 4.x is still maintained (`V4` dist-tag) and accepts `^20`. Upgrading
+  means bumping `@types/node` to match the Node 24 runtime first — a separate
+  change
+- Config is `vitest.config.mts`: as `.ts` in a non-`"type": "module"` package,
+  Vite warns that the ESM config is loaded as CommonJS
+- `@/` resolves through Vite 8's native `resolve.tsconfigPaths` — no
+  `vite-tsconfig-paths` plugin, no duplicated alias
+- Starter tests (59): `flags`, `tokens`, `rate-limit` (helpers plus fail-open
+  with Upstash mocked), `validations/auth`, and `actions/profile` as the
+  reference pattern for a mocked server action. `format.ts` was skipped — thin
+  `toLocaleDateString` wrappers. Mutation-checked: breaking the flag default and
+  removing the actions' Zod guard each failed the suite
 
 ## History
 
