@@ -1,44 +1,18 @@
-# Current Feature: Vitest Unit Testing Setup
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Install Vitest and add `npm test` (single run) and `npm run test:watch`
-- `vitest.config.ts` running in the `node` environment, resolving the `@/`
-  alias from `tsconfig.json`, picking up `src/**/*.test.ts` only
-- Scope is **server actions and utilities** — no component tests, no jsdom,
-  no React Testing Library
-- A small set of starter tests that prove the setup and establish the patterns:
-  pure utilities, Zod schemas, and one server action with `@/auth` and
-  `@/lib/prisma` mocked
-- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
-- Update the workflow in `context/ai-interaction.md` and the other docs that
-  mention testing or list commands
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- Tests must never touch the Neon database or any external service — server
-  actions are tested with Prisma, Auth.js and other I/O mocked
-- The `feature` skill's `test` action (`.claude/skills/feature/actions/test.md`)
-  already expects `npm test`
-- **Vitest 4.1.11, not 5.** `vitest@5.0.1` (npm `latest`) peers on
-  `@types/node` `^22 || >=24` and the project pins `^20`, so npm refuses the
-  install. 4.x is still maintained (`V4` dist-tag) and accepts `^20`. Upgrading
-  means bumping `@types/node` to match the Node 24 runtime first — a separate
-  change
-- Config is `vitest.config.mts`: as `.ts` in a non-`"type": "module"` package,
-  Vite warns that the ESM config is loaded as CommonJS
-- `@/` resolves through Vite 8's native `resolve.tsconfigPaths` — no
-  `vite-tsconfig-paths` plugin, no duplicated alias
-- Starter tests (59): `flags`, `tokens`, `rate-limit` (helpers plus fail-open
-  with Upstash mocked), `validations/auth`, and `actions/profile` as the
-  reference pattern for a mocked server action. `format.ts` was skipped — thin
-  `toLocaleDateString` wrappers. Mutation-checked: breaking the flag default and
-  removing the actions' Zod guard each failed the suite
+<!-- Any extra notes -->
 
 ## History
 
@@ -1507,3 +1481,72 @@ Decisions worth carrying forward:
   constant would fix it; left alone to keep `collections.ts` out of scope
 - `ItemCard` and `TypeIcon` still live in `src/components/dashboard/` although
   `/items` uses them too. Worth moving to a shared folder once a third page does
+
+### Vitest Unit Testing Setup — Completed (2026-09-23)
+
+Set up Vitest for unit tests of server actions and `src/lib` utilities, and
+made testing part of the feature workflow. Branch `chore/vitest-setup`. One
+config file and five test files added, five docs and `package.json` touched,
+one new dev dependency. Loaded from an inline description rather than a spec
+file.
+
+- Installed `vitest@4.1.11` (dev), which brought in `vite@8.3.0`
+- Added `vitest.config.mts` — `node` environment,
+  `include: ["src/**/*.test.ts"]`, and `restoreMocks` + `unstubEnvs` so mocks
+  and `vi.stubEnv` values reset after every test. No DOM environment and no
+  React Testing Library: components are out of scope by design
+- Added the `test` (`vitest run`) and `test:watch` (`vitest`) scripts. The
+  `feature` skill's new `test` action runs `npm test`
+- Added 59 starter tests, each beside the code it covers:
+  `src/lib/flags.test.ts`, `src/lib/tokens.test.ts`,
+  `src/lib/rate-limit.test.ts` (the helpers, plus fail-open with Upstash
+  mocked), `src/lib/validations/auth.test.ts` and `src/actions/profile.test.ts`
+- Docs: the Test step in `context/ai-interaction.md` now says to write or update
+  unit tests for new server actions and utilities (`/feature test`), run
+  `npm test`, then check in the browser and build, and not to commit until the
+  tests *and* the build pass. `context/coding-standards.md` gained a Testing
+  section, `CLAUDE.md` lists the commands, and the tech stack table in
+  `context/project-overview.md` lists Vitest
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Checked that the suite catches real bugs, not just that it passes: two
+deliberate mutations — flipping the email-verification flag's default and
+removing the Zod check in both profile actions — failed 12 tests between them.
+The source was restored and the suite re-ran clean.
+
+Decisions worth carrying forward:
+
+- **Vitest 4, not 5.** `vitest@5.0.1` (npm `latest`) has an optional peer on
+  `@types/node` `^22 || >=24`, and the project still pins `^20` even though it
+  runs on Node 24, so npm refuses the install. 4.x is still maintained (`V4`
+  dist-tag) and accepts `^20`. Upgrading means bumping `@types/node` first — a
+  separate change
+- **The config is `.mts`.** As `.ts` in a package without `"type": "module"`,
+  Vite warns that the ESM config is loaded as CommonJS, and says native loading
+  will become the default
+- **`@/` resolves through Vite 8's native `resolve.tsconfigPaths`**, so the
+  alias lives only in `tsconfig.json` — no `vite-tsconfig-paths` plugin and no
+  duplicated `resolve.alias`
+- **Tests never touch Neon or any external service.** Every I/O boundary is
+  mocked with `vi.mock`, and the mock objects are built in `vi.hoisted` so the
+  factories can reference them. `src/actions/profile.test.ts` is the reference
+  pattern for a server action: `@/auth`, `@/lib/prisma`, `@/lib/password` and
+  `bcryptjs` are mocked, `$transaction` runs against a fake `tx`, and call order
+  is asserted with `mock.invocationCallOrder`
+- **`@/auth.config` loads unmocked under Vitest.** The profile action imports
+  `SIGN_IN_PATH` from it, and next-auth's provider modules import cleanly in the
+  `node` environment, so only `@/auth` (the Prisma-backed half) needs a mock
+- **Vitest globals are off** — `describe`/`it`/`expect`/`vi` are imported
+  explicitly, so `tsconfig.json` needed no `types` entry and `next build`
+  typechecks the test files like any other source
+- **`format.ts` has no tests, on purpose.** Its date helpers are thin
+  `toLocaleDateString` wrappers and `formatHours` is one ternary; the tests for
+  `rateLimitMessage` in `rate-limit` cover the pluralisation boundaries that
+  matter
+- **No coverage tooling**, by request. `/feature test` reports coverage as a
+  written list of which functions have tests, not as numbers
+- Not yet tested: `src/actions/auth.ts` (it imports `next/headers` and
+  `next/navigation`, both of which will need mocks), `email-verification.ts`,
+  `password-reset.ts` and the `src/lib/db/*` getters. These are the natural
+  next candidates when those areas are next touched
