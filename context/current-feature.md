@@ -1,63 +1,18 @@
-# Current Feature: Item Create
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- The top bar's "New Item" button opens a ShadCN `Dialog` for creating an item
-- A type selector offers snippet, prompt, command, note and link
-- The fields shown follow the selected type:
-  - All types: title (required), description, tags
-  - snippet / command: content, language
-  - prompt / note: content
-  - link: URL (required)
-- A `createItem` server action in `src/actions/items.ts` validates the input
-  with Zod and returns `{ success, data, error }` with per-field `issues`
-- A `createItem` query function in `src/lib/db/items.ts` writes the item and
-  its tags for the signed-in user
-- On success: toast, close the dialog, `router.refresh()` so the lists and
-  sidebar counts pick up the new item
-- Unit tests for the new action, query and any validation changes; `npm test`,
-  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
+<!-- Goals & requirements -->
 
 ## Notes
 
-Spec: `context/features/item-create-spec.md`.
-
-Things the spec does not state, found while loading it against the codebase:
-
-- **The ShadCN `dialog` component is not installed yet.** `shadcn add dialog`
-  has reproduced the `import { cn } from "cn"` bug and installed a junk `cn`
-  package in three of the last four runs. Check the import and `package.json`
-  afterwards, and pipe `n` if it asks to overwrite `button.tsx`
-- **`TopBar` is a server component** and the "New Item" button is display
-  only. The button and dialog belong in a new client component under
-  `src/components/items/`, leaving `TopBar` a server component
-- **Reuse from edit mode.** `src/lib/validations/items.ts` already has
-  `optionalText` / `optionalContent` / `optionalUrl` (http(s) only),
-  `parseTagInput` and the de-duplicated `tags` array.
-  `src/lib/item-fields.ts`'s `getItemTypeFields(slug)` already says which of
-  content / language / URL a type carries, and it matches the spec's table
-  exactly. The create schema should build on these rather than repeat them.
-  The one difference: a link's URL is **required** on create
-- **The type is chosen by slug and resolved to an id on the server**, matching
-  how types are identified everywhere else. Only the five listed system types
-  are accepted. `file` and `image` are Pro/upload types with no payload here.
-  The server rejects any other slug rather than trusting the client
-- **The tag write can follow `updateItem`'s explicit steps** (`tag.createMany`
-  with `skipDuplicates`, `findMany` by name, `itemTag.createMany`), in one
-  transaction with the item insert, reading the result back after commit
-- **Writes are session-scoped, reads are still demo-scoped.** An item created
-  by any account other than `demo@devstash.io` is saved but will not appear in
-  the dashboard, the lists or the sidebar counts. This is the same accepted
-  limitation as edit and delete. Moving reads onto the session is still its
-  own feature
-- Not in the spec and not planned: assigning a collection, favorite/pinned
-  flags, the Free tier's 50-item limit, and a keyboard shortcut for the dialog
-- `contentType` defaults to `text` in the schema, which is right for all five
-  creatable types
+<!-- Any extra notes -->
 
 ## History
 
@@ -1913,3 +1868,105 @@ Decisions worth carrying forward:
 - **Only the demo account can delete what it sees**, the same limit edit mode
   has, since the lists are still demo-scoped. Moving reads onto the session is
   still the obvious next feature
+
+### Item Create — Completed (2026-09-23)
+
+The top bar's "New Item" button opens a ShadCN `Dialog` that creates an item.
+Branch `feature/item-create`. Three new source files, seven existing files
+touched plus their tests, no new dependencies, no migration. Spec:
+`context/features/item-create-spec.md`.
+
+- Installed the ShadCN `dialog` component
+- Added `CREATABLE_TYPE_SLUGS` (snippet, prompt, command, note, link) and
+  `isCreatableTypeSlug` to `src/lib/item-fields.ts`
+- Added `createItemSchema` to `src/lib/validations/items.ts`, built on
+  `updateItemSchema` with a `typeSlug` enum. A link must have a URL, and a
+  transform stores every field the chosen type does not carry as null
+- Added `createItem(userId, data)` to `src/lib/db/items.ts`. It resolves the
+  system type by slug, writes the item and its tags in one transaction, and
+  reads the detail back after the commit. Returns null for an unknown slug.
+  The tag-linking steps moved into a `linkTags` helper that `updateItem` now
+  shares
+- Added the `createItem(data)` server action to `src/actions/items.ts`:
+  session first, then Zod, returning `{ success, data, error }` with
+  per-field `issues`
+- Added `src/components/items/NewItemDialog.tsx`, the button plus the dialog,
+  with a five-button type picker (icon in the type's accent color,
+  `aria-pressed`) and the type's fields
+- The edit form's `Field` wrapper moved to
+  `src/components/items/ItemFormField.tsx` so both forms share it
+- `TopBar` takes `itemTypes` from `(app)/layout.tsx` (already fetched for the
+  sidebar) and passes the creatable system types, trimmed to the `ItemType`
+  fields, to the dialog. It stays a server component
+- 44 unit tests across `validations/items`, `item-fields`, `db/items` and
+  `actions/items`. Suite 116 → 160. Dropping `isSystem` from the type lookup,
+  or dropping the per-type field filter, each fail a test
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with no console errors from the
+pages under test:
+
+- Each type showed the spec's fields: Snippet and Command show Content and
+  Language; Prompt and Note show Content; Link shows URL. Switching to a type
+  without URL removes that input
+- Opening the dialog focuses Title, and reopening starts blank with Snippet
+  selected. Create stays disabled until there is a title, and a URL for a link
+- `javascript:alert(1)` as a link's URL came back with the message under the
+  input, `aria-invalid`, and an error toast, and the dialog stayed open
+- A command created with a padded title, `  docker ps -a` and
+  `process, terminal, , process `: the toast fired, the dialog closed, and the
+  Commands list went 5 → 6 with the new card on top. The row had a trimmed
+  title and language, the content's leading spaces kept, a null description
+  and URL, and two tag links
+- Link and note items (with and without tags) saved with the unused columns
+  null. A created note opened in the drawer with its tag
+- At 390px the dialog is 358px wide, the header and footer stay put while the
+  body scrolls, and there is no horizontal scroll
+- The four test items were deleted through the drawer's Delete. The demo
+  account ended at 17 items and 29 tags, as it started (one seeded item had
+  already been removed before this feature, so it is not at the seeded 18)
+
+Decisions worth carrying forward:
+
+- **Only system types can be created, and only these five.** The lookup is
+  `{ slug, isSystem: true }`, so a user's custom type with the same slug can
+  never be picked up. File and image stay out until uploads exist. The client
+  sends a slug and the server resolves the id; it never trusts a type id
+- **The schema, not the form, decides which columns are written.** The form
+  still sends only the visible fields. Otherwise a bad URL typed under Link,
+  then left behind by switching to Snippet, would fail validation for a field
+  no longer on screen
+- **Every column is set explicitly on create**, where edit leaves absent fields
+  `undefined`. There is nothing to preserve on a new row, so the output type is
+  plain `string | null` throughout
+- **The Create button enforces required fields, so their messages never
+  show.** Zod skips `superRefine` when the base object has issues, so a blank
+  title and a blank link URL would only be reported one at a time. Disabling
+  the button until both are filled avoids that
+- **The form lives inside `DialogContent`**, which unmounts on close, so each
+  opening starts blank with no reset logic. The dialog ignores Escape and the
+  overlay while a save is pending, like `DeleteItemDialog`
+- **Type buttons use singular labels** (`Snippet`, from the slug) because the
+  stored names are plural (`Snippets`)
+- **The dialog closes as soon as the action returns**; the list catches up
+  when `router.refresh()` finishes, about 2s later
+- **A create takes ~3.5–6.5s on the server locally.** Temporary timing logs
+  showed the type lookup at 263ms warm (2s when the pool had to reconnect),
+  the transaction at 0.75–1.6s, and the read-back at 1.5–2s. Round trips to
+  Neon were ~500ms from the dev machine that day. The insert itself is cheap;
+  the cost is the number of sequential round trips, one more than edit. The
+  `relationJoins` preview feature flagged under Item Drawer would collapse the
+  read-back
+- **The `shadcn` CLI reproduced the `import { cn } from "cn"` bug** and
+  installed the junk `cn` package again, now in four of the last five
+  `shadcn add` runs. Import fixed and the package uninstalled, so
+  `package.json` is unchanged
+- **Only the demo account sees what it creates.** The action is scoped to the
+  signed-in user while the lists and sidebar are still demo-scoped, the same
+  limit as edit and delete. Moving reads onto the session is still the obvious
+  next feature
+- Not built, as the spec does not ask: choosing a collection, favorite/pinned
+  flags, the Free plan's 50-item limit, and a keyboard shortcut
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards
