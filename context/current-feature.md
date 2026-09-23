@@ -1,54 +1,18 @@
-# Current Feature: Item Drawer
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Clicking an `ItemCard` opens a right-side ShadCN `Sheet` with that item's
-  full detail. This is the item detail view; there is no separate item page
-- Works on both `/dashboard` (Pinned and Recent) and `/items/[type]`
-- A client wrapper owns the open/selected-item state, so the pages stay server
-  components
-- Fetches on click, with no page navigation. Shows a skeleton while loading
-- Card data is still fetched server-side as before. The full detail (content,
-  collection, language, dates, etc.) comes from `GET /api/items/[id]`
-- The query function lives in `src/lib/db/items.ts`. The API route checks auth
-  before calling it
-- Header: type icon tile, title, a type badge and a language badge (when set)
-- Action bar: Favorite (star, yellow when active), Pin, Copy, Edit (pencil) and
-  Delete (trash, right-aligned, red)
-- Body sections: Description, Content, Tags, Collections, and Details
-  (Created / Updated as long dates)
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/item-drawer-spec.md`. Visual reference:
-  `context/screenshots/dashboard-ui-drawer.png`
-- "Extras like the code editor and item-specific stuff will come later". For
-  now Content renders as a plain monospace block, with no syntax highlighting
-  or line numbers
-- `sheet.tsx` and `skeleton.tsx` are already installed (they came in with the
-  sidebar), so no `shadcn add` should be needed
-- **Items have at most one collection** (`Item.collectionId`). The screenshot's
-  "Collections" section will show zero or one badge
-- **Copy is wired up** (decided at load): `navigator.clipboard.writeText` on the
-  item's copyable value, with a toast confirming success or failure. Favorite,
-  Pin, Edit and Delete are **display-only**, because the spec scopes this
-  feature to "the drawer details display". Favorite and Pin still show the
-  item's current state
-- **The API route scopes to the signed-in user** (decided at load). No session
-  returns 401. An item that is missing or belongs to someone else returns 404,
-  so the route never confirms that another user's item exists. Every other
-  getter is still hardcoded to `seed-user-demo`, so only the demo account can
-  open the cards it is shown. Any other account gets the drawer's error state.
-  This mismatch is accepted until reads move onto the session
-- The `/api/items/*` route falls outside the proxy matcher. The route handler
-  does its own `auth()` check
-- The new `src/lib/db` getter is testable under the Vitest standards only if
-  Prisma is mocked. The route handler is not in the tested set (actions + lib
-  only)
+<!-- Any extra notes -->
 
 ## History
 
@@ -1621,3 +1585,112 @@ Decisions worth carrying forward:
   `AUTH_SECRET` (`@auth/core/jwt`'s `encode`, salt = cookie name, `sub` =
   `seed-user-demo`) and set as a Playwright context cookie — no sign-in and no
   database write. The token file was deleted afterwards
+
+### Item Drawer — Completed (2026-09-23)
+
+Clicking an item card opens a right-side ShadCN `Sheet` with the item's full
+detail. This is the item detail view; there is no separate item page. Branch
+`feature/item-drawer`. Nine new source files (two of them tests), four existing
+files touched, no new dependencies, no migration. Spec:
+`context/features/item-drawer-spec.md`.
+
+- Added `getItemById(id, userId)` to `src/lib/db/items.ts`. It reuses the card
+  include plus the parent collection (`id`/`name`/`slug` only) and returns null
+  for an item that is missing or not the caller's. Added `ItemDetail` and
+  `ItemCollectionSummary` to `src/types/index.ts`
+- Added `GET /api/items/[id]`. It returns 401 without a session, 404 for an
+  unknown or foreign item, and 500 on a database fault, in the
+  `{ success, data, error }` shape
+- Added `src/components/items/`:
+  - `ItemDrawerProvider`: open and fetch state, the `useOpenItem` hook, and
+    focus return
+  - `ItemDrawer`: the sheet shell, skeleton and error state with retry
+  - `ItemDetailView`: header and body sections
+  - `ItemActions`: the action bar
+  - `ItemCardButton`: an invisible button stretched over each card
+- `(app)/layout.tsx` wraps page content in `ItemDrawerProvider`. `ItemCard` became
+  `relative` and renders `ItemCardButton`; it stays a server component
+- Added `src/lib/item-copy.ts` (`getCopyText`): the item's content, else its
+  url, with blank values treated as absent
+- 12 unit tests: `src/lib/item-copy.test.ts` and `src/lib/db/items.test.ts`.
+  Suite 59 → 71. Removing `userId` from the `getItemById` query fails the
+  ownership test, which confirms the test catches a leak
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  build registers `ƒ /api/items/[id]`
+
+Verified with curl and in the browser. The API returned 401 anonymous, 200 as
+the owner, and 404 for an unknown id and for another user's session. In the
+browser:
+
+- A card opens the skeleton, then the item, with no URL change. The drawer is
+  512px wide
+- Copy put the exact command on the clipboard for a command item and the URL
+  for a link item, with a toast
+- Favorite renders yellow and filled with `aria-pressed="true"` on a favorited
+  item; Pin shows filled on a pinned one
+- Escape, the close button, a simulated 500 followed by "Try again", and a
+  close-then-reopen during a slow request all behaved
+- Opening from the keyboard works, and focus returns to the originating card
+- At 390px the drawer is full width, the body scrolls and long code scrolls
+  sideways inside its block
+- `/items/snippet` works the same way
+- Zero console errors apart from the deliberate 500
+
+The user also confirmed the drawer by hand while signed in as the demo account.
+
+Decisions worth carrying forward:
+
+- **The API scopes to the signed-in user; every other read is still
+  demo-scoped.** So only `demo@devstash.io` can open the cards it is shown. Any
+  other account gets "This item could not be found." This is exactly what
+  happened on the user's first manual try. The mismatch is accepted until reads
+  move onto the session, which is now the most visible open gap in the app and
+  the natural next feature
+- **Ownership is part of the query (`where: { id, userId }`)**, not a check
+  after the fetch, so a foreign item is indistinguishable from a missing one:
+  404, never 403
+- **`/api/items/*` is deliberately outside the proxy matcher.** The proxy
+  answers with a redirect to the sign-in page, which a `fetch` caller cannot
+  use, so the route runs its own `auth()` check
+- **The card opens the drawer through a stretched invisible `<button>`**, not by
+  wrapping the card. Wrapping would have made `ItemCard` a client component and
+  put block content (a heading, divs) inside a `<button>`, which is invalid
+  HTML. The focus ring is `ring-inset` because the card's `overflow-hidden`
+  clips an outset ring
+- **Focus is returned by hand.** Radix only restores focus to a `SheetTrigger`;
+  the cards open the sheet programmatically, so focus fell to `<body>` on close.
+  The provider records `document.activeElement` on open and refocuses it in
+  `onCloseAutoFocus`, if it is still in the DOM
+- **Stale responses are dropped.** Each fetch gets an `AbortController`; a new
+  open or a close aborts the previous one, and the result is ignored if its
+  signal aborted. The sheet's modal overlay stops a second card being clicked
+  while it is open, so the realistic race is close-then-reopen
+- **The loaded item is kept after close**, so the slide-out animates the real
+  content instead of snapping to a skeleton
+- **Favorite, Pin, Edit and Delete are enabled buttons with no handler**,
+  following the display-only "New Item" / "New Collection" precedent. Disabling
+  them would have dimmed the yellow Favorite the reference screenshot shows
+- The sheet sets `aria-describedby={undefined}` because the body is the
+  description; otherwise Radix warns that none is set. Every state (skeleton,
+  error, loaded) renders a `SheetTitle`, the skeleton's being `sr-only`
+- **Each click costs ~850ms locally.** Prisma issues five queries in three
+  sequential round trips (item → type/tag-links/collection → tag names), and
+  each round trip to Neon is ~250ms from the dev machine. One joined query needs
+  the `relationJoins` preview feature in `schema.prisma`, which changes every
+  query in the app, so it was flagged rather than done. Prefetching on hover is
+  the cheaper alternative. A deployment in Neon's region should be far faster
+- Content renders as a plain `<pre>`, with no syntax highlighting or line
+  numbers. The spec defers the code editor. Items have at most one collection
+  (`Item.collectionId`), so "Collections" shows zero or one badge despite the
+  plural heading
+- The type field list is now written out in a fourth place: `itemInclude`'s
+  `type: true` still returns the full `ItemType` row, including `userId` and
+  timestamps, which now also crosses the API as JSON. Harmless, since it is
+  null or the caller's own id, but a shared `itemTypeSelect` would trim it
+- **The demo account's password was reset by the user through the Forgot
+  password flow** (the dev-only console link), since the last seed generated a
+  random one. `SEED_DEMO_PASSWORD` is still unset in `.env`, so the next
+  `npm run db:seed` will replace it with a new random password
+- The browser walkthrough used a session JWT minted locally for
+  `seed-user-demo` and set as a Playwright context cookie, with no database
+  write. The token file was deleted afterwards
