@@ -1,49 +1,18 @@
-# Current Feature: Items List View
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Dynamic route `/items/[type]` that lists the user's items of one type
-- Items fetched from Prisma, filtered by type, in a new `src/lib/db/items.ts`
-  getter that reuses `itemInclude` / `toItemWithRelations`
-- Responsive grid of the existing `ItemCard` — one column on mobile, two from
-  `md` up
-- Each card keeps its type-colored left border (already built into `ItemCard`
-  via `getAccentBorderClass`)
-- Unknown type slug → `notFound()`
-- Follow existing patterns: server component, `force-dynamic`, data through
-  `src/lib/db/*`
-
-Spec: `context/features/item-list-view-spec.md`.
+<!-- Goals & requirements -->
 
 ## Notes
 
-The spec and the codebase disagree in a few places. The first three use the
-proposed resolution below. For the fourth, the user chose option (a), the
-shared `(app)` route group:
-
-- **Singular slug in the URL.** The spec's examples are `/items/snippets` and
-  `/items/notes`, but `ItemType.slug` is singular (`snippet`, `note`) and the
-  sidebar already links to `/items/${type.slug}`. Proposed: follow the data, as
-  decided in Dashboard Phase 2, so the existing sidebar links resolve with no
-  change
-- **Route protection.** `src/proxy.ts`'s matcher covers only `/dashboard/:path*`
-  and `/profile`, so `/items/*` would be public. Auth Phase 1 flagged this
-  exact gap. Proposed: add `/items/:path*`
-- **Data scope.** Every `src/lib/db/*` getter is still hardcoded to
-  `seed-user-demo`. Proposed: keep the new getter on `DEMO_USER_ID` like its
-  siblings, so the list matches the sidebar counts. Moving reads onto the
-  session is still its own feature
-- **Shell (decided: a).** The sidebar and top bar live in
-  `src/app/dashboard/layout.tsx`, so a top-level `/items/[type]` gets neither.
-  Options: (a) move `dashboard/` and `items/` into a shared `(app)` route group
-  with that layout, keeping both URLs unchanged; (b) nest the route at
-  `/dashboard/items/[type]` and repoint the sidebar links; (c) ship it without
-  the shell. (a) is the recommendation, but it moves an existing layout and so
-  counts as an architectural change
+<!-- Any extra notes -->
 
 ## History
 
@@ -1440,3 +1409,75 @@ Decisions worth carrying forward:
 - `ratelimit@devstash.io` / `ratelimitpass` and one unspent password-reset
   token were left in the Neon **dev** database by the walkthrough.
   `npm run db:delete-users -- --confirm` clears them
+
+### Items List View — Completed (2026-09-23)
+
+The first page outside the dashboard: `/items/[type]` lists the user's items
+of one type in a responsive grid. Branch `feature/items-list-view`. One new
+source file, one moved layout, two existing files touched, no new
+dependencies. Spec: `context/features/item-list-view-spec.md`.
+
+- Moved `src/app/dashboard/layout.tsx` into an `(app)` route group as
+  `src/app/(app)/layout.tsx` (`AppLayout`), and `dashboard/page.tsx` beside it
+  under `(app)/dashboard/`. `/dashboard` and `/items/[type]` now share the
+  sidebar and top bar with no change to either URL. Both files were moved with
+  `git mv`, so history follows them
+- Added `src/app/(app)/items/[type]/page.tsx`: a server component with a header
+  (type icon tile, name, item count), a `grid gap-4 md:grid-cols-2` of the
+  existing `ItemCard`, a dashed "No notes yet." empty state and `notFound()` for
+  an unknown slug. The tab title is the type name (`Snippets | DevStash`)
+- Added `getItemsByType(slug)` to `src/lib/db/items.ts`. It resolves the type
+  first (system types or the demo user's own), then loads the items with the
+  existing `itemInclude` / `toItemWithRelations`, most recently updated first.
+  Returns null for an unknown slug
+- `src/proxy.ts`'s matcher gained `/items/:path*`
+- `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; `/items/[type]`
+  builds as `ƒ (Dynamic)`
+
+Verified in the browser, zero console errors apart from the expected 404
+resource log: anonymous `/items/snippet` →
+`/sign-in?callbackUrl=%2Fitems%2Fsnippet` and back after signing in;
+`/items/snippet` rendered 4 cards in two 560px columns with 4px blue borders,
+the Snippets sidebar row active and the top bar present; `/items/link` 6 green,
+`/items/command` 5 orange; `/items/note` "0 items" with the empty state;
+`/items/snippets` → 404; at 390px a single column, no horizontal scroll and the
+sidebar collapsed into the drawer; `/dashboard` unchanged at 18/5/5/2 with 5
+collections, 4 pinned and 10 recent.
+
+Decisions worth carrying forward:
+
+- **The URL uses the singular slug** (`/items/snippet`), not the spec's
+  `/items/snippets`. `ItemType.slug` is singular and the sidebar already linked
+  there, the same call made in Dashboard Phase 2. The plural form 404s
+- **The shell is shared through an `(app)` route group** rather than nesting
+  under `/dashboard/items/…` or shipping without the sidebar. Chosen by the user
+  at load time. Any future signed-in page with the sidebar (collections, item
+  detail) goes inside `(app)/`. `/profile` is still outside it by the earlier
+  decision
+- **The group layout types its props as `{ children: ReactNode }`**, not
+  `LayoutProps<"/dashboard">`. It no longer belongs to one route, matching how
+  `(auth)/layout.tsx` does it
+- **The type is resolved before the items are fetched**, rather than filtering
+  items through the relation (`type: { slug }`). That keeps an unknown slug
+  (404) distinct from a known type with no items (empty state), and a slug is
+  only unique per owner. It costs a second round trip
+- **When a custom type and a system type share a slug, the system type wins**
+  (`orderBy: createdAt asc`), which leaves the custom type's page unreachable.
+  Moot until custom types exist. The real fix is to reject clashing slugs when
+  custom types are created
+- **`generateMetadata` and the page share one lookup through React `cache`.**
+  Confirmed in the Prisma log: the slug query ran once per request, not twice
+- **No `force-dynamic` on the page itself.** The group layout declares it, and
+  the page awaits `params` before branching anyway. The build reports it as `ƒ`
+- **`/items/*` is now behind the proxy.** Auth Phase 1 flagged that new routes
+  would be public unless the matcher was extended. `/collections/*` will need
+  the same line when it lands
+- Still demo-scoped: `getItemsByType` reads `seed-user-demo` like every other
+  getter, so the list matches the sidebar counts. Moving reads onto the session
+  is still its own feature
+- **Not paginated.** Every item of the type is loaded. Fine at demo scale
+- **The type field list is now written out in three places**: `collections.ts`'s
+  `itemTypeSelect`, `getItemTypesWithCounts` and `getItemsByType`. Sharing one
+  constant would fix it; left alone to keep `collections.ts` out of scope
+- `ItemCard` and `TypeIcon` still live in `src/components/dashboard/` although
+  `/items` uses them too. Worth moving to a shared folder once a third page does
