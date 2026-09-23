@@ -105,6 +105,14 @@ export function ItemDrawerProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  // The card that opened the drawer is about to disappear on refresh, so focus
+  // is not handed back to it; the item itself stays in state so the slide-out
+  // still animates real content.
+  const handleDeleted = useCallback(() => {
+    returnFocusRef.current = null;
+    setOpen(false);
+  }, []);
+
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (!next) controllerRef.current?.abort();
@@ -119,6 +127,7 @@ export function ItemDrawerProvider({ children }: { children: ReactNode }) {
         state={state}
         onRetry={(id) => void load(id)}
         onSaved={handleSaved}
+        onDeleted={handleDeleted}
         onCloseAutoFocus={(event) => {
           if (!returnFocusRef.current?.isConnected) return;
           event.preventDefault();

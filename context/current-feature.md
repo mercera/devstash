@@ -1,18 +1,51 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Delete Items
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The drawer's Delete button (currently display-only in
+  `src/components/items/ItemActions.tsx`) opens a ShadCN `AlertDialog` asking
+  the user to confirm, naming the item being deleted
+- Cancel closes the dialog and leaves the item untouched
+- Confirming calls a `deleteItem(itemId)` server action in
+  `src/actions/items.ts`, which resolves the signed-in user from the session
+  and returns the `{ success, data, error }` shape
+- A `deleteItem(id, userId)` query in `src/lib/db/items.ts` deletes the item
+  only when it belongs to the caller; ownership is part of the query's
+  `where`, so a foreign item reads as "not found", never as forbidden
+- On success: a success toast, the dialog and the drawer close, and the
+  list/dashboard refresh (`router.refresh()`) so the card, counts and stats
+  update
+- On failure: an error toast, the dialog stays open (or the drawer stays on the
+  item) and nothing is removed from the UI
+- The confirm button shows a pending state and cannot be double-submitted
+- Unit tests for the new server action and db query (auth refused, invalid id,
+  not found / foreign item, database error, happy path, ownership in `where`)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- **No migration needed.** `ItemTag.item` is `onDelete: Cascade`, so an item's
+  tag links go with it. The `Tag` rows themselves stay, matching how edit mode
+  leaves unused tags in the database
+- **Use a plain `Button` for the confirm, not `AlertDialogAction`.** The latter
+  closes the dialog on click and unmounts it before the action resolves — the
+  trap hit by the Profile page's `DeleteAccountDialog` and Auth Phase 3's
+  sign-out menu item. `DeleteAccountDialog` is the pattern to follow
+- The `AlertDialog` opens on top of the `Sheet`; check focus and Escape behave
+  (Escape should close the dialog first, not the drawer)
+- Focus return after delete: the provider refocuses the card that opened the
+  drawer, which no longer exists once the list refreshes — it already guards
+  for an element no longer in the DOM, but confirm nothing throws
+- Same demo-scoping limit as edit: the action is session-scoped while the lists
+  read `seed-user-demo`, so only the demo account can delete what it sees
+- Deleting touches the seeded demo data in the Neon **dev** branch. Verify
+  against a throwaway item (or re-run `npm run db:seed` afterwards, noting it
+  regenerates the demo password unless `SEED_DEMO_PASSWORD` is set)
+- `alert-dialog` and `sonner` are already installed — no new dependencies
 
 ## History
 

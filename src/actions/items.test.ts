@@ -9,12 +9,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   updateItem: vi.fn(),
+  deleteItem: vi.fn(),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
-vi.mock("@/lib/db/items", () => ({ updateItem: mocks.updateItem }));
+vi.mock("@/lib/db/items", () => ({
+  updateItem: mocks.updateItem,
+  deleteItem: mocks.deleteItem,
+}));
 
-import { updateItem } from "@/actions/items";
+import { deleteItem, updateItem } from "@/actions/items";
 
 const saved = { id: "item-1", title: "Renamed" };
 
@@ -96,6 +100,55 @@ describe("updateItem", () => {
     mocks.updateItem.mockRejectedValue(new Error("connection lost"));
 
     const result = await updateItem("item-1", { title: "Renamed", tags: [] });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
+  });
+});
+
+describe("deleteItem", () => {
+  it("refuses without a session", async () => {
+    signedInAs(null);
+
+    const result = await deleteItem("item-1");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(mocks.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing item id", async () => {
+    const result = await deleteItem("");
+
+    expect(result).toEqual({ success: false, error: "This item could not be found." });
+    expect(mocks.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it("deletes as the session user and returns the id", async () => {
+    mocks.deleteItem.mockResolvedValue(true);
+
+    const result = await deleteItem("item-1");
+
+    expect(result).toEqual({ success: true, data: { id: "item-1" } });
+    expect(mocks.deleteItem).toHaveBeenCalledWith("item-1", "user-1");
+  });
+
+  it("reports another user's item as not found", async () => {
+    mocks.deleteItem.mockResolvedValue(false);
+
+    const result = await deleteItem("someone-elses-item");
+
+    expect(result).toEqual({ success: false, error: "This item could not be found." });
+  });
+
+  it("returns a generic error when the database fails", async () => {
+    mocks.deleteItem.mockRejectedValue(new Error("connection lost"));
+
+    const result = await deleteItem("item-1");
 
     expect(result).toEqual({
       success: false,

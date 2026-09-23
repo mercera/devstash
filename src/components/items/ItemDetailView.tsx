@@ -20,6 +20,7 @@ import type { ItemDetail } from "@/types";
 interface ItemDetailViewProps {
   item: ItemDetail;
   onSaved: (item: ItemDetail) => void;
+  onDeleted: (id: string) => void;
 }
 
 /**
@@ -30,7 +31,11 @@ interface ItemDetailViewProps {
  * because the loading skeleton unmounts this view, so unsaved edits never
  * carry over to the next item.
  */
-export function ItemDetailView({ item, onSaved }: ItemDetailViewProps) {
+export function ItemDetailView({
+  item,
+  onSaved,
+  onDeleted,
+}: ItemDetailViewProps) {
   const [editing, setEditing] = useState(false);
 
   return (
@@ -66,7 +71,11 @@ export function ItemDetailView({ item, onSaved }: ItemDetailViewProps) {
         />
       ) : (
         <>
-          <ItemActions item={item} onEdit={() => setEditing(true)} />
+          <ItemActions
+            item={item}
+            onEdit={() => setEditing(true)}
+            onDeleted={onDeleted}
+          />
 
           <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6">
             <ItemBody item={item} />

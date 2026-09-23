@@ -13,6 +13,7 @@ interface ItemDrawerProps {
   state: ItemDrawerState;
   onRetry: (id: string) => void;
   onSaved: (item: ItemDetail) => void;
+  onDeleted: (id: string) => void;
   onCloseAutoFocus: (event: Event) => void;
 }
 
@@ -27,6 +28,7 @@ export function ItemDrawer({
   state,
   onRetry,
   onSaved,
+  onDeleted,
   onCloseAutoFocus,
 }: ItemDrawerProps) {
   return (
@@ -37,7 +39,11 @@ export function ItemDrawer({
         className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
       >
         {state.status === "loaded" ? (
-          <ItemDetailView item={state.item} onSaved={onSaved} />
+          <ItemDetailView
+            item={state.item}
+            onSaved={onSaved}
+            onDeleted={onDeleted}
+          />
         ) : state.status === "error" ? (
           <ItemDrawerError
             message={state.message}

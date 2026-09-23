@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById` and `updateItem` are covered here: they are the queries
- * in this module scoped to a caller-supplied user, backing a public API route
- * and a server action. The database is mocked, so these tests pin the queries'
- * shape and the mapping, not Postgres behaviour.
+ * Only `getItemById`, `updateItem` and `deleteItem` are covered here: they are
+ * the queries in this module scoped to a caller-supplied user, backing a public
+ * API route and server actions. The database is mocked, so these tests pin the
+ * queries' shape and the mapping, not Postgres behaviour.
  */
 
 const mocks = vi.hoisted(() => {
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => {
   return {
     tx,
     prisma: {
-      item: { findFirst: vi.fn() },
+      item: { findFirst: vi.fn(), deleteMany: vi.fn() },
       $transaction: vi.fn(async (run: (client: typeof tx) => Promise<unknown>) =>
         run(tx),
       ),
@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
-import { getItemById, updateItem } from "@/lib/db/items";
+import { deleteItem, getItemById, updateItem } from "@/lib/db/items";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
 const updatedAt = new Date("2026-09-04T10:00:00Z");
@@ -236,5 +236,28 @@ describe("updateItem", () => {
 
     await expect(updateItem("item-1", "user-1", edits)).rejects.toThrow("deadlock");
     expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteItem", () => {
+  it("deletes scoped to both the item id and the owner", async () => {
+    mocks.prisma.item.deleteMany.mockResolvedValue({ count: 1 });
+
+    await expect(deleteItem("item-1", "user-1")).resolves.toBe(true);
+    expect(mocks.prisma.item.deleteMany).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+    });
+  });
+
+  it("returns false when the item is missing or not the user's", async () => {
+    mocks.prisma.item.deleteMany.mockResolvedValue({ count: 0 });
+
+    await expect(deleteItem("someone-elses-item", "user-1")).resolves.toBe(false);
+  });
+
+  it("lets a database failure propagate for the action to handle", async () => {
+    mocks.prisma.item.deleteMany.mockRejectedValue(new Error("connection reset"));
+
+    await expect(deleteItem("item-1", "user-1")).rejects.toThrow("connection reset");
   });
 });

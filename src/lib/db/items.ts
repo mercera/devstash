@@ -147,6 +147,19 @@ export async function updateItem(
   return updated ? getItemById(id, userId) : null;
 }
 
+/**
+ * Deletes one of `userId`'s items. Returns false when no item with that id
+ * belongs to `userId`.
+ *
+ * Ownership is part of the write, as in `getItemById`. The item's `ItemTag`
+ * rows cascade with it; the tags themselves stay, as they do after an edit.
+ */
+export async function deleteItem(id: string, userId: string): Promise<boolean> {
+  const { count } = await prisma.item.deleteMany({ where: { id, userId } });
+
+  return count > 0;
+}
+
 /** Pinned items for the dashboard's "Pinned" section, most recently updated first. */
 export async function getPinnedItems(): Promise<ItemWithRelations[]> {
   const items = await prisma.item.findMany({
