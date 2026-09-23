@@ -90,6 +90,24 @@ Example v4 configuration:
 - Return `{ success, data, error }` pattern from actions
 - Display user-friendly error messages via toast
 
+## Testing
+
+- Unit tests use **Vitest** (`vitest.config.mts`), in the `node` environment
+- Test **server actions** (`src/actions/`) and **utilities** (`src/lib/`) only —
+  no component tests, no DOM environment
+- Co-locate tests beside the file they cover: `src/lib/tokens.ts` →
+  `src/lib/tokens.test.ts`
+- Import `describe`/`it`/`expect`/`vi` from `vitest` explicitly (no globals)
+- Tests never touch the database or any external service. Mock every I/O
+  boundary with `vi.mock` — `@/auth`, `@/lib/prisma`, `bcryptjs`, Resend,
+  Upstash — and declare the mocks with `vi.hoisted`. `src/actions/profile.test.ts`
+  is the reference pattern for a server action
+- Use `vi.stubEnv` for environment variables; the config restores stubs and
+  mocks after every test
+- Cover the happy path and the failure paths that matter (auth refused,
+  invalid input, database error). Don't write tests just to raise a count
+- `npm test` runs once; `npm run test:watch` watches
+
 ## Code Quality
 
 - No commented-out code unless specified

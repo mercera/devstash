@@ -20,6 +20,9 @@ before implementation starts. Read the relevant one when working on a feature.
 - **Build**: `npm run build`
 - **Production server**: `npm run start`
 - **Lint**: `npm run lint`
+- **Unit tests**: `npm test` (single run) or `npm run test:watch` — Vitest,
+  server actions and `src/lib` utilities only (see Testing in
+  `context/coding-standards.md`)
 
 ## Neon MCP / Database Access
 
