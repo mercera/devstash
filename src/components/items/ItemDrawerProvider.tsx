@@ -95,6 +95,16 @@ export function ItemDrawerProvider({ children }: { children: ReactNode }) {
     [load],
   );
 
+  // A save that lands after the drawer has moved on to another item (closed
+  // and reopened mid-save) must not replace what is now showing.
+  const handleSaved = useCallback((item: ItemDetail) => {
+    setState((current) =>
+      current.status === "loaded" && current.item.id === item.id
+        ? { status: "loaded", item }
+        : current,
+    );
+  }, []);
+
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (!next) controllerRef.current?.abort();
@@ -108,6 +118,7 @@ export function ItemDrawerProvider({ children }: { children: ReactNode }) {
         onOpenChange={handleOpenChange}
         state={state}
         onRetry={(id) => void load(id)}
+        onSaved={handleSaved}
         onCloseAutoFocus={(event) => {
           if (!returnFocusRef.current?.isConnected) return;
           event.preventDefault();

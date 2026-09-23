@@ -2,13 +2,15 @@
  * Prisma-backed item queries for the dashboard.
  *
  * The list and count queries are still scoped to the seeded demo user (see
- * `prisma/seed.ts`) until reads move onto the session. `getItemById` is the
- * exception: it takes the caller's user id, because it backs an API route
- * that must never return another user's item.
+ * `prisma/seed.ts`) until reads move onto the session. `getItemById` and
+ * `updateItem` are the exceptions: they take the caller's user id, because
+ * they back an API route and a server action that must never reach another
+ * user's item.
  */
 
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { prisma } from "@/lib/prisma";
+import type { UpdateItemData } from "@/lib/validations/items";
 import type {
   ItemDetail,
   ItemType,
@@ -85,6 +87,64 @@ export async function getItemById(
   if (item === null) return null;
 
   return { ...toItemWithRelations(item), collection: item.collection };
+}
+
+/**
+ * Applies the drawer's edits to one of `userId`'s items and returns the updated
+ * detail, or null when no item with that id belongs to `userId`.
+ *
+ * The item's tags are replaced wholesale: every `ItemTag` row is dropped, the
+ * named tags are created where the user does not have them yet, and the item is
+ * linked to each. Runs in one transaction so a failure part-way cannot leave the
+ * item with its tags stripped. Tags no item uses any more are left in place.
+ *
+ * The steps are explicit rather than one nested write so their order is not
+ * left to Prisma, and the tag writes are batched so the round trips stay the
+ * same however many tags there are.
+ *
+ * The updated item is read back after the commit, not inside the transaction.
+ * That read is five more sequential statements, and at Neon round-trip
+ * latency keeping them inside pushed the transaction to ~4s, close to
+ * Prisma's 5s interactive-transaction timeout.
+ */
+export async function updateItem(
+  id: string,
+  userId: string,
+  data: UpdateItemData,
+): Promise<ItemDetail | null> {
+  const { tags, ...fields } = data;
+
+  const updated = await prisma.$transaction(async (tx) => {
+    // Ownership is part of the write, as in `getItemById`.
+    const { count } = await tx.item.updateMany({
+      where: { id, userId },
+      data: fields,
+    });
+
+    if (count === 0) return false;
+
+    await tx.itemTag.deleteMany({ where: { itemId: id } });
+
+    if (tags.length > 0) {
+      await tx.tag.createMany({
+        data: tags.map((name) => ({ userId, name })),
+        skipDuplicates: true,
+      });
+
+      const tagRows = await tx.tag.findMany({
+        where: { userId, name: { in: tags } },
+        select: { id: true },
+      });
+
+      await tx.itemTag.createMany({
+        data: tagRows.map((tag) => ({ itemId: id, tagId: tag.id })),
+      });
+    }
+
+    return true;
+  });
+
+  return updated ? getItemById(id, userId) : null;
 }
 
 /** Pinned items for the dashboard's "Pinned" section, most recently updated first. */

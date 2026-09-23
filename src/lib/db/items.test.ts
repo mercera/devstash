@@ -1,19 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById` is covered here: it is the one query in this module that
- * is scoped to a caller-supplied user and backs a public API route. The
- * database is mocked, so these tests pin the query's shape and the mapping,
- * not Postgres behaviour.
+ * Only `getItemById` and `updateItem` are covered here: they are the queries
+ * in this module scoped to a caller-supplied user, backing a public API route
+ * and a server action. The database is mocked, so these tests pin the queries'
+ * shape and the mapping, not Postgres behaviour.
  */
 
-const mocks = vi.hoisted(() => ({
-  prisma: { item: { findFirst: vi.fn() } },
-}));
+const mocks = vi.hoisted(() => {
+  const tx = {
+    item: { updateMany: vi.fn() },
+    itemTag: { deleteMany: vi.fn(), createMany: vi.fn() },
+    tag: { createMany: vi.fn(), findMany: vi.fn() },
+  };
+
+  return {
+    tx,
+    prisma: {
+      item: { findFirst: vi.fn() },
+      $transaction: vi.fn(async (run: (client: typeof tx) => Promise<unknown>) =>
+        run(tx),
+      ),
+    },
+  };
+});
 
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
-import { getItemById } from "@/lib/db/items";
+import { getItemById, updateItem } from "@/lib/db/items";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
 const updatedAt = new Date("2026-09-04T10:00:00Z");
@@ -128,5 +142,99 @@ describe("getItemById", () => {
     await expect(getItemById("item-1", "user-1")).rejects.toThrow(
       "connection reset",
     );
+  });
+});
+
+describe("updateItem", () => {
+  const { tx } = mocks;
+
+  const edits = {
+    title: "Renamed",
+    description: null,
+    content: "lsof -i :4000",
+    tags: ["process", "ports"],
+  };
+
+  beforeEach(() => {
+    tx.item.updateMany.mockResolvedValue({ count: 1 });
+    tx.tag.findMany.mockResolvedValue([{ id: "tag-1" }, { id: "tag-3" }]);
+    mocks.prisma.item.findFirst.mockResolvedValue(itemRow({ title: "Renamed" }));
+  });
+
+  it("writes the fields scoped to both the item id and the owner", async () => {
+    await updateItem("item-1", "user-1", edits);
+
+    expect(tx.item.updateMany).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+      data: { title: "Renamed", description: null, content: "lsof -i :4000" },
+    });
+  });
+
+  it("returns null and writes no tags when the item is not the user's", async () => {
+    tx.item.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(updateItem("someone-elses-item", "user-1", edits)).resolves.toBeNull();
+    expect(tx.itemTag.deleteMany).not.toHaveBeenCalled();
+    expect(tx.tag.createMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("replaces the tags: clears the links, creates missing tags, then relinks", async () => {
+    await updateItem("item-1", "user-1", edits);
+
+    expect(tx.itemTag.deleteMany).toHaveBeenCalledWith({ where: { itemId: "item-1" } });
+    expect(tx.tag.createMany).toHaveBeenCalledWith({
+      data: [
+        { userId: "user-1", name: "process" },
+        { userId: "user-1", name: "ports" },
+      ],
+      skipDuplicates: true,
+    });
+    expect(tx.tag.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", name: { in: ["process", "ports"] } },
+      select: { id: true },
+    });
+    expect(tx.itemTag.createMany).toHaveBeenCalledWith({
+      data: [
+        { itemId: "item-1", tagId: "tag-1" },
+        { itemId: "item-1", tagId: "tag-3" },
+      ],
+    });
+    expect(tx.itemTag.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.itemTag.createMany.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("clears every tag when none are given", async () => {
+    await updateItem("item-1", "user-1", { ...edits, tags: [] });
+
+    expect(tx.itemTag.deleteMany).toHaveBeenCalledWith({ where: { itemId: "item-1" } });
+    expect(tx.tag.createMany).not.toHaveBeenCalled();
+    expect(tx.itemTag.createMany).not.toHaveBeenCalled();
+  });
+
+  it("reads the updated detail back after the transaction commits", async () => {
+    const item = await updateItem("item-1", "user-1", edits);
+
+    expect(mocks.prisma.item.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "item-1", userId: "user-1" } }),
+    );
+    expect(mocks.prisma.item.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
+      tx.itemTag.createMany.mock.invocationCallOrder[0],
+    );
+    expect(item).toMatchObject({
+      id: "item-1",
+      title: "Renamed",
+      tags: ["process", "terminal"],
+      collection: { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" },
+    });
+    expect(item).not.toHaveProperty("userId");
+  });
+
+  it("lets a database failure propagate for the action to handle", async () => {
+    tx.tag.createMany.mockRejectedValue(new Error("deadlock"));
+
+    await expect(updateItem("item-1", "user-1", edits)).rejects.toThrow("deadlock");
+    expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
   });
 });

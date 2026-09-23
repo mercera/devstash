@@ -5,12 +5,14 @@ import type { ItemDrawerState } from "@/components/items/ItemDrawerProvider";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ItemDetail } from "@/types";
 
 interface ItemDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   state: ItemDrawerState;
   onRetry: (id: string) => void;
+  onSaved: (item: ItemDetail) => void;
   onCloseAutoFocus: (event: Event) => void;
 }
 
@@ -24,6 +26,7 @@ export function ItemDrawer({
   onOpenChange,
   state,
   onRetry,
+  onSaved,
   onCloseAutoFocus,
 }: ItemDrawerProps) {
   return (
@@ -34,7 +37,7 @@ export function ItemDrawer({
         className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
       >
         {state.status === "loaded" ? (
-          <ItemDetailView item={state.item} />
+          <ItemDetailView item={state.item} onSaved={onSaved} />
         ) : state.status === "error" ? (
           <ItemDrawerError
             message={state.message}

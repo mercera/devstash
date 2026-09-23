@@ -8,12 +8,17 @@ import { getCopyText } from "@/lib/item-copy";
 import { cn } from "@/lib/utils";
 import type { ItemDetail } from "@/types";
 
+interface ItemActionsProps {
+  item: ItemDetail;
+  onEdit: () => void;
+}
+
 /**
- * The drawer's action bar. Copy works; Favorite, Pin, Edit and Delete are
+ * The drawer's action bar. Copy and Edit work; Favorite, Pin and Delete are
  * display-only until their mutations land, but Favorite and Pin already show
  * the item's current state.
  */
-export function ItemActions({ item }: { item: ItemDetail }) {
+export function ItemActions({ item, onEdit }: ItemActionsProps) {
   const copyText = getCopyText(item);
 
   async function handleCopy() {
@@ -52,7 +57,7 @@ export function ItemActions({ item }: { item: ItemDetail }) {
         Copy
       </Button>
 
-      <Button variant="ghost" size="sm" className="ml-auto">
+      <Button variant="ghost" size="sm" className="ml-auto" onClick={onEdit}>
         <Pencil />
         Edit
       </Button>

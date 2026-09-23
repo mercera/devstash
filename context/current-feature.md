@@ -1,18 +1,68 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Item Drawer — Edit Mode
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The drawer's Edit button switches the open drawer into edit mode in place — no
+  new route, no second sheet
+- In edit mode the action bar is replaced by **Save** and **Cancel**; Cancel
+  discards local changes and returns to view mode
+- Editable for every type: **Title** (input, required), **Description**
+  (textarea, optional), **Tags** (comma-separated input → `string[]` on save)
+- Type-specific fields, shown only for the matching slug:
+  - **Content** (textarea) — `snippet`, `prompt`, `command`, `note`
+  - **Language** (input) — `snippet`, `command`
+  - **URL** (input) — `link`
+- Item type, collection and created/updated dates stay display-only in edit mode
+- Controlled inputs with local state, no form library; Save is disabled while
+  the title is blank
+- Zod update schema: `title` trimmed non-empty; `description`, `content`,
+  `language` string or null; `url` valid URL or null; `tags` array of trimmed
+  non-empty strings
+- `updateItem(itemId, data)` server action in `src/actions/items.ts`: Zod
+  validation, `auth()` session, ownership check, `{ success, data, error }`
+  return with Zod errors surfaced so the form can show them
+- `updateItem` query in `src/lib/db/items.ts`: replaces the item's tags
+  (remove all `ItemTag` rows, connect-or-create the new tag names) and returns
+  the updated `ItemDetail`
+- On save: toast success/error, drawer returns to view mode showing the
+  returned item (no refetch), and `router.refresh()` updates the card list
+  underneath
+- Unit tests for the action and the query function; `npm test`, `npx tsc
+  --noEmit`, `npm run lint` and `npm run build` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/item-drawer-edit-spec.md`
+- **Scope mismatch carries over from the drawer.** The action scopes to the
+  session user like `GET /api/items/[id]`, while the lists stay demo-scoped —
+  so only `demo@devstash.io` can open, and therefore edit, the cards it sees
+- **No `Textarea` UI component is installed yet.** It needs `shadcn add
+  textarea`; check the generated import for the `import { cn } from "cn"` bug
+  and the junk `cn` package, as after every previous `shadcn add`
+- `src/actions/items.ts` does not exist yet — this creates it.
+  `src/actions/profile.test.ts` is the reference pattern for its tests
+- Ownership belongs in the query (`where: { id, userId }`), as in
+  `getItemById`, so a foreign item reads as not found, never forbidden
+- Tag replacement and the field update should run in one transaction so a
+  failure cannot leave the item with its tags stripped
+- Tags need de-duplicating before insert: `"react, react"` would otherwise hit
+  the `ItemTag` `[itemId, tagId]` primary key. `Tag` is unique on
+  `[userId, name]`, so connect-or-create keys on that. Names are
+  case-sensitive today (`React` ≠ `react`)
+- Tags removed from every item are left behind as orphan `Tag` rows — nothing
+  reads unused tags yet
+- Blank optional inputs should be sent as `null`, not `""`, so a cleared field
+  clears the column and an empty URL does not fail URL validation
+- Edit state must reset when the drawer opens a different item or closes, so
+  unsaved edits never leak onto the next item
+- The drawer's state lives in `ItemDrawerProvider`, so the saved item has to
+  flow back up to replace the `loaded` state there
+- Favorite, Pin and Delete remain display-only — out of scope here
+- The content textarea is plain; the code editor comes later
 
 ## History
 
