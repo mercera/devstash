@@ -1,18 +1,54 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Item Drawer
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Clicking an `ItemCard` opens a right-side ShadCN `Sheet` with that item's
+  full detail. This is the item detail view; there is no separate item page
+- Works on both `/dashboard` (Pinned and Recent) and `/items/[type]`
+- A client wrapper owns the open/selected-item state, so the pages stay server
+  components
+- Fetches on click, with no page navigation. Shows a skeleton while loading
+- Card data is still fetched server-side as before. The full detail (content,
+  collection, language, dates, etc.) comes from `GET /api/items/[id]`
+- The query function lives in `src/lib/db/items.ts`. The API route checks auth
+  before calling it
+- Header: type icon tile, title, a type badge and a language badge (when set)
+- Action bar: Favorite (star, yellow when active), Pin, Copy, Edit (pencil) and
+  Delete (trash, right-aligned, red)
+- Body sections: Description, Content, Tags, Collections, and Details
+  (Created / Updated as long dates)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/item-drawer-spec.md`. Visual reference:
+  `context/screenshots/dashboard-ui-drawer.png`
+- "Extras like the code editor and item-specific stuff will come later". For
+  now Content renders as a plain monospace block, with no syntax highlighting
+  or line numbers
+- `sheet.tsx` and `skeleton.tsx` are already installed (they came in with the
+  sidebar), so no `shadcn add` should be needed
+- **Items have at most one collection** (`Item.collectionId`). The screenshot's
+  "Collections" section will show zero or one badge
+- **Copy is wired up** (decided at load): `navigator.clipboard.writeText` on the
+  item's copyable value, with a toast confirming success or failure. Favorite,
+  Pin, Edit and Delete are **display-only**, because the spec scopes this
+  feature to "the drawer details display". Favorite and Pin still show the
+  item's current state
+- **The API route scopes to the signed-in user** (decided at load). No session
+  returns 401. An item that is missing or belongs to someone else returns 404,
+  so the route never confirms that another user's item exists. Every other
+  getter is still hardcoded to `seed-user-demo`, so only the demo account can
+  open the cards it is shown. Any other account gets the drawer's error state.
+  This mismatch is accepted until reads move onto the session
+- The `/api/items/*` route falls outside the proxy matcher. The route handler
+  does its own `auth()` check
+- The new `src/lib/db` getter is testable under the Vitest standards only if
+  Prisma is mocked. The route handler is not in the tested set (actions + lib
+  only)
 
 ## History
 

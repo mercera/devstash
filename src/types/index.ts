@@ -103,6 +103,21 @@ export interface ItemWithRelations extends Item {
   type: ItemType;
 }
 
+/** The parent collection as the item drawer renders it. */
+export interface ItemCollectionSummary {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/**
+ * An item with everything the detail drawer shows. Unlike the card shape, this
+ * joins the parent collection — the drawer is the one place that renders it.
+ */
+export interface ItemDetail extends ItemWithRelations {
+  collection: ItemCollectionSummary | null;
+}
+
 /**
  * The signed-in user as the profile page renders them.
  *
