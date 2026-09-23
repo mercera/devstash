@@ -1,7 +1,10 @@
 import { z } from "zod";
 
+import { CREATABLE_TYPE_SLUGS, getItemTypeFields } from "@/lib/item-fields";
+
 /**
- * The drawer's edit payload.
+ * The drawer's edit payload, and the New Item dialog's create payload built on
+ * it.
  *
  * A blank optional field is stored as null, so clearing an input clears the
  * column rather than writing an empty string. A field that is absent
@@ -64,6 +67,41 @@ export type UpdateItemInput = z.input<typeof updateItemSchema>;
 
 /** What the database layer receives, after trimming and null-ing blanks. */
 export type UpdateItemData = z.output<typeof updateItemSchema>;
+
+/**
+ * The New Item dialog's payload: the edit fields plus the chosen type's slug.
+ *
+ * Only the fields the chosen type carries are kept — any other is stored as
+ * null whatever was sent, so a crafted request cannot put content on a link.
+ * A link must have a URL.
+ */
+export const createItemSchema = updateItemSchema
+  .extend({
+    typeSlug: z.enum(CREATABLE_TYPE_SLUGS, { error: "Choose an item type" }),
+  })
+  .superRefine((data, ctx) => {
+    if (getItemTypeFields(data.typeSlug).url && !data.url) {
+      ctx.addIssue({ code: "custom", path: ["url"], message: "URL is required" });
+    }
+  })
+  .transform(({ typeSlug, content, language, url, ...rest }) => {
+    const fields = getItemTypeFields(typeSlug);
+
+    return {
+      ...rest,
+      typeSlug,
+      description: rest.description ?? null,
+      content: fields.content ? (content ?? null) : null,
+      language: fields.language ? (language ?? null) : null,
+      url: fields.url ? (url ?? null) : null,
+    };
+  });
+
+/** What the dialog sends. */
+export type CreateItemInput = z.input<typeof createItemSchema>;
+
+/** What the database layer receives: every column set, unused ones null. */
+export type CreateItemData = z.output<typeof createItemSchema>;
 
 /** Splits the drawer's comma-separated tag field into tag names. */
 export function parseTagInput(input: string): string[] {

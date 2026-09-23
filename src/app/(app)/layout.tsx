@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <SidebarProvider className="min-h-full flex-1">
       <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
       <SidebarInset>
-        <TopBar />
+        <TopBar itemTypes={itemTypes} />
         <div className="min-w-0 flex-1 p-6">
           <ItemDrawerProvider>{children}</ItemDrawerProvider>
         </div>

@@ -1,10 +1,29 @@
-import { FolderPlus, Plus, Search } from "lucide-react";
+import { FolderPlus, Search } from "lucide-react";
 
+import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { isCreatableTypeSlug } from "@/lib/item-fields";
+import type { ItemType } from "@/types";
 
-export function TopBar() {
+interface TopBarProps {
+  /** Every item type the user can see; the New Item dialog offers the creatable ones. */
+  itemTypes: ItemType[];
+}
+
+export function TopBar({ itemTypes }: TopBarProps) {
+  const creatableTypes = itemTypes
+    .filter((type) => type.isSystem && isCreatableTypeSlug(type.slug))
+    .map(({ id, name, slug, icon, color, isSystem }) => ({
+      id,
+      name,
+      slug,
+      icon,
+      color,
+      isSystem,
+    }));
+
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
       <SidebarTrigger className="shrink-0" />
@@ -27,10 +46,7 @@ export function TopBar() {
           <FolderPlus />
           <span className="hidden sm:inline">New Collection</span>
         </Button>
-        <Button aria-label="New Item">
-          <Plus />
-          <span className="hidden sm:inline">New Item</span>
-        </Button>
+        <NewItemDialog types={creatableTypes} />
       </div>
     </header>
   );

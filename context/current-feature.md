@@ -1,18 +1,63 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Item Create
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The top bar's "New Item" button opens a ShadCN `Dialog` for creating an item
+- A type selector offers snippet, prompt, command, note and link
+- The fields shown follow the selected type:
+  - All types: title (required), description, tags
+  - snippet / command: content, language
+  - prompt / note: content
+  - link: URL (required)
+- A `createItem` server action in `src/actions/items.ts` validates the input
+  with Zod and returns `{ success, data, error }` with per-field `issues`
+- A `createItem` query function in `src/lib/db/items.ts` writes the item and
+  its tags for the signed-in user
+- On success: toast, close the dialog, `router.refresh()` so the lists and
+  sidebar counts pick up the new item
+- Unit tests for the new action, query and any validation changes; `npm test`,
+  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/item-create-spec.md`.
+
+Things the spec does not state, found while loading it against the codebase:
+
+- **The ShadCN `dialog` component is not installed yet.** `shadcn add dialog`
+  has reproduced the `import { cn } from "cn"` bug and installed a junk `cn`
+  package in three of the last four runs. Check the import and `package.json`
+  afterwards, and pipe `n` if it asks to overwrite `button.tsx`
+- **`TopBar` is a server component** and the "New Item" button is display
+  only. The button and dialog belong in a new client component under
+  `src/components/items/`, leaving `TopBar` a server component
+- **Reuse from edit mode.** `src/lib/validations/items.ts` already has
+  `optionalText` / `optionalContent` / `optionalUrl` (http(s) only),
+  `parseTagInput` and the de-duplicated `tags` array.
+  `src/lib/item-fields.ts`'s `getItemTypeFields(slug)` already says which of
+  content / language / URL a type carries, and it matches the spec's table
+  exactly. The create schema should build on these rather than repeat them.
+  The one difference: a link's URL is **required** on create
+- **The type is chosen by slug and resolved to an id on the server**, matching
+  how types are identified everywhere else. Only the five listed system types
+  are accepted. `file` and `image` are Pro/upload types with no payload here.
+  The server rejects any other slug rather than trusting the client
+- **The tag write can follow `updateItem`'s explicit steps** (`tag.createMany`
+  with `skipDuplicates`, `findMany` by name, `itemTag.createMany`), in one
+  transaction with the item insert, reading the result back after commit
+- **Writes are session-scoped, reads are still demo-scoped.** An item created
+  by any account other than `demo@devstash.io` is saved but will not appear in
+  the dashboard, the lists or the sidebar counts. This is the same accepted
+  limitation as edit and delete. Moving reads onto the session is still its
+  own feature
+- Not in the spec and not planned: assigning a collection, favorite/pinned
+  flags, the Free tier's 50-item limit, and a keyboard shortcut for the dialog
+- `contentType` defaults to `text` in the schema, which is right for all five
+  creatable types
 
 ## History
 

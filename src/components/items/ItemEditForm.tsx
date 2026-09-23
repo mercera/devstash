@@ -5,17 +5,15 @@ import {
   useTransition,
   type ChangeEvent,
   type FormEvent,
-  type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateItem, type UpdateItemField } from "@/actions/items";
-import { FieldError } from "@/components/auth/FieldError";
+import { ItemFormField } from "@/components/items/ItemFormField";
 import { CollectionSection, DatesSection } from "@/components/items/ItemSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { getItemTypeFields, type ItemTypeFields } from "@/lib/item-fields";
 import { parseTagInput, type UpdateItemInput } from "@/lib/validations/items";
@@ -120,83 +118,58 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
       </div>
 
       <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6">
-        <Field label="Title" htmlFor="item-edit-title" issues={issues.title}>
+        <ItemFormField label="Title" htmlFor="item-edit-title" issues={issues.title}>
           <Input {...bind("title")} required />
-        </Field>
+        </ItemFormField>
 
-        <Field
+        <ItemFormField
           label="Description"
           htmlFor="item-edit-description"
           issues={issues.description}
         >
           <Textarea {...bind("description")} className="min-h-20" />
-        </Field>
+        </ItemFormField>
 
         {fields.content && (
-          <Field label="Content" htmlFor="item-edit-content" issues={issues.content}>
+          <ItemFormField label="Content" htmlFor="item-edit-content" issues={issues.content}>
             <Textarea
               {...bind("content")}
               spellCheck={false}
               className="max-h-96 min-h-40 font-mono text-[13px] leading-relaxed md:text-[13px]"
             />
-          </Field>
+          </ItemFormField>
         )}
 
         {fields.language && (
-          <Field
+          <ItemFormField
             label="Language"
             htmlFor="item-edit-language"
             issues={issues.language}
           >
             <Input {...bind("language")} placeholder="e.g. typescript" />
-          </Field>
+          </ItemFormField>
         )}
 
         {fields.url && (
-          <Field label="URL" htmlFor="item-edit-url" issues={issues.url}>
+          <ItemFormField label="URL" htmlFor="item-edit-url" issues={issues.url}>
             <Input {...bind("url")} type="url" placeholder="https://" />
-          </Field>
+          </ItemFormField>
         )}
 
-        <Field
+        <ItemFormField
           label="Tags"
           htmlFor="item-edit-tags"
           issues={issues.tags}
           hint="Separate tags with commas."
         >
           <Input {...bind("tags")} placeholder="react, hooks" />
-        </Field>
+        </ItemFormField>
 
         <hr />
         <CollectionSection item={item} />
         <DatesSection item={item} />
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  issues,
-  hint,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  issues?: string[];
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={htmlFor} className="text-muted-foreground">
-        {label}
-      </Label>
-      {children}
-      <FieldError messages={issues} />
-      {hint && !issues && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
   );
 }
 

@@ -2,15 +2,16 @@
  * Prisma-backed item queries for the dashboard.
  *
  * The list and count queries are still scoped to the seeded demo user (see
- * `prisma/seed.ts`) until reads move onto the session. `getItemById` and
- * `updateItem` are the exceptions: they take the caller's user id, because
- * they back an API route and a server action that must never reach another
- * user's item.
+ * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
+ * `createItem`, `updateItem` and `deleteItem` are the exceptions: they take the
+ * caller's user id, because they back an API route and server actions that
+ * must never reach another user's item.
  */
 
+import type { Prisma } from "@/generated/prisma/client";
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { prisma } from "@/lib/prisma";
-import type { UpdateItemData } from "@/lib/validations/items";
+import type { CreateItemData, UpdateItemData } from "@/lib/validations/items";
 import type {
   ItemDetail,
   ItemType,
@@ -90,6 +91,71 @@ export async function getItemById(
 }
 
 /**
+ * Links an item to the named tags, creating any the user does not have yet.
+ *
+ * Batched, so the round trips stay the same however many tags there are.
+ * Expects the item to have no `ItemTag` rows for these tags already.
+ */
+async function linkTags(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+  userId: string,
+  tags: string[],
+): Promise<void> {
+  if (tags.length === 0) return;
+
+  await tx.tag.createMany({
+    data: tags.map((name) => ({ userId, name })),
+    skipDuplicates: true,
+  });
+
+  const tagRows = await tx.tag.findMany({
+    where: { userId, name: { in: tags } },
+    select: { id: true },
+  });
+
+  await tx.itemTag.createMany({
+    data: tagRows.map((tag) => ({ itemId, tagId: tag.id })),
+  });
+}
+
+/**
+ * Creates an item of one of the system types for `userId` and returns its
+ * detail, or null when no system type has that slug.
+ *
+ * The type is resolved by slug before the transaction, keeping the
+ * transaction to the writes. System types only: custom types do not exist yet.
+ * The item and its tags are written together, and the result is read back
+ * after the commit, as in `updateItem`.
+ */
+export async function createItem(
+  userId: string,
+  data: CreateItemData,
+): Promise<ItemDetail | null> {
+  const { typeSlug, tags, ...fields } = data;
+
+  const type = await prisma.itemType.findFirst({
+    where: { slug: typeSlug, isSystem: true },
+    select: { id: true },
+  });
+
+  if (type === null) return null;
+
+  const itemId = await prisma.$transaction(async (tx) => {
+    const item = await tx.item.create({
+      data: { ...fields, userId, typeId: type.id },
+      select: { id: true },
+    });
+
+    await linkTags(tx, item.id, userId, tags);
+
+    return item.id;
+  });
+
+  return getItemById(itemId, userId);
+}
+
+/**
  * Applies the drawer's edits to one of `userId`'s items and returns the updated
  * detail, or null when no item with that id belongs to `userId`.
  *
@@ -99,8 +165,7 @@ export async function getItemById(
  * item with its tags stripped. Tags no item uses any more are left in place.
  *
  * The steps are explicit rather than one nested write so their order is not
- * left to Prisma, and the tag writes are batched so the round trips stay the
- * same however many tags there are.
+ * left to Prisma.
  *
  * The updated item is read back after the commit, not inside the transaction.
  * That read is five more sequential statements, and at Neon round-trip
@@ -124,22 +189,7 @@ export async function updateItem(
     if (count === 0) return false;
 
     await tx.itemTag.deleteMany({ where: { itemId: id } });
-
-    if (tags.length > 0) {
-      await tx.tag.createMany({
-        data: tags.map((name) => ({ userId, name })),
-        skipDuplicates: true,
-      });
-
-      const tagRows = await tx.tag.findMany({
-        where: { userId, name: { in: tags } },
-        select: { id: true },
-      });
-
-      await tx.itemTag.createMany({
-        data: tagRows.map((tag) => ({ itemId: id, tagId: tag.id })),
-      });
-    }
+    await linkTags(tx, id, userId, tags);
 
     return true;
   });
