@@ -1,6 +1,7 @@
 import { Pin, Star } from "lucide-react";
 
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { ItemCardButton } from "@/components/items/ItemCardButton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatShortDate } from "@/lib/format";
@@ -12,7 +13,7 @@ export function ItemCard({ item }: { item: ItemWithRelations }) {
   return (
     <Card
       className={cn(
-        "flex-row items-start gap-3 border-l-4 px-4 transition-colors hover:bg-accent/30",
+        "relative flex-row items-start gap-3 border-l-4 px-4 transition-colors hover:bg-accent/30",
         getAccentBorderClass(item.type.color),
       )}
     >
@@ -63,6 +64,8 @@ export function ItemCard({ item }: { item: ItemWithRelations }) {
       >
         {formatShortDate(item.updatedAt)}
       </time>
+
+      <ItemCardButton itemId={item.id} title={item.title} />
     </Card>
   );
 }

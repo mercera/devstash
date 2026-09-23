@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getItemTypesWithCounts } from "@/lib/db/items";
@@ -30,7 +31,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
       <SidebarInset>
         <TopBar />
-        <div className="min-w-0 flex-1 p-6">{children}</div>
+        <div className="min-w-0 flex-1 p-6">
+          <ItemDrawerProvider>{children}</ItemDrawerProvider>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

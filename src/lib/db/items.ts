@@ -1,13 +1,20 @@
 /**
  * Prisma-backed item queries for the dashboard.
  *
- * No auth/session exists yet, so every query here is scoped to the seeded
- * demo user (see `prisma/seed.ts`) until real sessions land.
+ * The list and count queries are still scoped to the seeded demo user (see
+ * `prisma/seed.ts`) until reads move onto the session. `getItemById` is the
+ * exception: it takes the caller's user id, because it backs an API route
+ * that must never return another user's item.
  */
 
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { prisma } from "@/lib/prisma";
-import type { ItemType, ItemTypeWithCount, ItemWithRelations } from "@/types";
+import type {
+  ItemDetail,
+  ItemType,
+  ItemTypeWithCount,
+  ItemWithRelations,
+} from "@/types";
 
 const DEMO_USER_ID = "seed-user-demo";
 
@@ -51,6 +58,33 @@ function toItemWithRelations(item: ItemRow): ItemWithRelations {
     updatedAt: item.updatedAt,
     type: item.type,
   };
+}
+
+/** The card include plus the parent collection, for the detail drawer. */
+const itemDetailInclude = {
+  ...itemInclude,
+  collection: { select: { id: true, name: true, slug: true } },
+} as const;
+
+/**
+ * One item with everything the detail drawer renders, or null when no item
+ * with that id belongs to `userId`.
+ *
+ * Ownership is part of the lookup rather than checked afterwards, so another
+ * user's item is indistinguishable from one that does not exist.
+ */
+export async function getItemById(
+  id: string,
+  userId: string,
+): Promise<ItemDetail | null> {
+  const item = await prisma.item.findFirst({
+    where: { id, userId },
+    include: itemDetailInclude,
+  });
+
+  if (item === null) return null;
+
+  return { ...toItemWithRelations(item), collection: item.collection };
 }
 
 /** Pinned items for the dashboard's "Pinned" section, most recently updated first. */
