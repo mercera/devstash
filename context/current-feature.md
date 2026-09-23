@@ -1,51 +1,18 @@
-# Current Feature: Delete Items
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- The drawer's Delete button (currently display-only in
-  `src/components/items/ItemActions.tsx`) opens a ShadCN `AlertDialog` asking
-  the user to confirm, naming the item being deleted
-- Cancel closes the dialog and leaves the item untouched
-- Confirming calls a `deleteItem(itemId)` server action in
-  `src/actions/items.ts`, which resolves the signed-in user from the session
-  and returns the `{ success, data, error }` shape
-- A `deleteItem(id, userId)` query in `src/lib/db/items.ts` deletes the item
-  only when it belongs to the caller; ownership is part of the query's
-  `where`, so a foreign item reads as "not found", never as forbidden
-- On success: a success toast, the dialog and the drawer close, and the
-  list/dashboard refresh (`router.refresh()`) so the card, counts and stats
-  update
-- On failure: an error toast, the dialog stays open (or the drawer stays on the
-  item) and nothing is removed from the UI
-- The confirm button shows a pending state and cannot be double-submitted
-- Unit tests for the new server action and db query (auth refused, invalid id,
-  not found / foreign item, database error, happy path, ownership in `where`)
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- **No migration needed.** `ItemTag.item` is `onDelete: Cascade`, so an item's
-  tag links go with it. The `Tag` rows themselves stay, matching how edit mode
-  leaves unused tags in the database
-- **Use a plain `Button` for the confirm, not `AlertDialogAction`.** The latter
-  closes the dialog on click and unmounts it before the action resolves — the
-  trap hit by the Profile page's `DeleteAccountDialog` and Auth Phase 3's
-  sign-out menu item. `DeleteAccountDialog` is the pattern to follow
-- The `AlertDialog` opens on top of the `Sheet`; check focus and Escape behave
-  (Escape should close the dialog first, not the drawer)
-- Focus return after delete: the provider refocuses the card that opened the
-  drawer, which no longer exists once the list refreshes — it already guards
-  for an element no longer in the DOM, but confirm nothing throws
-- Same demo-scoping limit as edit: the action is session-scoped while the lists
-  read `seed-user-demo`, so only the demo account can delete what it sees
-- Deleting touches the seeded demo data in the Neon **dev** branch. Verify
-  against a throwaway item (or re-run `npm run db:seed` afterwards, noting it
-  regenerates the demo password unless `SEED_DEMO_PASSWORD` is set)
-- `alert-dialog` and `sonner` are already installed — no new dependencies
+<!-- Any extra notes -->
 
 ## History
 
@@ -1828,3 +1795,76 @@ Decisions worth carrying forward:
   Recent. Lucide Icons was not saved
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards
+
+### Delete Items — Completed (2026-09-23)
+
+The drawer's trash button now deletes the item after a ShadCN confirmation,
+with a toast on success. Branch `feature/delete-items`. One new source file,
+seven existing files touched, no new dependencies, no migration. Loaded from
+an inline description rather than a spec file.
+
+- Added `deleteItem(id, userId)` to `src/lib/db/items.ts` —
+  `item.deleteMany({ where: { id, userId } })`, returning whether a row went
+- Added the `deleteItem(itemId)` server action to `src/actions/items.ts`,
+  returning `{ success: true, data: { id } }` or an error. The three messages
+  it shares with `updateItem` became module constants
+- Added `src/components/items/DeleteItemDialog.tsx` — the trash button as an
+  `AlertDialogTrigger`, a dialog naming the item, and a confirm that shows
+  "Deleting..." with a spinner. Success toasts "Item deleted", closes the
+  dialog, calls `onDeleted` and runs `router.refresh()`; failure toasts the
+  error and leaves the dialog open
+- `onDeleted` is threaded `ItemDrawerProvider` → `ItemDrawer` →
+  `ItemDetailView` → `ItemActions`. The provider's `handleDeleted` closes the
+  drawer and clears the focus-return target
+- 8 unit tests across `actions/items` and `db/items`. Suite 108 → 116.
+  Removing `userId` from the delete's `where` fails the ownership test
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user against throwaway items inserted into
+the Neon **dev** branch, never a seeded one. Zero console errors throughout:
+
+- The dialog reads "Delete this item? This permanently deletes *title*. This
+  cannot be undone.", with focus starting on Cancel
+- Cancel and Escape each closed only the dialog; the drawer stayed open, and
+  Cancel returned focus to the trash button
+- Confirming disabled both buttons and ignored Escape while pending. The toast
+  appeared after ~450ms, the drawer closed, and the list, the page's item count
+  and the sidebar's Commands count all dropped by one after ~1.8s
+- The database afterwards: the item and its `ItemTag` row gone, the `Tag` row
+  kept
+- Failure path: the item was deleted directly in SQL while its dialog was open,
+  then confirmed in the UI. "This item could not be found." toasted, the dialog
+  stayed open with its button re-enabled, and the drawer stayed open beneath it
+- At 390px the dialog is 320px wide with no horizontal scroll
+- Demo data ended at 18 items and 29 tags, as seeded; no throwaway rows remain
+
+Decisions worth carrying forward:
+
+- **Ownership is part of the delete**, via `deleteMany` with `{ id, userId }`
+  rather than `delete` by id. `delete` needs a unique selector and would throw
+  on a missing row; `deleteMany` gives a count, so a missing or foreign item
+  is one "not found" path, the same one `updateItem` uses
+- **The confirm is a plain `Button`, not `AlertDialogAction`**, for the third
+  time in this codebase (sign-out menu, delete account, now this): the Radix
+  action closes on click, before the result is known
+- **The dialog is controlled so it can refuse to close mid-delete.** Its
+  `onOpenChange` is ignored while pending, which covers Escape and the overlay
+  as well as the disabled Cancel. Without it, closing the dialog would unmount
+  it mid-request and the result toast would land with no context
+- **Focus goes to `<body>` after a delete, on purpose.** The provider normally
+  refocuses the card that opened the drawer; that card is about to vanish on
+  refresh, so `handleDeleted` clears the target rather than focusing an element
+  that is removed a second later
+- **The loaded item stays in drawer state after a delete**, as after a normal
+  close, so the slide-out animates real content instead of a skeleton
+- **Escape stacks correctly** with an `AlertDialog` over the `Sheet` — Radix's
+  layered dismissal closes only the top layer. No extra handling was needed
+- A modal `AlertDialog` marks the sheet `aria-hidden`, and the open sheet does
+  the same to the page. Playwright role queries therefore report the drawer and
+  cards as absent while a dialog is up; query `[data-slot="sheet-content"]` and
+  its `data-state` instead
+- There is no undo and no soft delete. The dialog says so
+- **Only the demo account can delete what it sees**, the same limit edit mode
+  has, since the lists are still demo-scoped. Moving reads onto the session is
+  still the obvious next feature
