@@ -1,68 +1,18 @@
-# Current Feature: Item Drawer — Edit Mode
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- The drawer's Edit button switches the open drawer into edit mode in place — no
-  new route, no second sheet
-- In edit mode the action bar is replaced by **Save** and **Cancel**; Cancel
-  discards local changes and returns to view mode
-- Editable for every type: **Title** (input, required), **Description**
-  (textarea, optional), **Tags** (comma-separated input → `string[]` on save)
-- Type-specific fields, shown only for the matching slug:
-  - **Content** (textarea) — `snippet`, `prompt`, `command`, `note`
-  - **Language** (input) — `snippet`, `command`
-  - **URL** (input) — `link`
-- Item type, collection and created/updated dates stay display-only in edit mode
-- Controlled inputs with local state, no form library; Save is disabled while
-  the title is blank
-- Zod update schema: `title` trimmed non-empty; `description`, `content`,
-  `language` string or null; `url` valid URL or null; `tags` array of trimmed
-  non-empty strings
-- `updateItem(itemId, data)` server action in `src/actions/items.ts`: Zod
-  validation, `auth()` session, ownership check, `{ success, data, error }`
-  return with Zod errors surfaced so the form can show them
-- `updateItem` query in `src/lib/db/items.ts`: replaces the item's tags
-  (remove all `ItemTag` rows, connect-or-create the new tag names) and returns
-  the updated `ItemDetail`
-- On save: toast success/error, drawer returns to view mode showing the
-  returned item (no refetch), and `router.refresh()` updates the card list
-  underneath
-- Unit tests for the action and the query function; `npm test`, `npx tsc
-  --noEmit`, `npm run lint` and `npm run build` pass
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/item-drawer-edit-spec.md`
-- **Scope mismatch carries over from the drawer.** The action scopes to the
-  session user like `GET /api/items/[id]`, while the lists stay demo-scoped —
-  so only `demo@devstash.io` can open, and therefore edit, the cards it sees
-- **No `Textarea` UI component is installed yet.** It needs `shadcn add
-  textarea`; check the generated import for the `import { cn } from "cn"` bug
-  and the junk `cn` package, as after every previous `shadcn add`
-- `src/actions/items.ts` does not exist yet — this creates it.
-  `src/actions/profile.test.ts` is the reference pattern for its tests
-- Ownership belongs in the query (`where: { id, userId }`), as in
-  `getItemById`, so a foreign item reads as not found, never forbidden
-- Tag replacement and the field update should run in one transaction so a
-  failure cannot leave the item with its tags stripped
-- Tags need de-duplicating before insert: `"react, react"` would otherwise hit
-  the `ItemTag` `[itemId, tagId]` primary key. `Tag` is unique on
-  `[userId, name]`, so connect-or-create keys on that. Names are
-  case-sensitive today (`React` ≠ `react`)
-- Tags removed from every item are left behind as orphan `Tag` rows — nothing
-  reads unused tags yet
-- Blank optional inputs should be sent as `null`, not `""`, so a cleared field
-  clears the column and an empty URL does not fail URL validation
-- Edit state must reset when the drawer opens a different item or closes, so
-  unsaved edits never leak onto the next item
-- The drawer's state lives in `ItemDrawerProvider`, so the saved item has to
-  flow back up to replace the `loaded` state there
-- Favorite, Pin and Delete remain display-only — out of scope here
-- The content textarea is plain; the code editor comes later
+<!-- Any extra notes -->
 
 ## History
 
@@ -1744,3 +1694,104 @@ Decisions worth carrying forward:
 - The browser walkthrough used a session JWT minted locally for
   `seed-user-demo` and set as a Playwright context cookie, with no database
   write. The token file was deleted afterwards
+
+### Item Drawer — Edit Mode — Completed (2026-09-23)
+
+The drawer's Edit button switches the open drawer into edit mode in place.
+Branch `feature/item-drawer-edit`. Nine new source files (three of them tests),
+six existing files touched, no new dependencies, no migration. Spec:
+`context/features/item-drawer-edit-spec.md`.
+
+- Installed the ShadCN `textarea` component
+- Added `src/lib/validations/items.ts`: `updateItemSchema`, the
+  `UpdateItemInput`/`UpdateItemData` types and `parseTagInput`
+- Added `src/lib/item-fields.ts`: `getItemTypeFields(slug)` says which of
+  content, language and URL a type carries
+- Added `updateItem(id, userId, data)` to `src/lib/db/items.ts`, returning the
+  updated `ItemDetail` or null when the item is not the caller's
+- Added `src/actions/items.ts` with the `updateItem(itemId, data)` server
+  action: session first, then Zod, then the query, in the
+  `{ success, data, error }` shape with per-field `issues`
+- Added `ItemEditForm` and `ItemSections` under `src/components/items/`. The
+  shared `Section`, collection and dates blocks moved into `ItemSections` so
+  both modes render them
+- `ItemDetailView` became a client component holding the `editing` flag;
+  `ItemActions` gained `onEdit`; `ItemDrawer` and `ItemDrawerProvider` pass the
+  saved item back up through `onSaved`
+- 37 unit tests across `validations/items`, `item-fields`, `db/items` and
+  `actions/items`. Suite 71 → 108. Removing `userId` from the write's `where`
+  fails the ownership test, which confirms the test catches a leak
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with no console errors from the
+pages under test:
+
+- A command item showed Title, Description, Content, Language and Tags, and
+  no URL. A link item showed Title, Description, URL and Tags
+- Cancel discarded a changed title, and a later Edit started again from the
+  saved values. A blank title disabled Save
+- A save trimmed the title and language, stored a cleared description as
+  null, kept the content's leading indentation, and turned
+  `process, docker, , process ` into two tags. The toast fired, the drawer
+  returned to view mode with the saved item, and the card list reordered with
+  the edited item on top
+- `javascript:alert(1)` as a link's URL came back with the field message
+  under the input and a toast. The drawer stayed in edit mode with the value
+  kept, and Cancel restored the original URL
+- At 390px the drawer is full width with no horizontal scroll
+
+Decisions worth carrying forward:
+
+- **The tag replace is done in explicit steps, not one nested write.** The
+  steps are: `updateMany` scoped to `{ id, userId }`, delete every `ItemTag`
+  for the item, `tag.createMany({ skipDuplicates })`, `tag.findMany` by name,
+  then `itemTag.createMany`. Prisma's docs (now written for v8) do not say
+  whether a nested `deleteMany` runs before a nested `create`, so the order is
+  not left to Prisma. The batched calls keep the number of round trips the
+  same however many tags there are. This covers the spec's
+  "disconnect all, connect-or-create"
+- **The updated item is read back after the commit, not inside the
+  transaction.** With the read-back inside, the transaction ran about 4 seconds
+  over Neon latency, close to Prisma's 5-second default for interactive
+  transactions. Moving the read-back out also cut the save from about 4
+  seconds to 2.5–2.8. The read-back uses `getItemById`, so it is also scoped to
+  the owner
+- **Ownership is part of the write**, as in `getItemById`, so another user's
+  item comes back as "This item could not be found.", never as forbidden
+- **URLs must be http(s).** `z.url()` on its own accepts any scheme,
+  `javascript:` included, and the drawer renders the URL as a link
+- **Content is not trimmed**, because leading indentation belongs to a snippet.
+  Content that is only whitespace still becomes null. The other text fields
+  are trimmed, and blanks become null
+- **Only the fields shown for the item's type are sent.** A missing field is
+  `undefined`, and Prisma leaves the column alone, so a hidden field can never
+  clear a column. The server does not check which fields belong to which type:
+  a crafted request could set `content` on a link, but only on the caller's
+  own item
+- **The form sets `noValidate`**, so the server's messages are the only ones
+  shown. The browser's own check for `type="url"` accepts `javascript:`, which
+  would disagree with the schema. `type="url"` stays for the mobile keyboard
+- **Edit state resets on its own.** Every item load shows the skeleton, which
+  unmounts `ItemDetailView`, so its `editing` flag cannot carry over to the
+  next item. `onSaved` in the provider ignores a save for an item that is no
+  longer showing, which covers closing and reopening the drawer during a save
+- The drawer switches back to view mode when the action returns. The cards
+  catch up when `router.refresh()` finishes, about 3 seconds later over Neon
+  from the dev machine
+- **The `shadcn` CLI reproduced the `import { cn } from "cn"` bug** and
+  installed the junk `cn` package again. The import was fixed and the package
+  uninstalled, so `package.json` is unchanged. The bug has now appeared in
+  three of the last four `shadcn add` runs
+- **Only the demo account can edit**, the same limit the drawer already has.
+  The action is scoped to the signed-in user while the lists are still
+  demo-scoped. Moving reads onto the session is still the obvious next feature
+- **Tags left unused stay in the database.** Tag names are case-sensitive
+  (`React` and `react` are two tags)
+- There are no length limits on title, content or tags; the spec names none
+- The walkthrough changed then restored "Find and Kill a Process on a Port"
+  (`seed-item-kill-port`) through the UI. Its values match the seed again, but
+  its `updatedAt` is now 2026-09-23, so it sorts first among Commands and in
+  Recent. Lucide Icons was not saved
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards
