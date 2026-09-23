@@ -8,17 +8,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
+  createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/db/items", () => ({
+  createItem: mocks.createItem,
   updateItem: mocks.updateItem,
   deleteItem: mocks.deleteItem,
 }));
 
-import { deleteItem, updateItem } from "@/actions/items";
+import { createItem, deleteItem, updateItem } from "@/actions/items";
 
 const saved = { id: "item-1", title: "Renamed" };
 
@@ -30,6 +32,102 @@ beforeEach(() => {
   vi.clearAllMocks();
   signedInAs("user-1");
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+describe("createItem", () => {
+  const snippet = { typeSlug: "snippet" as const, title: "useDebounce", tags: [] };
+
+  it("refuses without a session", async () => {
+    signedInAs(null);
+
+    const result = await createItem(snippet);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it("returns field issues for invalid input without touching the database", async () => {
+    const result = await createItem({
+      typeSlug: "link",
+      title: "  ",
+      url: "javascript:alert(1)",
+      tags: [""],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    expect(result.issues?.title).toEqual(["Title is required"]);
+    expect(result.issues?.url).toBeDefined();
+    expect(result.issues?.tags).toBeDefined();
+    expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it.each(["file", "image", "snippets", ""])(
+    "rejects the type %j without touching the database",
+    async (typeSlug) => {
+      // A crafted request: the dialog only ever sends the five creatable slugs.
+      const result = await createItem({
+        ...snippet,
+        typeSlug: typeSlug as "snippet",
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+
+      expect(result.issues?.typeSlug).toEqual(["Choose an item type"]);
+      expect(mocks.createItem).not.toHaveBeenCalled();
+    },
+  );
+
+  it("passes the parsed payload and the session user to the query", async () => {
+    mocks.createItem.mockResolvedValue(saved);
+
+    const result = await createItem({
+      typeSlug: "snippet",
+      title: " useDebounce ",
+      description: "",
+      content: "  const x = 1;",
+      language: " ts ",
+      tags: ["react", " react ", "hooks"],
+    });
+
+    expect(result).toEqual({ success: true, data: saved });
+    expect(mocks.createItem).toHaveBeenCalledWith("user-1", {
+      typeSlug: "snippet",
+      title: "useDebounce",
+      description: null,
+      content: "  const x = 1;",
+      language: "ts",
+      url: null,
+      tags: ["react", "hooks"],
+    });
+  });
+
+  it("reports a type missing from the database as unavailable", async () => {
+    mocks.createItem.mockResolvedValue(null);
+
+    const result = await createItem(snippet);
+
+    expect(result).toEqual({
+      success: false,
+      error: "This item type is not available.",
+    });
+  });
+
+  it("returns a generic error when the database fails", async () => {
+    mocks.createItem.mockRejectedValue(new Error("connection lost"));
+
+    const result = await createItem(snippet);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
+  });
 });
 
 describe("updateItem", () => {

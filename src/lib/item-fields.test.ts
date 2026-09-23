@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getItemTypeFields } from "@/lib/item-fields";
+import {
+  CREATABLE_TYPE_SLUGS,
+  getItemTypeFields,
+  isCreatableTypeSlug,
+} from "@/lib/item-fields";
 
 describe("getItemTypeFields", () => {
   it.each([
@@ -21,5 +25,15 @@ describe("getItemTypeFields", () => {
       language: false,
       url: false,
     });
+  });
+});
+
+describe("isCreatableTypeSlug", () => {
+  it.each(CREATABLE_TYPE_SLUGS)("accepts %s", (slug) => {
+    expect(isCreatableTypeSlug(slug)).toBe(true);
+  });
+
+  it.each(["file", "image", "Snippet", "snippets", ""])("rejects %j", (slug) => {
+    expect(isCreatableTypeSlug(slug)).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById`, `updateItem` and `deleteItem` are covered here: they are
+ * Only `getItemById`, `createItem`, `updateItem` and `deleteItem` are covered here: they are
  * the queries in this module scoped to a caller-supplied user, backing a public
  * API route and server actions. The database is mocked, so these tests pin the
  * queries' shape and the mapping, not Postgres behaviour.
@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const tx = {
-    item: { updateMany: vi.fn() },
+    item: { create: vi.fn(), updateMany: vi.fn() },
     itemTag: { deleteMany: vi.fn(), createMany: vi.fn() },
     tag: { createMany: vi.fn(), findMany: vi.fn() },
   };
@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     tx,
     prisma: {
       item: { findFirst: vi.fn(), deleteMany: vi.fn() },
+      itemType: { findFirst: vi.fn() },
       $transaction: vi.fn(async (run: (client: typeof tx) => Promise<unknown>) =>
         run(tx),
       ),
@@ -27,7 +28,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
-import { deleteItem, getItemById, updateItem } from "@/lib/db/items";
+import { createItem, deleteItem, getItemById, updateItem } from "@/lib/db/items";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
 const updatedAt = new Date("2026-09-04T10:00:00Z");
@@ -142,6 +143,110 @@ describe("getItemById", () => {
     await expect(getItemById("item-1", "user-1")).rejects.toThrow(
       "connection reset",
     );
+  });
+});
+
+describe("createItem", () => {
+  const { tx } = mocks;
+
+  const input = {
+    typeSlug: "command" as const,
+    title: "Find and Kill a Process on a Port",
+    description: null,
+    content: "lsof -i :3000 -t | xargs kill -9",
+    language: "bash",
+    url: null,
+    tags: ["process", "terminal"],
+  };
+
+  beforeEach(() => {
+    mocks.prisma.itemType.findFirst.mockResolvedValue({ id: type.id });
+    tx.item.create.mockResolvedValue({ id: "item-1" });
+    tx.tag.findMany.mockResolvedValue([{ id: "tag-1" }, { id: "tag-2" }]);
+    mocks.prisma.item.findFirst.mockResolvedValue(itemRow());
+  });
+
+  it("resolves the type among the system types only", async () => {
+    await createItem("user-1", input);
+
+    expect(mocks.prisma.itemType.findFirst).toHaveBeenCalledWith({
+      where: { slug: "command", isSystem: true },
+      select: { id: true },
+    });
+  });
+
+  it("returns null and writes nothing when no system type has the slug", async () => {
+    mocks.prisma.itemType.findFirst.mockResolvedValue(null);
+
+    await expect(createItem("user-1", input)).resolves.toBeNull();
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.item.create).not.toHaveBeenCalled();
+  });
+
+  it("creates the item for the caller with the resolved type", async () => {
+    await createItem("user-1", input);
+
+    expect(tx.item.create).toHaveBeenCalledWith({
+      data: {
+        title: "Find and Kill a Process on a Port",
+        description: null,
+        content: "lsof -i :3000 -t | xargs kill -9",
+        language: "bash",
+        url: null,
+        userId: "user-1",
+        typeId: type.id,
+      },
+      select: { id: true },
+    });
+  });
+
+  it("creates missing tags and links the new item to each", async () => {
+    await createItem("user-1", input);
+
+    expect(tx.tag.createMany).toHaveBeenCalledWith({
+      data: [
+        { userId: "user-1", name: "process" },
+        { userId: "user-1", name: "terminal" },
+      ],
+      skipDuplicates: true,
+    });
+    expect(tx.tag.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", name: { in: ["process", "terminal"] } },
+      select: { id: true },
+    });
+    expect(tx.itemTag.createMany).toHaveBeenCalledWith({
+      data: [
+        { itemId: "item-1", tagId: "tag-1" },
+        { itemId: "item-1", tagId: "tag-2" },
+      ],
+    });
+  });
+
+  it("writes no tags when none are given", async () => {
+    await createItem("user-1", { ...input, tags: [] });
+
+    expect(tx.tag.createMany).not.toHaveBeenCalled();
+    expect(tx.itemTag.createMany).not.toHaveBeenCalled();
+  });
+
+  it("reads the new item back, scoped to the owner, after the commit", async () => {
+    const item = await createItem("user-1", input);
+
+    expect(mocks.prisma.item.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "item-1", userId: "user-1" } }),
+    );
+    expect(mocks.prisma.item.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
+      tx.itemTag.createMany.mock.invocationCallOrder[0],
+    );
+    expect(item).toMatchObject({ id: "item-1", tags: ["process", "terminal"] });
+    expect(item).not.toHaveProperty("userId");
+  });
+
+  it("lets a database failure propagate for the action to handle", async () => {
+    tx.item.create.mockRejectedValue(new Error("connection reset"));
+
+    await expect(createItem("user-1", input)).rejects.toThrow("connection reset");
+    expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
   });
 });
 
