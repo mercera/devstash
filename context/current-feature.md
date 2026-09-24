@@ -1,18 +1,48 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: File & Image Upload (Cloudflare R2)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+Complete
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Upload API route that stores files in Cloudflare R2
+- Prisma/db functions stay in `src/lib/db/items.ts`
+- `FileUpload` component with drag-and-drop and an upload progress indicator
+- The New Item dialog uses `FileUpload` for the file and image types
+- Deleting an item also deletes its file from R2
+- Download proxy API route, so downloads avoid CORS
+- Download button in the item drawer for file-backed items
+- Image preview for images; file info (name, size) for files
+- Enforce the size, extension and MIME limits below on the server
+
+| Type   | Max size | Extensions                                                      |
+| ------ | -------- | --------------------------------------------------------------- |
+| Images | 5 MB     | png, jpg, jpeg, gif, webp, svg                                  |
+| Files  | 10 MB    | pdf, txt, md, json, yaml, yml, xml, csv, toml, ini              |
+
+MIME types — images: `image/png`, `image/jpeg`, `image/gif`, `image/webp`,
+`image/svg+xml`. Files: `application/pdf`, `text/plain` (also `.ini`),
+`text/markdown`, `application/json`, `application/x-yaml`, `text/yaml`,
+`application/xml`, `text/xml`, `text/csv`, `application/toml`.
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/file-image-spec.md`
+- No migration expected: `Item` already has `fileUrl`, `fileName`,
+  `fileSize`, and the `ContentType` enum already has `file`
+- `.env` already has all five `R2_*` variables; `.env.example` has them as an
+  uncommitted change (it is missing a trailing newline and spells
+  "Cloudfare")
+- `CREATABLE_TYPE_SLUGS` in `src/lib/item-fields.ts` excludes file and image
+  on purpose. This feature adds them
+- Files and Images carry the sidebar's `PRO` badge, but plan gating is not in
+  this spec. `User.isPro` is still unread
+- Reads are still demo-scoped while writes use the session, so only the demo
+  account will see what it uploads
+- SVG is on the allowed list. Serving a user's SVG inline from our origin can
+  run script in it, so previews should use `<img>` and the download proxy
+  should send it as an attachment
 
 ## History
 

@@ -69,23 +69,48 @@ export type UpdateItemInput = z.input<typeof updateItemSchema>;
 export type UpdateItemData = z.output<typeof updateItemSchema>;
 
 /**
- * The New Item dialog's payload: the edit fields plus the chosen type's slug.
+ * What `POST /api/uploads` returned for the file. Whether the URL really is one
+ * of the caller's uploads needs the session, so the `createItem` action checks
+ * that; this only checks the shape.
+ */
+const uploadedFileSchema = z.object({
+  fileUrl: z.url({ protocol: /^https$/ }),
+  fileName: z.string().trim().min(1).max(255),
+  fileSize: z.number().int().positive(),
+});
+
+/**
+ * The New Item dialog's payload: the edit fields plus the chosen type's slug,
+ * and the uploaded file for a file or image item.
  *
  * Only the fields the chosen type carries are kept — any other is stored as
- * null whatever was sent, so a crafted request cannot put content on a link.
- * A link must have a URL.
+ * null whatever was sent, so a crafted request cannot put content on a link or
+ * a file on a snippet. A link must have a URL, and a file or image item must
+ * have its upload.
  */
 export const createItemSchema = updateItemSchema
   .extend({
     typeSlug: z.enum(CREATABLE_TYPE_SLUGS, { error: "Choose an item type" }),
+    file: uploadedFileSchema.optional(),
   })
   .superRefine((data, ctx) => {
-    if (getItemTypeFields(data.typeSlug).url && !data.url) {
+    const fields = getItemTypeFields(data.typeSlug);
+
+    if (fields.url && !data.url) {
       ctx.addIssue({ code: "custom", path: ["url"], message: "URL is required" });
     }
+
+    if (fields.upload && !data.file) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["file"],
+        message: fields.upload === "image" ? "Upload an image" : "Upload a file",
+      });
+    }
   })
-  .transform(({ typeSlug, content, language, url, ...rest }) => {
+  .transform(({ typeSlug, content, language, url, file, ...rest }) => {
     const fields = getItemTypeFields(typeSlug);
+    const upload = fields.upload ? file : undefined;
 
     return {
       ...rest,
@@ -94,6 +119,10 @@ export const createItemSchema = updateItemSchema
       content: fields.content ? (content ?? null) : null,
       language: fields.language ? (language ?? null) : null,
       url: fields.url ? (url ?? null) : null,
+      contentType: upload ? ("file" as const) : ("text" as const),
+      fileUrl: upload?.fileUrl ?? null,
+      fileName: upload?.fileName ?? null,
+      fileSize: upload?.fileSize ?? null,
     };
   });
 

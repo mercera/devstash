@@ -1,3 +1,4 @@
+import type { UploadKind } from "@/lib/uploads";
 import type { ItemType } from "@/types";
 
 /**
@@ -5,21 +6,26 @@ import type { ItemType } from "@/types";
  * type's slug like every other per-type decision in the app.
  *
  * Title, description and tags apply to every type, so they are not listed.
- * File and image items have none of these; their payload is the upload.
+ * File and image items have none of the text fields; their payload is the
+ * upload.
  */
 const CONTENT_TYPE_SLUGS = new Set(["snippet", "prompt", "command", "note"]);
 const LANGUAGE_TYPE_SLUGS = new Set(["snippet", "command"]);
 const URL_TYPE_SLUGS = new Set(["link"]);
+/** The upload rules each file-backed type follows. */
+const UPLOAD_KIND_BY_SLUG: Partial<Record<string, UploadKind>> = {
+  file: "file",
+  image: "image",
+};
 
-/**
- * The system types the New Item dialog can create. File and image are left
- * out: their payload is an upload, which does not exist yet.
- */
+/** The system types the New Item dialog can create, in sidebar order. */
 export const CREATABLE_TYPE_SLUGS = [
   "snippet",
   "prompt",
   "command",
   "note",
+  "file",
+  "image",
   "link",
 ] as const;
 
@@ -63,6 +69,8 @@ export interface ItemTypeFields {
   url: boolean;
   /** The content is code, edited and shown in the code editor. */
   code: boolean;
+  /** The payload is an uploaded file following these rules; null for none. */
+  upload: UploadKind | null;
 }
 
 export function getItemTypeFields(slug: string): ItemTypeFields {
@@ -72,5 +80,6 @@ export function getItemTypeFields(slug: string): ItemTypeFields {
     url: URL_TYPE_SLUGS.has(slug),
     // A type that records a language is code; the rest are prose.
     code: LANGUAGE_TYPE_SLUGS.has(slug),
+    upload: UPLOAD_KIND_BY_SLUG[slug] ?? null,
   };
 }

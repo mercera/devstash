@@ -10,13 +10,13 @@ import {
 
 describe("getItemTypeFields", () => {
   it.each([
-    ["snippet", { content: true, language: true, url: false, code: true }],
-    ["command", { content: true, language: true, url: false, code: true }],
-    ["prompt", { content: true, language: false, url: false, code: false }],
-    ["note", { content: true, language: false, url: false, code: false }],
-    ["link", { content: false, language: false, url: true, code: false }],
-    ["file", { content: false, language: false, url: false, code: false }],
-    ["image", { content: false, language: false, url: false, code: false }],
+    ["snippet", { content: true, language: true, url: false, code: true, upload: null }],
+    ["command", { content: true, language: true, url: false, code: true, upload: null }],
+    ["prompt", { content: true, language: false, url: false, code: false, upload: null }],
+    ["note", { content: true, language: false, url: false, code: false, upload: null }],
+    ["link", { content: false, language: false, url: true, code: false, upload: null }],
+    ["file", { content: false, language: false, url: false, code: false, upload: "file" }],
+    ["image", { content: false, language: false, url: false, code: false, upload: "image" }],
   ])("%s", (slug, fields) => {
     expect(getItemTypeFields(slug)).toEqual(fields);
   });
@@ -27,6 +27,7 @@ describe("getItemTypeFields", () => {
       language: false,
       url: false,
       code: false,
+      upload: null,
     });
   });
 });
@@ -42,11 +43,12 @@ describe("getCreatableTypes", () => {
   });
 
   it("keeps the creatable system types in order, dropping the rest", () => {
-    const types = ["snippet", "file", "command", "image", "link"].map(systemType);
+    const types = ["snippet", "file", "custom", "image", "link"].map(systemType);
 
     expect(getCreatableTypes(types).map((type) => type.slug)).toEqual([
       "snippet",
-      "command",
+      "file",
+      "image",
       "link",
     ]);
   });
@@ -79,7 +81,7 @@ describe("isCreatableTypeSlug", () => {
     expect(isCreatableTypeSlug(slug)).toBe(true);
   });
 
-  it.each(["file", "image", "Snippet", "snippets", ""])("rejects %j", (slug) => {
+  it.each(["custom", "Snippet", "snippets", ""])("rejects %j", (slug) => {
     expect(isCreatableTypeSlug(slug)).toBe(false);
   });
 });
