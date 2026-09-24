@@ -1,48 +1,18 @@
-# Current Feature: File & Image Upload (Cloudflare R2)
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-Complete
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Upload API route that stores files in Cloudflare R2
-- Prisma/db functions stay in `src/lib/db/items.ts`
-- `FileUpload` component with drag-and-drop and an upload progress indicator
-- The New Item dialog uses `FileUpload` for the file and image types
-- Deleting an item also deletes its file from R2
-- Download proxy API route, so downloads avoid CORS
-- Download button in the item drawer for file-backed items
-- Image preview for images; file info (name, size) for files
-- Enforce the size, extension and MIME limits below on the server
-
-| Type   | Max size | Extensions                                                      |
-| ------ | -------- | --------------------------------------------------------------- |
-| Images | 5 MB     | png, jpg, jpeg, gif, webp, svg                                  |
-| Files  | 10 MB    | pdf, txt, md, json, yaml, yml, xml, csv, toml, ini              |
-
-MIME types — images: `image/png`, `image/jpeg`, `image/gif`, `image/webp`,
-`image/svg+xml`. Files: `application/pdf`, `text/plain` (also `.ini`),
-`text/markdown`, `application/json`, `application/x-yaml`, `text/yaml`,
-`application/xml`, `text/xml`, `text/csv`, `application/toml`.
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/file-image-spec.md`
-- No migration expected: `Item` already has `fileUrl`, `fileName`,
-  `fileSize`, and the `ContentType` enum already has `file`
-- `.env` already has all five `R2_*` variables; `.env.example` has them as an
-  uncommitted change (it is missing a trailing newline and spells
-  "Cloudfare")
-- `CREATABLE_TYPE_SLUGS` in `src/lib/item-fields.ts` excludes file and image
-  on purpose. This feature adds them
-- Files and Images carry the sidebar's `PRO` badge, but plan gating is not in
-  this spec. `User.isPro` is still unread
-- Reads are still demo-scoped while writes use the session, so only the demo
-  account will see what it uploads
-- SVG is on the allowed list. Serving a user's SVG inline from our origin can
-  run script in it, so previews should use `<img>` and the download proxy
-  should send it as an attachment
+<!-- Any extra notes -->
 
 ## History
 
@@ -2202,3 +2172,110 @@ Decisions worth carrying forward:
 - `.playwright-mcp/` holds this walkthrough's screenshots; it is gitignored
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards
+
+### File & Image Upload (Cloudflare R2) — Completed (2026-09-24)
+
+File and image items can now be created: the New Item dialog uploads to
+Cloudflare R2 with drag-and-drop and a progress bar, the drawer previews
+images and lists files, downloads go through the app, and deleting an item
+deletes its file. Branch `feature/file-image-upload`. Seven new source files,
+nine existing files touched plus their tests, one new dependency, no
+migration. Spec: `context/features/file-image-spec.md`.
+
+- Installed `@aws-sdk/client-s3@3.1139.0` — R2 speaks the S3 API
+- Added `src/lib/uploads.ts` (client-safe): `UPLOAD_RULES` with the spec's
+  size, extension and MIME limits, `checkUpload`, `getAcceptAttribute`,
+  `formatFileSize` and the `UploadedFile` type. The browser and the upload
+  route apply the same rules
+- Added `src/lib/r2.ts` (server): `createUploadKey`, `getOwnedUploadKey`,
+  `putUpload`, `getUpload` and `deleteUpload`. Objects live at
+  `uploads/<userId>/<uuid>.<ext>`; the item stores the public URL
+  (`R2_PUBLIC_URL` + key) in `fileUrl`
+- Added `POST /api/uploads` (multipart `kind` + `file`; 401/400/413/422/
+  500, 201 on success) and `DELETE /api/uploads` (discard an upload no item
+  uses)
+- Added `GET /api/items/[id]/download`, which streams the object back as an
+  attachment under its original name, owner only
+- Added `src/lib/upload-client.ts` (`uploadFile` over `XMLHttpRequest` for
+  progress, `discardUpload` as a keepalive `fetch`) and
+  `src/components/items/FileUpload.tsx`
+- `CREATABLE_TYPE_SLUGS` gained `file` and `image`; `getItemTypeFields`
+  gained `upload`. The dialog's type picker is now seven across
+  (`grid-cols-4 sm:grid-cols-7`), and the Files/Images pages gained their
+  New buttons
+- `createItemSchema` takes an optional `file`, requires it for upload types
+  and nulls it for every other type; it now also sets `contentType`
+- `deleteItem` in `src/lib/db/items.ts` returns `{ deleted, fileUrl }`
+  instead of a boolean; added `isFileUrlInUse`
+- The drawer shows an Image/File section, and Download replaces Copy for
+  file-backed items
+- `.env.example` documents the five `R2_*` variables
+- 21 existing tests updated for the new contracts; suite still 192. No new
+  tests were written for the upload code — `/feature test` was not run
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass;
+  the build registers `ƒ /api/uploads` and `ƒ /api/items/[id]/download`
+
+Verified with curl and in the browser as the demo user:
+
+- Upload route: anonymous 401, bad kind 400, `.exe` 422, a PNG sent as a
+  file 422, a PNG claiming `text/html` 422, a 6 MB image 422, a file one byte
+  over 10 MB 422, a file just under 10 MB 201. A `.toml` sent as
+  `application/octet-stream` was stored as `application/toml`
+- Discard: another user's URL and a `..` path 404, a URL an item still uses
+  404, an own unused upload 200 and gone from the bucket
+- UI: with upload throttled, progress read 13% → 92% while Create and the
+  type buttons stayed disabled. The image previewed, created, rendered in the
+  drawer from R2 and downloaded **byte-identical** with
+  `Content-Disposition: attachment` and `nosniff`; the download route gave
+  401 anonymous and 404 for a text item
+- A dropped `.exe` was refused in the browser with **zero** requests; a
+  dropped `.md` with no browser type uploaded. Replace, Remove, Cancel,
+  Escape, switching type and reloading the page each sent the discard
+- Deleting the file item and the image item from the drawer removed both
+  objects; the bucket was listed afterwards and was **empty**
+- At 390px the dialog is 358px wide with no horizontal scroll. Zero console
+  errors from the app
+
+Decisions worth carrying forward:
+
+- **The extension decides the stored content type, not the browser.** The
+  browser's type is only a cross-check, and a missing or generic one (`""`,
+  `application/octet-stream`, and `application/vnd.ms-excel`, which Windows
+  reports for `.csv` when Excel is installed) is accepted
+- **The user id in the key is what makes `fileUrl` checkable.** `createItem`
+  accepts only a URL under the caller's own prefix, and `getOwnedUploadKey`
+  allows exactly one `<uuid>.<ext>` segment after it. Without that, a crafted
+  create could attach another user's object, and deleting the item would
+  delete it from R2
+- **Upload happens on selection, not on Create**, so progress shows
+  immediately. The cost is uploads that never become items, handled by
+  discarding them. **A full page unload runs no React cleanup** — the first
+  version orphaned an object on reload — so the dialog also discards on
+  `pagehide` with a keepalive request
+- **R2 deletion on item delete is best effort.** The row is already gone, so a
+  storage failure is logged and leaves an orphan rather than failing a delete
+  that happened
+- **Images load from the public R2 URL; downloads go through the app.** A
+  cross-origin link ignores `download`, and reading R2 with `fetch` would
+  need CORS on the bucket (confirmed: an in-page `fetch` to the r2.dev URL is
+  blocked). Previews are `<img>`, so an SVG's scripts never run, and the
+  public URL is on R2's origin, not the app's
+- **The bucket is public.** Anyone holding a file's URL can open it; the key
+  is a random UUID, so URLs cannot be guessed. The download route is
+  owner-only, but that does not make the file private
+- **Files pass through the app, which will not work on Vercel above
+  4.5 MB.** Vercel caps serverless request bodies there, below both limits.
+  Locally a 10 MB file uploads fine. Presigned direct-to-R2 uploads would lift
+  it, at the cost of CORS configuration on the bucket
+- Edit mode leaves the file alone — it edits title, description and tags
+  only. Replacing an item's file is not built
+- **Known gaps:** deleting an account (`deleteAccount`, `db:delete-users`)
+  leaves that user's objects in R2; nothing stops two items sharing one
+  `fileUrl` (only by crafted request, against the caller's own files);
+  `.env.production` has none of the `R2_*` variables
+- Plan gating was not built: Files and Images still carry the sidebar's `PRO`
+  badge while any account can upload
+- The browser session used a session JWT minted locally for
+  `seed-user-demo` with no database write. The token file was deleted
+  afterwards. `.playwright-mcp/` holds the screenshots and the downloaded
+  file; it is gitignored
