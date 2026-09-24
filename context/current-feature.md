@@ -1,81 +1,14 @@
-# Current Feature: Markdown Editor
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-Completed
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Add a `MarkdownEditor` component with Write/Preview tabs for **prompt** and
-  **note** content only. Snippets and commands keep `CodeEditor` unchanged
-- Render with `react-markdown` + `remark-gfm` (GitHub Flavored Markdown:
-  tables, task lists, strikethrough, autolinks)
-- Styled like `CodeEditor`: same window chrome and a copy button in the
-  header, in the same style
-- Two modes:
-  - **Read-only**: Preview only, no Write tab
-  - **Editable**: opens on Write, with Preview one click away
-- Fluid height up to 400px, then scroll, the same as `CodeEditor`
-- Preview styling lives in a custom `.markdown-preview` class in
-  `src/app/globals.css`:
-  - h1–h6 clearly different in size and weight
-  - code blocks on a dark background in monospace; inline code with a subtle
-    background
-  - indented ordered and unordered lists with bullets
-  - blockquotes with an accent left border
-  - blue links with a hover state
-  - tables with borders and a shaded header row
-- Integration points:
-  - `NewItemDialog`: the content field for prompt/note
-  - `ItemEditForm` (drawer edit mode): the content field for prompt/note
-  - `ItemDetailView` (drawer view mode): read-only, replacing the `<pre>`
-
-## Notes
-
-- Spec: `context/features/markdown-editor-spec.md`
-- New dependencies: `react-markdown` and `remark-gfm`. Neither is installed yet
-- **Colour conflict in the spec.** It asks for `bg-[#1e1e1e]` on the container
-  and `bg-[#2d2d2d]` on the header, and it also asks to match `CodeEditor`. But
-  `CodeEditor` uses theme tokens: `bg-muted/30` on the container and a `border-b`
-  header with no fill. The hex values would make the two editors look
-  different, one beside the other in the same drawer. Recommendation: use the
-  tokens `CodeEditor` actually has, and leave out the literal hexes
-- The switch point already exists. `getItemTypeFields(slug).code` is true only
-  for snippet/command, so the non-`code` branch in all three files is exactly
-  prompt/note. No change to `item-fields.ts` is needed
-- **Safety.** `react-markdown` escapes raw HTML by default, and its default
-  `urlTransform` drops `javascript:` URLs. Do **not** add `rehype-raw`. Preview
-  links should open with `target="_blank" rel="noopener noreferrer"`, like the
-  drawer's URL link
-- The Write tab is a plain textarea, not Monaco, so the `useEscapeGuard`
-  workaround is not needed. Escape in the textarea closes the dialog or drawer,
-  as it does for the current `Textarea`
-- Content is stored as-is. Validation is unchanged: content is not trimmed,
-  and whitespace-only content becomes null
-- `ItemDetailView` renders the Content section only when `item.content` is
-  truthy, so read-only mode never gets empty content. Editable Preview with no
-  text needs an empty-state line ("Nothing to preview")
-- Tests: this is almost entirely a component, and components are out of scope
-  for Vitest. Add unit tests only if logic moves into `src/lib/` (for example a
-  height helper)
-- Monaco rules from the Code Editor feature still apply. Check generated
-  imports after any `shadcn add` (the `import { cn } from "cn"` bug); a `tabs`
-  component may be needed
-
-### Implementation decisions (2026-09-24)
-
-- **Colours:** used `CodeEditor`'s tokens, not the spec's hex values
-- **Tabs:** built on the `Tabs` primitive from the installed `radix-ui`
-  package, so there was no `shadcn add`. Keyboard arrow navigation and ARIA
-  come from Radix
-- **Header:** traffic-light dots, then the tabs (only Preview in read-only
-  mode), then the copy button
-- **Unsafe links:** a link whose URL react-markdown stripped (`javascript:`)
-  renders as plain text. An empty `href` would have reopened the app in a new
-  tab
-- **Scrollbars:** added a `scrollbar-themed` `@utility` in `globals.css` so
-  both panes match Monaco's thin scrollbar. The OS default was a light bar
-- **No new unit tests:** nothing moved into `src/lib/`. The suite stays at 192
+<!-- Goals & requirements -->
 
 ## Notes
 
@@ -2137,5 +2070,105 @@ Decisions worth carrying forward:
   client build of `cache` is a pass-through
 - `.playwright-mcp/` holds this walkthrough's screenshots and console log; it is
   gitignored
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards
+
+### Markdown Editor — Completed (2026-09-24)
+
+Prompt and note content renders in a new `MarkdownEditor`: Write/Preview tabs
+in the same window chrome as `CodeEditor`, read-only in the drawer and editable
+in edit mode and the New Item dialog. Snippets and commands keep `CodeEditor`.
+Branch `feature/markdown-editor`. One new source file, four existing files
+touched, two new dependencies, no migration. Spec:
+`context/features/markdown-editor-spec.md`.
+
+- Installed `react-markdown@10.1.0` and `remark-gfm@4.0.1`
+- Added `src/components/items/MarkdownEditor.tsx`:
+  - Header: the traffic-light dots, then the tabs, then a copy button
+  - Tabs use the `Tabs` primitive from the installed `radix-ui` package
+  - Read-only mode shows only the Preview tab; editable mode opens on Write
+  - Write is a plain textarea that grows with its content (`field-sizing-content`)
+    to 400px, then scrolls. Preview caps at the same height
+  - Editable Preview with no text shows "Nothing to preview."
+- `src/app/globals.css` gained:
+  - a `.markdown-preview` component class, which styles headings, inline and
+    block code, lists, task lists, blockquotes, links, tables, `hr` and images
+  - a `scrollbar-themed` `@utility`, a thin scrollbar in Monaco's colours
+- `NewItemDialog` and `ItemEditForm` swapped the content `Textarea` for
+  `MarkdownEditor`; `ItemDetailView` swapped its `<pre>`. Each keeps the
+  existing `fields.code` switch, so the non-code branch is exactly prompt/note
+- `npm test` (192, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the route table is unchanged
+
+Verified in the browser as the demo user:
+
+- View mode:
+  - a seeded prompt showed only the Preview tab, with its numbered list styled
+  - the drawer had no textarea
+- Styling, checked in a test note by reading computed styles rather than by eye:
+  - h1–h6 step down 24/20/18/16/14/12px, with h1 bold and the rest semibold
+  - blue links; inline code on a muted background; `pre` in Geist Mono with a
+    border
+  - disc and decimal lists, each with 24px of indent
+  - blockquotes with a 4px blue left border
+  - `th` on a muted background; every cell has a border
+  - GFM features rendered: strikethrough, two task-list checkboxes and an
+    autolink
+- Safety:
+  - an injected `<script>` and `<b>` rendered as literal text, with no
+    elements created
+  - a `javascript:` link was reduced to plain text
+  - real links open with `target="_blank" rel="noopener noreferrer"`
+- Height: a long note capped at 400px, with the textarea and Preview each
+  scrolling inside
+- Round trip through the UI: New Note → Create → drawer view → Edit (opened on
+  Write with the content intact) → changed the heading → Preview showed it →
+  Save → view showed the saved heading with only the Preview tab
+- At 390px the drawer is full width, the editor is 324px, and nothing scrolls
+  sideways
+- Snippets still open in Monaco
+- The test note was deleted through the drawer; Notes is back to 0
+
+Decisions worth carrying forward:
+
+- **`CodeEditor`'s colours, not the spec's hex values.** The spec asks for
+  `bg-[#1e1e1e]` and `bg-[#2d2d2d]` but also asks to match `CodeEditor`, which
+  uses theme tokens (`bg-muted/30`, a header with a bottom border and no fill).
+  Following the hex values would have made a note and a snippet look different
+  in the same drawer
+- **Radix Tabs directly, not `shadcn add tabs`.** `radix-ui` was already a
+  dependency, and the CLI has produced the `import { cn } from "cn"` bug in four
+  of its last five runs. Radix provides the arrow-key navigation and ARIA
+  wiring
+- **No `rehype-raw`, ever.** `react-markdown` renders raw HTML as text and its
+  default `urlTransform` drops unsafe schemes. The custom `a` renderer adds
+  `target="_blank"`. It renders a link whose `href` was stripped as a `<span>`,
+  because an `<a href="">` would reopen the app in a new tab
+- **No Escape guard on the Write tab.** It is a plain textarea, so Escape
+  closes the dialog or drawer as the old `Textarea` did. Only Monaco needed
+  `useEscapeGuard`
+- **The textarea's `aria-label` is dropped when an `id` is passed**, so the
+  form's `<label htmlFor>` names it. The tablist is labelled "Content view", so
+  a Playwright `getByLabel("Content")` matches both it and the textarea. Use
+  `getByRole("textbox", { name: "Content", exact: true })`
+- **Radix unmounts the inactive tab panel**, so the Write textarea is not in
+  the DOM while Preview is showing. The value is controlled by the form, so
+  nothing is lost when switching tabs
+- **Styles use `@apply` inside `@layer components`**, so the preview takes
+  Tailwind's own scale and the theme tokens (`bg-muted`, `border`,
+  `text-blue-400`) rather than hand-copied colour values
+- **Preview images load from any URL** the note contains. That is standard
+  Markdown, but it means opening an item can make requests to third-party
+  hosts. Worth revisiting if shared collections land
+- **The running `next dev` on :3000 picked up the new CSS this time.** The
+  Stats & Sidebar note says it did not pick up new utilities; here the change
+  included `globals.css` itself, which is the likely difference (not
+  confirmed). After the `npm install`, a
+  hot-reload left a stale `CodeEditor` module that logged
+  `knownLanguages is not defined`. A full page load cleared it. Nothing in
+  `CodeEditor` changed
+- The Write/Preview tabs have no keyboard shortcut, and there is no toolbar
+  (bold, link, …). The spec asks for neither
+- `.playwright-mcp/` holds this walkthrough's screenshots; it is gitignored
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards
