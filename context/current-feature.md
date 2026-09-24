@@ -1,14 +1,81 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Markdown Editor
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+Completed
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Add a `MarkdownEditor` component with Write/Preview tabs for **prompt** and
+  **note** content only. Snippets and commands keep `CodeEditor` unchanged
+- Render with `react-markdown` + `remark-gfm` (GitHub Flavored Markdown:
+  tables, task lists, strikethrough, autolinks)
+- Styled like `CodeEditor`: same window chrome and a copy button in the
+  header, in the same style
+- Two modes:
+  - **Read-only**: Preview only, no Write tab
+  - **Editable**: opens on Write, with Preview one click away
+- Fluid height up to 400px, then scroll, the same as `CodeEditor`
+- Preview styling lives in a custom `.markdown-preview` class in
+  `src/app/globals.css`:
+  - h1–h6 clearly different in size and weight
+  - code blocks on a dark background in monospace; inline code with a subtle
+    background
+  - indented ordered and unordered lists with bullets
+  - blockquotes with an accent left border
+  - blue links with a hover state
+  - tables with borders and a shaded header row
+- Integration points:
+  - `NewItemDialog`: the content field for prompt/note
+  - `ItemEditForm` (drawer edit mode): the content field for prompt/note
+  - `ItemDetailView` (drawer view mode): read-only, replacing the `<pre>`
+
+## Notes
+
+- Spec: `context/features/markdown-editor-spec.md`
+- New dependencies: `react-markdown` and `remark-gfm`. Neither is installed yet
+- **Colour conflict in the spec.** It asks for `bg-[#1e1e1e]` on the container
+  and `bg-[#2d2d2d]` on the header, and it also asks to match `CodeEditor`. But
+  `CodeEditor` uses theme tokens: `bg-muted/30` on the container and a `border-b`
+  header with no fill. The hex values would make the two editors look
+  different, one beside the other in the same drawer. Recommendation: use the
+  tokens `CodeEditor` actually has, and leave out the literal hexes
+- The switch point already exists. `getItemTypeFields(slug).code` is true only
+  for snippet/command, so the non-`code` branch in all three files is exactly
+  prompt/note. No change to `item-fields.ts` is needed
+- **Safety.** `react-markdown` escapes raw HTML by default, and its default
+  `urlTransform` drops `javascript:` URLs. Do **not** add `rehype-raw`. Preview
+  links should open with `target="_blank" rel="noopener noreferrer"`, like the
+  drawer's URL link
+- The Write tab is a plain textarea, not Monaco, so the `useEscapeGuard`
+  workaround is not needed. Escape in the textarea closes the dialog or drawer,
+  as it does for the current `Textarea`
+- Content is stored as-is. Validation is unchanged: content is not trimmed,
+  and whitespace-only content becomes null
+- `ItemDetailView` renders the Content section only when `item.content` is
+  truthy, so read-only mode never gets empty content. Editable Preview with no
+  text needs an empty-state line ("Nothing to preview")
+- Tests: this is almost entirely a component, and components are out of scope
+  for Vitest. Add unit tests only if logic moves into `src/lib/` (for example a
+  height helper)
+- Monaco rules from the Code Editor feature still apply. Check generated
+  imports after any `shadcn add` (the `import { cn } from "cn"` bug); a `tabs`
+  component may be needed
+
+### Implementation decisions (2026-09-24)
+
+- **Colours:** used `CodeEditor`'s tokens, not the spec's hex values
+- **Tabs:** built on the `Tabs` primitive from the installed `radix-ui`
+  package, so there was no `shadcn add`. Keyboard arrow navigation and ARIA
+  come from Radix
+- **Header:** traffic-light dots, then the tabs (only Preview in read-only
+  mode), then the copy button
+- **Unsafe links:** a link whose URL react-markdown stripped (`javascript:`)
+  renders as plain text. An empty `href` would have reopened the app in a new
+  tab
+- **Scrollbars:** added a `scrollbar-themed` `@utility` in `globals.css` so
+  both panes match Monaco's thin scrollbar. The OS default was a light bar
+- **No new unit tests:** nothing moved into `src/lib/`. The suite stays at 192
 
 ## Notes
 

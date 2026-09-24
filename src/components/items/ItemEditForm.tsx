@@ -13,6 +13,7 @@ import { updateItem, type UpdateItemField } from "@/actions/items";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { CollectionSection, DatesSection } from "@/components/items/ItemSections";
+import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -144,10 +145,14 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
                 }
               />
             ) : (
-              <Textarea
-                {...bind("content")}
-                spellCheck={false}
-                className="max-h-96 min-h-40 font-mono text-[13px] leading-relaxed md:text-[13px]"
+              <MarkdownEditor
+                id="item-edit-content"
+                name="content"
+                value={values.content}
+                invalid={Boolean(issues.content)}
+                onChange={(content) =>
+                  setValues((current) => ({ ...current, content }))
+                }
               />
             )}
           </ItemFormField>

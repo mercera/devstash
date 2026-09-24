@@ -14,6 +14,7 @@ import { createItem, type CreateItemField } from "@/actions/items";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemFormField } from "@/components/items/ItemFormField";
+import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -265,10 +266,14 @@ function NewItemForm({
                 }
               />
             ) : (
-              <Textarea
-                {...bind("content")}
-                spellCheck={false}
-                className="max-h-72 min-h-32 font-mono text-[13px] leading-relaxed md:text-[13px]"
+              <MarkdownEditor
+                id="item-new-content"
+                name="content"
+                value={values.content}
+                invalid={Boolean(issues.content)}
+                onChange={(content) =>
+                  setValues((current) => ({ ...current, content }))
+                }
               />
             )}
           </ItemFormField>
