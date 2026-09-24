@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Pencil, Pin, Star } from "lucide-react";
+import { Copy, Download, Pencil, Pin, Star } from "lucide-react";
 
 import { DeleteItemDialog } from "@/components/items/DeleteItemDialog";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,9 @@ interface ItemActionsProps {
 }
 
 /**
- * The drawer's action bar. Copy, Edit and Delete work; Favorite and Pin are
- * display-only until their mutations land, but already show the item's
- * current state.
+ * The drawer's action bar. Copy (Download for a file or image item), Edit and
+ * Delete work; Favorite and Pin are display-only until their mutations land,
+ * but already show the item's current state.
  */
 export function ItemActions({ item, onEdit, onDeleted }: ItemActionsProps) {
   const copyText = getCopyText(item);
@@ -42,15 +42,26 @@ export function ItemActions({ item, onEdit, onDeleted }: ItemActionsProps) {
         <Pin className={cn(item.isPinned && "fill-current")} />
         Pin
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleCopy}
-        disabled={copyText === null}
-      >
-        <Copy />
-        Copy
-      </Button>
+      {item.fileUrl ? (
+        // Through the app's download route: a cross-origin link to R2 would
+        // ignore `download` and open the file instead of saving it.
+        <Button variant="ghost" size="sm" asChild>
+          <a href={`/api/items/${item.id}/download`} download>
+            <Download />
+            Download
+          </a>
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCopy}
+          disabled={copyText === null}
+        >
+          <Copy />
+          Copy
+        </Button>
+      )}
 
       <Button variant="ghost" size="sm" className="ml-auto" onClick={onEdit}>
         <Pencil />

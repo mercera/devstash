@@ -41,7 +41,7 @@ export default async function ItemsByTypePage({
   if (result === null) notFound();
 
   const { type, items } = result;
-  // File, image and custom types cannot be created yet, so their pages get no button.
+  // Custom types cannot be created yet, so their pages get no button.
   const createSlug =
     type.isSystem && isCreatableTypeSlug(type.slug) ? type.slug : null;
 

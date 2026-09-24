@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
+  getOwnedUploadKey: vi.fn(),
+  deleteUpload: vi.fn(),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
@@ -18,6 +20,10 @@ vi.mock("@/lib/db/items", () => ({
   createItem: mocks.createItem,
   updateItem: mocks.updateItem,
   deleteItem: mocks.deleteItem,
+}));
+vi.mock("@/lib/r2", () => ({
+  getOwnedUploadKey: mocks.getOwnedUploadKey,
+  deleteUpload: mocks.deleteUpload,
 }));
 
 import { createItem, deleteItem, updateItem } from "@/actions/items";
@@ -66,10 +72,10 @@ describe("createItem", () => {
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
-  it.each(["file", "image", "snippets", ""])(
+  it.each(["custom", "snippets", ""])(
     "rejects the type %j without touching the database",
     async (typeSlug) => {
-      // A crafted request: the dialog only ever sends the five creatable slugs.
+      // A crafted request: the dialog only ever sends the creatable slugs.
       const result = await createItem({
         ...snippet,
         typeSlug: typeSlug as "snippet",
@@ -103,6 +109,10 @@ describe("createItem", () => {
       content: "  const x = 1;",
       language: "ts",
       url: null,
+      contentType: "text",
+      fileUrl: null,
+      fileName: null,
+      fileSize: null,
       tags: ["react", "hooks"],
     });
   });
@@ -227,16 +237,17 @@ describe("deleteItem", () => {
   });
 
   it("deletes as the session user and returns the id", async () => {
-    mocks.deleteItem.mockResolvedValue(true);
+    mocks.deleteItem.mockResolvedValue({ deleted: true, fileUrl: null });
 
     const result = await deleteItem("item-1");
 
     expect(result).toEqual({ success: true, data: { id: "item-1" } });
     expect(mocks.deleteItem).toHaveBeenCalledWith("item-1", "user-1");
+    expect(mocks.deleteUpload).not.toHaveBeenCalled();
   });
 
   it("reports another user's item as not found", async () => {
-    mocks.deleteItem.mockResolvedValue(false);
+    mocks.deleteItem.mockResolvedValue({ deleted: false });
 
     const result = await deleteItem("someone-elses-item");
 

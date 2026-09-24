@@ -140,7 +140,7 @@ describe("createItemSchema", () => {
     },
   );
 
-  it.each(["file", "image", "Snippet", "snippets", ""])("rejects the type %j", (typeSlug) => {
+  it.each(["custom", "Snippet", "snippets", ""])("rejects the type %j", (typeSlug) => {
     const result = createItemSchema.safeParse({ ...base, typeSlug });
 
     expect(result.success).toBe(false);
@@ -176,6 +176,11 @@ describe("createItemSchema", () => {
       url: "https://nextjs.org",
       content: "smuggled",
       language: "ts",
+      file: {
+        fileUrl: "https://files.example/uploads/user-1/a.png",
+        fileName: "a.png",
+        fileSize: 10,
+      },
     });
 
     expect(data).toEqual({
@@ -185,6 +190,10 @@ describe("createItemSchema", () => {
       content: null,
       language: null,
       url: "https://nextjs.org",
+      contentType: "text",
+      fileUrl: null,
+      fileName: null,
+      fileSize: null,
       tags: [],
     });
   });

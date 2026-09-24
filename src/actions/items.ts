@@ -6,6 +6,7 @@ import {
   deleteItem as deleteItemRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
+import { deleteUpload, getOwnedUploadKey } from "@/lib/r2";
 import {
   createItemSchema,
   updateItemSchema,
@@ -80,6 +81,19 @@ export async function createItem(
     };
   }
 
+  // Only one of the caller's own uploads may be attached. Otherwise deleting
+  // this item would delete someone else's object from R2.
+  if (
+    parsed.data.fileUrl !== null &&
+    getOwnedUploadKey(parsed.data.fileUrl, userId) === null
+  ) {
+    return {
+      success: false,
+      error: INVALID_INPUT,
+      issues: { file: ["Upload the file again."] },
+    };
+  }
+
   try {
     const item = await createItemRecord(userId, parsed.data);
 
@@ -143,8 +157,9 @@ export async function updateItem(
 }
 
 /**
- * Permanently deletes one of the signed-in user's items. Another user's item
- * is reported as not found, never as forbidden.
+ * Permanently deletes one of the signed-in user's items, and the uploaded file
+ * behind a file or image item. Another user's item is reported as not found,
+ * never as forbidden.
  */
 export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
   const session = await auth();
@@ -159,10 +174,14 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
   }
 
   try {
-    const deleted = await deleteItemRecord(itemId, userId);
+    const result = await deleteItemRecord(itemId, userId);
 
-    if (!deleted) {
+    if (!result.deleted) {
       return { success: false, error: NOT_FOUND };
+    }
+
+    if (result.fileUrl !== null) {
+      await removeUpload(result.fileUrl, userId);
     }
 
     return { success: true, data: { id: itemId } };
@@ -170,5 +189,25 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
     console.error("Failed to delete item:", error);
 
     return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+}
+
+/**
+ * Deletes a deleted item's file from R2. Best effort: the item is already
+ * gone, so a storage failure is logged and leaves an orphaned object rather
+ * than failing a delete that has in fact happened.
+ */
+async function removeUpload(fileUrl: string, userId: string): Promise<void> {
+  const key = getOwnedUploadKey(fileUrl, userId);
+
+  if (key === null) {
+    console.error(`Not deleting ${fileUrl} from R2: not one of the user's uploads.`);
+    return;
+  }
+
+  try {
+    await deleteUpload(key);
+  } catch (error) {
+    console.error(`Failed to delete ${key} from R2:`, error);
   }
 }

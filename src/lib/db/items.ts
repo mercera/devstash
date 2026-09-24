@@ -200,14 +200,37 @@ export async function updateItem(
 }
 
 /**
- * Deletes one of `userId`'s items. Returns false when no item with that id
- * belongs to `userId`.
+ * Deletes one of `userId`'s items and returns its stored `fileUrl` (null for a
+ * text item), so the caller can remove the upload behind it. Returns
+ * `{ deleted: false }` when no item with that id belongs to `userId`.
  *
- * Ownership is part of the write, as in `getItemById`. The item's `ItemTag`
- * rows cascade with it; the tags themselves stay, as they do after an edit.
+ * Ownership is part of both statements, as in `getItemById`. The item's
+ * `ItemTag` rows cascade with it; the tags themselves stay, as they do after an
+ * edit. The file URL is read first because `deleteMany` returns only a count.
  */
-export async function deleteItem(id: string, userId: string): Promise<boolean> {
+export async function deleteItem(
+  id: string,
+  userId: string,
+): Promise<{ deleted: false } | { deleted: true; fileUrl: string | null }> {
+  const item = await prisma.item.findFirst({
+    where: { id, userId },
+    select: { fileUrl: true },
+  });
+
+  if (item === null) return { deleted: false };
+
   const { count } = await prisma.item.deleteMany({ where: { id, userId } });
+
+  return count > 0 ? { deleted: true, fileUrl: item.fileUrl } : { deleted: false };
+}
+
+/**
+ * Whether any item stores this file URL. The upload route checks it before
+ * discarding an upload, so an object already backing an item is never removed
+ * out from under it.
+ */
+export async function isFileUrlInUse(fileUrl: string): Promise<boolean> {
+  const count = await prisma.item.count({ where: { fileUrl } });
 
   return count > 0;
 }

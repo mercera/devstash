@@ -156,6 +156,10 @@ describe("createItem", () => {
     content: "lsof -i :3000 -t | xargs kill -9",
     language: "bash",
     url: null,
+    contentType: "text" as const,
+    fileUrl: null,
+    fileName: null,
+    fileSize: null,
     tags: ["process", "terminal"],
   };
 
@@ -193,6 +197,10 @@ describe("createItem", () => {
         content: "lsof -i :3000 -t | xargs kill -9",
         language: "bash",
         url: null,
+        contentType: "text",
+        fileUrl: null,
+        fileName: null,
+        fileSize: null,
         userId: "user-1",
         typeId: type.id,
       },
@@ -345,22 +353,43 @@ describe("updateItem", () => {
 });
 
 describe("deleteItem", () => {
-  it("deletes scoped to both the item id and the owner", async () => {
+  const fileUrl = "https://files.example/uploads/user-1/a.png";
+
+  it("deletes scoped to both the item id and the owner, returning its file URL", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue({ fileUrl });
     mocks.prisma.item.deleteMany.mockResolvedValue({ count: 1 });
 
-    await expect(deleteItem("item-1", "user-1")).resolves.toBe(true);
+    await expect(deleteItem("item-1", "user-1")).resolves.toEqual({
+      deleted: true,
+      fileUrl,
+    });
+    expect(mocks.prisma.item.findFirst).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+      select: { fileUrl: true },
+    });
     expect(mocks.prisma.item.deleteMany).toHaveBeenCalledWith({
       where: { id: "item-1", userId: "user-1" },
     });
   });
 
-  it("returns false when the item is missing or not the user's", async () => {
+  it("deletes nothing when the item is missing or not the user's", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue(null);
+
+    await expect(deleteItem("someone-elses-item", "user-1")).resolves.toEqual({
+      deleted: false,
+    });
+    expect(mocks.prisma.item.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("reports not deleted when the item goes between the read and the delete", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue({ fileUrl });
     mocks.prisma.item.deleteMany.mockResolvedValue({ count: 0 });
 
-    await expect(deleteItem("someone-elses-item", "user-1")).resolves.toBe(false);
+    await expect(deleteItem("item-1", "user-1")).resolves.toEqual({ deleted: false });
   });
 
   it("lets a database failure propagate for the action to handle", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue({ fileUrl: null });
     mocks.prisma.item.deleteMany.mockRejectedValue(new Error("connection reset"));
 
     await expect(deleteItem("item-1", "user-1")).rejects.toThrow("connection reset");

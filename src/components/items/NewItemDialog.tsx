@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  useEffect,
+  useRef,
   useState,
   useTransition,
   type ChangeEvent,
@@ -13,6 +15,7 @@ import { toast } from "sonner";
 import { createItem, type CreateItemField } from "@/actions/items";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
 import { CodeEditor } from "@/components/items/CodeEditor";
+import { FileUpload } from "@/components/items/FileUpload";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Button } from "@/components/ui/button";
@@ -35,6 +38,8 @@ import {
   type CreatableTypeSlug,
   type ItemTypeFields,
 } from "@/lib/item-fields";
+import { discardUpload } from "@/lib/upload-client";
+import type { UploadedFile } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import { parseTagInput, type CreateItemInput } from "@/lib/validations/items";
 import type { ItemType } from "@/types";
@@ -87,7 +92,7 @@ export function NewItemDialog({
         <DialogHeader className="border-b p-4">
           <DialogTitle>New item</DialogTitle>
           <DialogDescription>
-            Save a snippet, prompt, command, note or link.
+            Save a snippet, prompt, command, note, file, image or link.
           </DialogDescription>
         </DialogHeader>
 
@@ -147,12 +152,50 @@ function NewItemForm({
       "snippet",
   );
   const [values, setValues] = useState<FormValues>(EMPTY_VALUES);
+  const [file, setFile] = useState<UploadedFile | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [issues, setIssues] = useState<Issues>({});
   const [isPending, startTransition] = useTransition();
   const fields = getItemTypeFields(typeSlug);
 
+  // The upload not yet attached to an item. It is discarded when the form goes
+  // away without creating one: cancelled or closed with Escape (an unmount),
+  // or the page reloaded or closed (`pagehide` — unload runs no React
+  // cleanup). `discardUpload` is a keepalive request, so it outlives the page.
+  const unsavedFileUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    function discardUnsaved() {
+      if (unsavedFileUrl.current) discardUpload(unsavedFileUrl.current);
+      unsavedFileUrl.current = null;
+    }
+
+    window.addEventListener("pagehide", discardUnsaved);
+
+    return () => {
+      window.removeEventListener("pagehide", discardUnsaved);
+      discardUnsaved();
+    };
+  }, []);
+
+  function handleFileChange(next: UploadedFile | null) {
+    unsavedFileUrl.current = next?.fileUrl ?? null;
+    setFile(next);
+  }
+
+  function selectType(slug: CreatableTypeSlug) {
+    if (slug === typeSlug) return;
+    // A file uploaded for one type is not carried to another.
+    if (file) discardUpload(file.fileUrl);
+    handleFileChange(null);
+    setTypeSlug(slug);
+  }
+
   const canSubmit =
-    values.title.trim() !== "" && (!fields.url || values.url.trim() !== "");
+    values.title.trim() !== "" &&
+    (!fields.url || values.url.trim() !== "") &&
+    (!fields.upload || file !== null) &&
+    !uploading;
 
   function bind(name: keyof FormValues) {
     return {
@@ -173,7 +216,7 @@ function NewItemForm({
 
     startTransition(async () => {
       try {
-        const result = await createItem(toPayload(typeSlug, values, fields));
+        const result = await createItem(toPayload(typeSlug, values, fields, file));
 
         if (!result.success) {
           setIssues(result.issues ?? {});
@@ -182,6 +225,8 @@ function NewItemForm({
         }
 
         toast.success("Item created");
+        // The upload now belongs to the item, so it must survive the close.
+        unsavedFileUrl.current = null;
         onCreated();
         // The lists and sidebar counts are server-rendered, so they only pick
         // up the new item on a refresh.
@@ -206,7 +251,7 @@ function NewItemForm({
           <div
             role="group"
             aria-labelledby="item-new-type"
-            className="grid grid-cols-3 gap-2 sm:grid-cols-5"
+            className="grid grid-cols-4 gap-2 sm:grid-cols-7"
           >
             {types.map((type) => {
               const selected = type.slug === typeSlug;
@@ -216,9 +261,9 @@ function NewItemForm({
                   key={type.id}
                   type="button"
                   aria-pressed={selected}
-                  disabled={isPending}
+                  disabled={isPending || uploading}
                   onClick={() => {
-                    if (isCreatableTypeSlug(type.slug)) setTypeSlug(type.slug);
+                    if (isCreatableTypeSlug(type.slug)) selectType(type.slug);
                   }}
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
@@ -252,6 +297,25 @@ function NewItemForm({
         >
           <Textarea {...bind("description")} className="min-h-16" />
         </ItemFormField>
+
+        {fields.upload && (
+          <ItemFormField
+            label={fields.upload === "image" ? "Image" : "File"}
+            htmlFor="item-new-file"
+            issues={issues.file}
+          >
+            <FileUpload
+              key={fields.upload}
+              id="item-new-file"
+              kind={fields.upload}
+              value={file}
+              onChange={handleFileChange}
+              onUploadingChange={setUploading}
+              disabled={isPending}
+              invalid={Boolean(issues.file)}
+            />
+          </ItemFormField>
+        )}
 
         {fields.content && (
           <ItemFormField label="Content" htmlFor="item-new-content" issues={issues.content}>
@@ -327,6 +391,7 @@ function toPayload(
   typeSlug: CreatableTypeSlug,
   values: FormValues,
   fields: ItemTypeFields,
+  file: UploadedFile | null,
 ): CreateItemInput {
   return {
     typeSlug,
@@ -336,5 +401,6 @@ function toPayload(
     ...(fields.content ? { content: values.content } : {}),
     ...(fields.language ? { language: values.language } : {}),
     ...(fields.url ? { url: values.url } : {}),
+    ...(fields.upload && file ? { file } : {}),
   };
 }

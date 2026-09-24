@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Tag } from "lucide-react";
+import { ExternalLink, FileText, Tag } from "lucide-react";
 
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
 import { CodeEditor } from "@/components/items/CodeEditor";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { SheetTitle } from "@/components/ui/sheet";
 import { getAccentTileClass } from "@/lib/icons";
 import { getItemTypeFields } from "@/lib/item-fields";
+import { formatFileSize } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import type { ItemDetail } from "@/types";
 
@@ -94,7 +95,7 @@ export function ItemDetailView({
 }
 
 function ItemBody({ item }: { item: ItemDetail }) {
-  const { code } = getItemTypeFields(item.type.slug);
+  const { code, upload } = getItemTypeFields(item.type.slug);
 
   return (
     <>
@@ -105,6 +106,12 @@ function ItemBody({ item }: { item: ItemDetail }) {
           <p className="text-muted-foreground">No description.</p>
         )}
       </Section>
+
+      {item.fileUrl && (
+        <Section title={upload === "image" ? "Image" : "File"}>
+          <UploadedFileView item={item} image={upload === "image"} />
+        </Section>
+      )}
 
       {item.content && (
         <Section title="Content">
@@ -135,6 +142,42 @@ function ItemBody({ item }: { item: ItemDetail }) {
         </Section>
       )}
     </>
+  );
+}
+
+/**
+ * An image item's picture, or a file item's name and size.
+ *
+ * The image loads straight from its public R2 URL. It is an `<img>`, so an
+ * SVG's scripts never run, and the URL is on R2's origin rather than this one.
+ */
+function UploadedFileView({ item, image }: { item: ItemDetail; image: boolean }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {image && item.fileUrl && (
+        <div className="flex justify-center overflow-hidden rounded-lg border bg-muted/40">
+          {/* eslint-disable-next-line @next/next/no-img-element -- user uploads on R2, any size or format; nothing to optimise */}
+          <img
+            src={item.fileUrl}
+            alt={item.title}
+            className="max-h-80 w-auto object-contain"
+          />
+        </div>
+      )}
+      <div className="flex items-center gap-3 rounded-lg border p-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+          <FileText className="size-4 text-muted-foreground" />
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate font-medium">{item.fileName ?? "Untitled file"}</span>
+          {item.fileSize !== null && (
+            <span className="text-xs text-muted-foreground">
+              {formatFileSize(item.fileSize)}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
