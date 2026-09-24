@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateItem, type UpdateItemField } from "@/actions/items";
+import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { CollectionSection, DatesSection } from "@/components/items/ItemSections";
 import { Button } from "@/components/ui/button";
@@ -132,11 +133,23 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
 
         {fields.content && (
           <ItemFormField label="Content" htmlFor="item-edit-content" issues={issues.content}>
-            <Textarea
-              {...bind("content")}
-              spellCheck={false}
-              className="max-h-96 min-h-40 font-mono text-[13px] leading-relaxed md:text-[13px]"
-            />
+            {fields.code ? (
+              <CodeEditor
+                value={values.content}
+                language={values.language}
+                ariaLabel="Content"
+                invalid={Boolean(issues.content)}
+                onChange={(content) =>
+                  setValues((current) => ({ ...current, content }))
+                }
+              />
+            ) : (
+              <Textarea
+                {...bind("content")}
+                spellCheck={false}
+                className="max-h-96 min-h-40 font-mono text-[13px] leading-relaxed md:text-[13px]"
+              />
+            )}
           </ItemFormField>
         )}
 

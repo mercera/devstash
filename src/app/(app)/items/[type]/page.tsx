@@ -4,8 +4,14 @@ import { cache } from "react";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
-import { getItemsByType } from "@/lib/db/items";
+import { NewItemDialog } from "@/components/items/NewItemDialog";
+import { getItemTypesWithCounts, getItemsByType } from "@/lib/db/items";
 import { getAccentTileClass } from "@/lib/icons";
+import {
+  getCreatableTypes,
+  isCreatableTypeSlug,
+  singularTypeName,
+} from "@/lib/item-fields";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,11 +33,17 @@ export default async function ItemsByTypePage({
   params,
 }: PageProps<"/items/[type]">) {
   const { type: slug } = await params;
-  const result = await loadItemsByType(slug);
+  const [result, itemTypes] = await Promise.all([
+    loadItemsByType(slug),
+    getItemTypesWithCounts(),
+  ]);
 
   if (result === null) notFound();
 
   const { type, items } = result;
+  // File, image and custom types cannot be created yet, so their pages get no button.
+  const createSlug =
+    type.isSystem && isCreatableTypeSlug(type.slug) ? type.slug : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -50,6 +62,16 @@ export default async function ItemsByTypePage({
             {items.length} {items.length === 1 ? "item" : "items"}
           </p>
         </div>
+        {createSlug && (
+          <div className="ml-auto">
+            <NewItemDialog
+              types={getCreatableTypes(itemTypes)}
+              defaultTypeSlug={createSlug}
+              label={`New ${singularTypeName(createSlug)}`}
+              variant="outline"
+            />
+          </div>
+        )}
       </header>
 
       {items.length > 0 ? (

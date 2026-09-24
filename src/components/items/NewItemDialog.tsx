@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { createItem, type CreateItemField } from "@/actions/items";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ import { getAccentTextClass } from "@/lib/icons";
 import {
   getItemTypeFields,
   isCreatableTypeSlug,
+  singularTypeName,
   type CreatableTypeSlug,
   type ItemTypeFields,
 } from "@/lib/item-fields";
@@ -41,15 +43,26 @@ const CREATE_FAILED = "Something went wrong. Please try again.";
 interface NewItemDialogProps {
   /** The creatable item types, in sidebar order. */
   types: ItemType[];
+  /** The type selected on opening. Defaults to the first of `types`. */
+  defaultTypeSlug?: CreatableTypeSlug;
+  /** The trigger's text, hidden on narrow screens where only the icon shows. */
+  label?: string;
+  variant?: "default" | "outline";
 }
 
 /**
- * The top bar's New Item button and the dialog it opens.
+ * A New Item button and the dialog it opens: in the top bar with no type
+ * chosen, and on each type's page with that type selected.
  *
  * The form lives inside `DialogContent`, which unmounts on close, so every
  * opening starts from a blank form without any reset logic.
  */
-export function NewItemDialog({ types }: NewItemDialogProps) {
+export function NewItemDialog({
+  types,
+  defaultTypeSlug,
+  label = "New Item",
+  variant = "default",
+}: NewItemDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
 
@@ -63,9 +76,9 @@ export function NewItemDialog({ types }: NewItemDialogProps) {
       }}
     >
       <DialogTrigger asChild>
-        <Button aria-label="New Item">
+        <Button variant={variant} aria-label={label}>
           <Plus />
-          <span className="hidden sm:inline">New Item</span>
+          <span className="hidden sm:inline">{label}</span>
         </Button>
       </DialogTrigger>
 
@@ -79,6 +92,7 @@ export function NewItemDialog({ types }: NewItemDialogProps) {
 
         <NewItemForm
           types={types}
+          defaultTypeSlug={defaultTypeSlug}
           onPendingChange={setIsPending}
           onCancel={() => setOpen(false)}
           onCreated={() => setOpen(false)}
@@ -111,6 +125,7 @@ const EMPTY_VALUES: FormValues = {
 
 interface NewItemFormProps {
   types: ItemType[];
+  defaultTypeSlug?: CreatableTypeSlug;
   onPendingChange: (pending: boolean) => void;
   onCancel: () => void;
   onCreated: () => void;
@@ -118,13 +133,17 @@ interface NewItemFormProps {
 
 function NewItemForm({
   types,
+  defaultTypeSlug,
   onPendingChange,
   onCancel,
   onCreated,
 }: NewItemFormProps) {
   const router = useRouter();
   const [typeSlug, setTypeSlug] = useState<CreatableTypeSlug>(
-    () => types.map((type) => type.slug).find(isCreatableTypeSlug) ?? "snippet",
+    () =>
+      defaultTypeSlug ??
+      types.map((type) => type.slug).find(isCreatableTypeSlug) ??
+      "snippet",
   );
   const [values, setValues] = useState<FormValues>(EMPTY_VALUES);
   const [issues, setIssues] = useState<Issues>({});
@@ -211,7 +230,7 @@ function NewItemForm({
                     type={type}
                     className={cn("size-4", getAccentTextClass(type.color))}
                   />
-                  {singularName(type.slug)}
+                  {singularTypeName(type.slug)}
                 </button>
               );
             })}
@@ -235,11 +254,23 @@ function NewItemForm({
 
         {fields.content && (
           <ItemFormField label="Content" htmlFor="item-new-content" issues={issues.content}>
-            <Textarea
-              {...bind("content")}
-              spellCheck={false}
-              className="max-h-72 min-h-32 font-mono text-[13px] leading-relaxed md:text-[13px]"
-            />
+            {fields.code ? (
+              <CodeEditor
+                value={values.content}
+                language={values.language}
+                ariaLabel="Content"
+                invalid={Boolean(issues.content)}
+                onChange={(content) =>
+                  setValues((current) => ({ ...current, content }))
+                }
+              />
+            ) : (
+              <Textarea
+                {...bind("content")}
+                spellCheck={false}
+                className="max-h-72 min-h-32 font-mono text-[13px] leading-relaxed md:text-[13px]"
+              />
+            )}
           </ItemFormField>
         )}
 
@@ -280,11 +311,6 @@ function NewItemForm({
       </DialogFooter>
     </form>
   );
-}
-
-/** `snippet` → `Snippet`. Type names are plural ("Snippets"), which reads oddly on a picker. */
-function singularName(slug: string): string {
-  return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
 /**

@@ -1,18 +1,70 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Code Editor
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- A `CodeEditor` component built on Monaco Editor with a dark theme
+- Snippets and commands use `CodeEditor` for content; notes, prompts and every
+  other type keep the `Textarea`
+- A header on the editor with macOS-style window dots (red/yellow/green), the
+  item's language, and a quick copy button next to it
+- Works read-only in the drawer's view mode and editable in edit mode and the
+  New Item dialog
+- Height grows with the content up to a 400px maximum, then scrolls, with a
+  scrollbar styled to match the theme
+- Added on request: each creatable type's page (`/items/[type]`) has a
+  "New Snippet" / "New Command" / … button that opens the New Item dialog with
+  that type selected
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/code-editor-spec.md`.
+
+Where content is rendered today:
+
+- View mode: a plain `<pre><code>` in `src/components/items/ItemDetailView.tsx:106`
+- Edit mode: a `Textarea` in `src/components/items/ItemEditForm.tsx:135`
+- Create: a `Textarea` in `src/components/items/NewItemDialog.tsx:238`
+
+Things to settle while building:
+
+- **Which types get the editor.** `LANGUAGE_TYPE_SLUGS` in
+  `src/lib/item-fields.ts` is already exactly snippet + command, so the
+  "code types" decision can key off `getItemTypeFields(slug).language` (or a
+  sibling flag there) rather than a new hardcoded list in a component
+- **Package choice.** `@monaco-editor/react` is the usual wrapper; it loads
+  Monaco from a CDN by default. Decide whether that is acceptable or whether to
+  bundle `monaco-editor` locally via its `loader.config`. Check the current
+  API with Context7 before writing it
+- **Client-only.** Monaco touches `window`, so the component needs
+  `"use client"` and likely `next/dynamic` with `ssr: false`. All three host
+  components are already client components
+- **Language mapping.** Seeded languages are `typescript`, `dockerfile` and
+  `bash`. Monaco's ids differ in places (`bash` → `shell`), and the field is
+  free text, so unknown values need a `plaintext` fallback. A mapping helper in
+  `src/lib/` would be unit-testable
+- **Form integration.** The two forms bind the `Textarea` as an uncontrolled
+  field via `bind("content")`. Monaco is controlled through `value`/`onChange`,
+  so the content field needs wiring so the form still submits it. Leading
+  indentation must survive, as it does today (content is never trimmed)
+- **Fluid height.** Monaco does not auto-size; height has to be driven from
+  `editor.getContentHeight()` via `onDidContentSizeChange`, capped at 400px
+- **Copy button.** `getCopyText` in `src/lib/item-copy.ts` and the drawer's
+  existing Copy toast are the patterns to reuse
+- **Scrollbar.** Monaco renders its own scrollbars; style them through the
+  editor's `scrollbar` options and theme colors rather than global CSS where
+  possible
+- **Focus traps.** The drawer (`Sheet`) and the New Item `Dialog` trap focus.
+  Confirm Monaco's hidden textarea and its widgets (find, suggest) still take
+  focus, and that Escape inside the editor does not close the sheet or dialog
+  unexpectedly
+- **Theme.** Define a custom Monaco theme whose background matches the app's
+  dark surface instead of the default `vs-dark` grey
+- Not in scope: a language picker, line-number preferences, highlighting
+  outside Monaco
 
 ## History
 
