@@ -55,6 +55,9 @@ Example v4 configuration:
 - Server Actions: `src/actions/[feature].ts`
 - Types: `src/types/[feature].ts`
 - Lib/Utils: `src/lib/[utility].ts`
+- Database queries: `src/lib/db/[feature].ts`
+- Zod schemas: `src/lib/validations/[feature].ts`
+- Hooks: `src/hooks/use-[name].ts`
 
 ## Naming
 

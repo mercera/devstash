@@ -357,7 +357,17 @@ git switch -c lesson-01-setup
 - Neon PostgreSQL + Prisma live, migrated and seeded with demo data
 - Dashboard (`/dashboard`) built and reading entirely from the database —
   stats, collections, pinned items, recent items and the sidebar
-- Next up: items CRUD, collections CRUD, search, then authentication
+- Authentication done — email/password and GitHub OAuth, email verification,
+  forgot password, profile page, and rate limiting on the auth endpoints
+- Items CRUD done — per-type list pages (`/items/[type]`), a detail drawer
+  with edit and delete, and a New Item dialog
+- Monaco code editor for snippets and commands, a Markdown editor for prompts
+  and notes
+- File and image uploads to Cloudflare R2, with an image gallery and a file
+  list view
+- Known gap: most reads are still scoped to the seeded demo user rather than
+  the signed-in session
+- Next up: collections CRUD and search
 
 > Per-feature specs live in `context/features/`; the running log of completed
 > work is in `context/current-feature.md`.

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
-import { ItemCard } from "@/components/dashboard/ItemCard";
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { ItemCard } from "@/components/items/ItemCard";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import { FileRow } from "@/components/items/FileRow";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewItemDialog } from "@/components/items/NewItemDialog";

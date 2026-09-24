@@ -1,8 +1,8 @@
 /**
  * Core data model types.
  *
- * These mirror the Prisma draft in `context/project-overview.md` and are the
- * shapes the UI codes against until the real database lands.
+ * The shapes the UI codes against. The `src/lib/db/*` getters map Prisma rows
+ * onto them, so components never import the generated Prisma types.
  */
 
 /** Semantic accent color name — the UI maps this to Tailwind classes. */
@@ -21,7 +21,7 @@ export type ContentType = "text" | "file";
 export interface ItemType {
   id: string;
   name: string;
-  /** URL-safe identifier used for filter routes, e.g. `/items?type=snippet`. */
+  /** Singular, URL-safe identifier used in routes, e.g. `/items/snippet`. */
   slug: string;
   /** lucide-react icon name. */
   icon: string;

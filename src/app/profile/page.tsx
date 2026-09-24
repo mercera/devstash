@@ -8,7 +8,7 @@ import { UserAvatar } from "@/components/auth/UserAvatar";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollectionStats } from "@/lib/db/collections";
 import { getItemStats, getItemTypesWithCounts } from "@/lib/db/items";

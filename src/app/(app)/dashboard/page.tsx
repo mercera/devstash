@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Boxes, Clock, FolderOpen, Folders, Pin, Star } from "lucide-react";
 
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
-import { ItemCard } from "@/components/dashboard/ItemCard";
+import { ItemCard } from "@/components/items/ItemCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { getCollectionStats, getRecentCollections } from "@/lib/db/collections";
 import { getItemStats, getPinnedItems, getRecentItems } from "@/lib/db/items";
