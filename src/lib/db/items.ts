@@ -8,6 +8,8 @@
  * must never reach another user's item.
  */
 
+import { cache } from "react";
+
 import type { Prisma } from "@/generated/prisma/client";
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { prisma } from "@/lib/prisma";
@@ -276,8 +278,12 @@ export async function getItemsByType(
  *
  * System types are shared by every user (`userId` is null on them), so the
  * count has to be filtered to this user rather than counting the relation.
+ *
+ * Memoised per request: the app layout and a type's page both need the list.
  */
-export async function getItemTypesWithCounts(): Promise<ItemTypeWithCount[]> {
+export const getItemTypesWithCounts = cache(async (): Promise<
+  ItemTypeWithCount[]
+> => {
   const types = await prisma.itemType.findMany({
     where: { OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
     orderBy: { createdAt: "asc" },
@@ -295,7 +301,7 @@ export async function getItemTypesWithCounts(): Promise<ItemTypeWithCount[]> {
     isSystem: type.isSystem,
     itemCount: type._count.items,
   }));
-}
+});
 
 /** Item counts for the dashboard stat cards. */
 export async function getItemStats(): Promise<{

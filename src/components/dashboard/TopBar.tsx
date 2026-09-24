@@ -4,7 +4,7 @@ import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { isCreatableTypeSlug } from "@/lib/item-fields";
+import { getCreatableTypes } from "@/lib/item-fields";
 import type { ItemType } from "@/types";
 
 interface TopBarProps {
@@ -13,16 +13,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ itemTypes }: TopBarProps) {
-  const creatableTypes = itemTypes
-    .filter((type) => type.isSystem && isCreatableTypeSlug(type.slug))
-    .map(({ id, name, slug, icon, color, isSystem }) => ({
-      id,
-      name,
-      slug,
-      icon,
-      color,
-      isSystem,
-    }));
+  const creatableTypes = getCreatableTypes(itemTypes);
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">

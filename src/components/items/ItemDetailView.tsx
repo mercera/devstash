@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ExternalLink, Tag } from "lucide-react";
 
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemActions } from "@/components/items/ItemActions";
 import { ItemEditForm } from "@/components/items/ItemEditForm";
 import {
@@ -14,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { SheetTitle } from "@/components/ui/sheet";
 import { getAccentTileClass } from "@/lib/icons";
+import { getItemTypeFields } from "@/lib/item-fields";
 import { cn } from "@/lib/utils";
 import type { ItemDetail } from "@/types";
 
@@ -91,6 +93,8 @@ export function ItemDetailView({
 }
 
 function ItemBody({ item }: { item: ItemDetail }) {
+  const { code } = getItemTypeFields(item.type.slug);
+
   return (
     <>
       <Section title="Description">
@@ -103,9 +107,18 @@ function ItemBody({ item }: { item: ItemDetail }) {
 
       {item.content && (
         <Section title="Content">
-          <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-[13px] leading-relaxed">
-            <code>{item.content}</code>
-          </pre>
+          {code ? (
+            <CodeEditor
+              value={item.content}
+              language={item.language}
+              ariaLabel="Content"
+              readOnly
+            />
+          ) : (
+            <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-[13px] leading-relaxed">
+              <code>{item.content}</code>
+            </pre>
+          )}
         </Section>
       )}
 
