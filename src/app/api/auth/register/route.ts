@@ -1,8 +1,8 @@
-import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { issueEmailVerification } from "@/lib/email-verification";
 import { isEmailVerificationEnabled } from "@/lib/flags";
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
   checkRateLimit,
@@ -11,8 +11,6 @@ import {
   retryAfterSeconds,
 } from "@/lib/rate-limit";
 import { registerSchema } from "@/lib/validations/auth";
-
-const BCRYPT_ROUNDS = 12;
 
 type RegisterResponse =
   | {
@@ -116,7 +114,7 @@ export async function POST(request: Request): Promise<NextResponse<RegisterRespo
     // address, and stamping it would make a waved-through account
     // indistinguishable from a genuinely verified one.
     const user = await prisma.user.create({
-      data: { name, email, password: await bcrypt.hash(password, BCRYPT_ROUNDS) },
+      data: { name, email, password: await hashPassword(password) },
       select: { id: true, name: true, email: true },
     });
 

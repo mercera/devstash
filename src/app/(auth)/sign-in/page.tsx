@@ -6,12 +6,11 @@ import { auth } from "@/auth";
 import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toSafeRedirect } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "Sign in · DevStash",
 };
-
-const DEFAULT_CALLBACK_URL = "/dashboard";
 
 /**
  * Auth.js redirects back here with `?error=` when a provider fails. Only codes
@@ -59,12 +58,9 @@ function resolveNotice(
 export default async function SignInPage({ searchParams }: PageProps<"/sign-in">) {
   const params = await searchParams;
 
-  const requested = firstParam(params.callbackUrl);
-  // Only in-app paths are honoured; `//evil.com` is protocol-relative, not local.
-  const callbackUrl =
-    requested?.startsWith("/") && !requested.startsWith("//")
-      ? requested
-      : DEFAULT_CALLBACK_URL;
+  // Redirected to below when a session already exists, so it must be an
+  // in-app path before it goes anywhere.
+  const callbackUrl = toSafeRedirect(firstParam(params.callbackUrl));
 
   // Nothing to sign in to if there is already a session.
   const session = await auth();

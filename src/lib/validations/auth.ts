@@ -10,6 +10,9 @@ import { z } from "zod";
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 72;
 
+/** Shown under every new-password field until there is an error to show. */
+export const PASSWORD_LENGTH_HINT = `At least ${MIN_PASSWORD_LENGTH} characters.`;
+
 const email = z
   .string()
   .trim()

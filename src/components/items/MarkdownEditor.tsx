@@ -3,10 +3,12 @@
 import { Tabs } from "radix-ui";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { copyToClipboard } from "@/lib/clipboard";
+import {
+  EditorCopyButton,
+  EditorHeader,
+  editorFrameClass,
+} from "@/components/items/EditorChrome";
 import { cn } from "@/lib/utils";
 
 interface MarkdownEditorProps {
@@ -60,20 +62,9 @@ export function MarkdownEditor({
   return (
     <Tabs.Root
       defaultValue={readOnly ? "preview" : "write"}
-      className={cn(
-        "flex flex-col rounded-lg border bg-muted/30 transition-colors",
-        !readOnly &&
-          "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
-        invalid &&
-          "border-destructive/50 ring-3 ring-destructive/40 focus-within:border-destructive/50 focus-within:ring-destructive/40",
-      )}
+      className={editorFrameClass({ readOnly, invalid })}
     >
-      <div className="flex h-9 shrink-0 items-center gap-3 border-b pr-1.5 pl-3">
-        <div className="flex gap-1.5" aria-hidden>
-          <span className="size-3 rounded-full bg-[#ff5f57]" />
-          <span className="size-3 rounded-full bg-[#febc2e]" />
-          <span className="size-3 rounded-full bg-[#28c840]" />
-        </div>
+      <EditorHeader className="gap-3">
         <Tabs.List aria-label={`${ariaLabel} view`} className="flex gap-1">
           {!readOnly && (
             <Tabs.Trigger value="write" className={TRIGGER_CLASS}>
@@ -84,18 +75,8 @@ export function MarkdownEditor({
             Preview
           </Tabs.Trigger>
         </Tabs.List>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Copy markdown"
-          className="ml-auto"
-          disabled={value.trim() === ""}
-          onClick={() => void copyToClipboard(value)}
-        >
-          <Copy />
-        </Button>
-      </div>
+        <EditorCopyButton value={value} label="Copy markdown" className="ml-auto" />
+      </EditorHeader>
 
       {!readOnly && (
         <Tabs.Content value="write" className="outline-none">

@@ -26,11 +26,8 @@ import {
   retryAfterSeconds,
   type RateLimitName,
 } from "@/lib/rate-limit";
-import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
+import { FORGOT_PASSWORD_PATH, toSafeRedirect } from "@/lib/routes";
 import { resetPasswordSchema, signInSchema } from "@/lib/validations/auth";
-
-/** Where a successful sign-in lands when no callback URL was supplied. */
-const DEFAULT_REDIRECT = "/dashboard";
 
 /**
  * Rate limits an action, returning the message to show if the caller is over
@@ -68,26 +65,6 @@ export interface SignInState {
   needsVerification?: boolean;
   /** Set when the attempt was refused by the rate limiter, not by Auth.js. */
   rateLimited?: boolean;
-}
-
-/**
- * A callback URL only ever comes from the query string, so it is attacker
- * controlled. Auth.js's own `redirect` callback already refuses other origins,
- * but this rejects anything that is not a plain in-app path before it gets
- * that far — `//evil.com` is a protocol-relative URL, not a local route.
- */
-function toSafeRedirect(callbackUrl: FormDataEntryValue | null): string {
-  if (typeof callbackUrl !== "string") {
-    return DEFAULT_REDIRECT;
-  }
-
-  // `//evil.com` is a protocol-relative URL, and browsers normalise the
-  // backslash in `/\evil.com` to the same thing — neither is a local route.
-  if (!callbackUrl.startsWith("/") || /^\/[/\\]/.test(callbackUrl)) {
-    return DEFAULT_REDIRECT;
-  }
-
-  return callbackUrl;
 }
 
 /**
@@ -177,16 +154,8 @@ export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: SIGN_IN_PATH });
 }
 
-/**
- * The single reply the resend form ever gives on success. Identical for an
- * unknown address, an already-verified account, an OAuth-only account and a
- * disabled flag, so none of those can be told apart from the outside.
- */
-const NEUTRAL_RESEND_MESSAGE =
-  `If that address needs verifying, a new link is on its way. ` +
-  `It expires in ${VERIFICATION_TOKEN_TTL_HOURS} hours.`;
-
-export interface ResendVerificationState {
+/** The state of the two "email me a link" forms: resend verification and forgot password. */
+export interface EmailLinkRequestState {
   /** Shown once the request has been handled, whatever the outcome. */
   message?: string;
   /** A malformed address, or a refusal from the rate limiter. */
@@ -197,18 +166,31 @@ export interface ResendVerificationState {
   rateLimited?: boolean;
 }
 
+interface EmailLinkRequest {
+  limit: RateLimitName;
+  /** Builds the rate-limit key; the IP alone when omitted. */
+  identify?: (ip: string, email: string) => string;
+  /** Sends the link, or quietly does nothing for an address that gets none. */
+  send: (email: string) => Promise<void>;
+  /** Prefix for the server log when sending throws. */
+  failureLog: string;
+  /** The one reply every handled request gets. */
+  neutralMessage: string;
+}
+
 /**
- * Sends another verification link.
+ * The shared shape of both link requests. Only the shape of the input can fail
+ * visibly; every other outcome — unknown address, account that gets no link,
+ * link sent — returns the same neutral message, so the forms cannot be used to
+ * find out who has an account.
  *
- * The confirmation is deliberately non-committal and identical for every
- * address: an unknown email, an already-verified account and a GitHub-only
- * account all look the same here, so this form cannot be used to find out who
- * has an account. Only the shape of the input can fail visibly.
+ * The rate limit is consumed before anything is looked up, so being over it
+ * also looks the same for every address.
  */
-export async function resendVerificationEmail(
-  _prevState: ResendVerificationState,
+async function handleEmailLinkRequest(
   formData: FormData,
-): Promise<ResendVerificationState> {
+  request: EmailLinkRequest,
+): Promise<EmailLinkRequestState> {
   const email = String(formData.get("email") ?? "");
   const parsed = signInSchema.shape.email.safeParse(email);
 
@@ -216,35 +198,58 @@ export async function resendVerificationEmail(
     return { error: "Enter a valid email address", email };
   }
 
-  // Keyed by address as well as IP, per the spec. Consumed before any of the
-  // branches below, so being over the limit looks the same for an unknown
-  // address, an already-verified one and a disabled flag — which is the
-  // same property the neutral message exists to protect.
-  const limited = await rateLimitFailure("resendVerification", (ip) =>
-    ipAndEmailKey(ip, parsed.data),
+  const { identify } = request;
+  const limited = await rateLimitFailure(
+    request.limit,
+    identify && ((ip) => identify(ip, parsed.data)),
   );
 
   if (limited) {
     return { error: limited, email, rateLimited: true };
   }
 
-  // The page that hosts this form redirects away when verification is off, but
-  // the action is a public endpoint in its own right — sending a link nobody is
-  // being asked for would be pure noise. The reply is unchanged either way,
-  // which is the same reason it says nothing about unknown addresses.
-  if (!isEmailVerificationEnabled()) {
-    return { message: NEUTRAL_RESEND_MESSAGE, email };
-  }
-
   try {
-    await resendEmailVerification(parsed.data);
+    await request.send(parsed.data);
   } catch (error) {
-    console.error("Failed to resend verification email:", error);
+    console.error(request.failureLog, error);
 
     return { error: "Something went wrong. Please try again.", email };
   }
 
-  return { message: NEUTRAL_RESEND_MESSAGE, email };
+  return { message: request.neutralMessage, email };
+}
+
+/**
+ * The single reply the resend form ever gives on success. Identical for an
+ * unknown address, an already-verified account, an OAuth-only account and a
+ * disabled flag, so none of those can be told apart from the outside.
+ */
+const NEUTRAL_RESEND_MESSAGE =
+  `If that address needs verifying, a new link is on its way. ` +
+  `It expires in ${VERIFICATION_TOKEN_TTL_HOURS} hours.`;
+
+/** Sends another verification link. */
+export async function resendVerificationEmail(
+  _prevState: EmailLinkRequestState,
+  formData: FormData,
+): Promise<EmailLinkRequestState> {
+  return handleEmailLinkRequest(formData, {
+    // Keyed by address as well as IP, per the spec.
+    limit: "resendVerification",
+    identify: ipAndEmailKey,
+    async send(email) {
+      // The page that hosts this form redirects away when verification is off,
+      // but the action is a public endpoint in its own right — sending a link
+      // nobody is being asked for would be pure noise. The reply is unchanged
+      // either way, which is the same reason it says nothing about unknown
+      // addresses.
+      if (!isEmailVerificationEnabled()) return;
+
+      await resendEmailVerification(email);
+    },
+    failureLog: "Failed to resend verification email:",
+    neutralMessage: NEUTRAL_RESEND_MESSAGE,
+  });
 }
 
 /**
@@ -256,55 +261,28 @@ const NEUTRAL_RESET_MESSAGE =
   `If that address has a password account, a reset link is on its way. ` +
   `It expires in ${formatHours(PASSWORD_RESET_TOKEN_TTL_HOURS)}.`;
 
-export interface RequestPasswordResetState {
-  /** Shown once the request has been handled, whatever the outcome. */
-  message?: string;
-  /** A malformed address, or a refusal from the rate limiter. */
-  error?: string;
-  /** Echoed back so the field keeps its value. */
-  email?: string;
-  /** Set when the attempt was refused by the rate limiter. */
-  rateLimited?: boolean;
-}
-
 /**
  * Starts a password reset.
  *
- * Mirrors `resendVerificationEmail`: only the shape of the input can fail
- * visibly, and every other outcome looks the same from outside. Unlike that
- * one, this is not gated on `EMAIL_VERIFICATION_ENABLED` — being unable to sign
- * in is a problem whether or not the app is asking anyone to confirm addresses.
+ * Unlike `resendVerificationEmail`, this is not gated on
+ * `EMAIL_VERIFICATION_ENABLED` — being unable to sign in is a problem whether
+ * or not the app is asking anyone to confirm addresses.
  */
 export async function requestPasswordResetEmail(
-  _prevState: RequestPasswordResetState,
+  _prevState: EmailLinkRequestState,
   formData: FormData,
-): Promise<RequestPasswordResetState> {
-  const email = String(formData.get("email") ?? "");
-  const parsed = signInSchema.shape.email.safeParse(email);
-
-  if (!parsed.success) {
-    return { error: "Enter a valid email address", email };
-  }
-
-  // Keyed by IP alone, per the spec — this caps how many reset emails one
-  // caller can trigger at all, which keying on the address would let them
-  // sidestep by varying it.
-  const limited = await rateLimitFailure("forgotPassword");
-
-  if (limited) {
-    return { error: limited, email, rateLimited: true };
-  }
-
-  try {
-    await requestPasswordReset(parsed.data);
-  } catch (error) {
-    console.error("Failed to send password reset email:", error);
-
-    return { error: "Something went wrong. Please try again.", email };
-  }
-
-  return { message: NEUTRAL_RESET_MESSAGE, email };
+): Promise<EmailLinkRequestState> {
+  return handleEmailLinkRequest(formData, {
+    // Keyed by IP alone, per the spec — this caps how many reset emails one
+    // caller can trigger at all, which keying on the address would let them
+    // sidestep by varying it.
+    limit: "forgotPassword",
+    send: requestPasswordReset,
+    failureLog: "Failed to send password reset email:",
+    neutralMessage: NEUTRAL_RESET_MESSAGE,
+  });
 }
+
 
 export interface ResetPasswordState {
   /** Message shown above the form. */
