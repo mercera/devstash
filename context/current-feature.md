@@ -1,70 +1,18 @@
-# Current Feature: Code Editor
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- A `CodeEditor` component built on Monaco Editor with a dark theme
-- Snippets and commands use `CodeEditor` for content; notes, prompts and every
-  other type keep the `Textarea`
-- A header on the editor with macOS-style window dots (red/yellow/green), the
-  item's language, and a quick copy button next to it
-- Works read-only in the drawer's view mode and editable in edit mode and the
-  New Item dialog
-- Height grows with the content up to a 400px maximum, then scrolls, with a
-  scrollbar styled to match the theme
-- Added on request: each creatable type's page (`/items/[type]`) has a
-  "New Snippet" / "New Command" / … button that opens the New Item dialog with
-  that type selected
+<!-- Goals & requirements -->
 
 ## Notes
 
-Spec: `context/features/code-editor-spec.md`.
-
-Where content is rendered today:
-
-- View mode: a plain `<pre><code>` in `src/components/items/ItemDetailView.tsx:106`
-- Edit mode: a `Textarea` in `src/components/items/ItemEditForm.tsx:135`
-- Create: a `Textarea` in `src/components/items/NewItemDialog.tsx:238`
-
-Things to settle while building:
-
-- **Which types get the editor.** `LANGUAGE_TYPE_SLUGS` in
-  `src/lib/item-fields.ts` is already exactly snippet + command, so the
-  "code types" decision can key off `getItemTypeFields(slug).language` (or a
-  sibling flag there) rather than a new hardcoded list in a component
-- **Package choice.** `@monaco-editor/react` is the usual wrapper; it loads
-  Monaco from a CDN by default. Decide whether that is acceptable or whether to
-  bundle `monaco-editor` locally via its `loader.config`. Check the current
-  API with Context7 before writing it
-- **Client-only.** Monaco touches `window`, so the component needs
-  `"use client"` and likely `next/dynamic` with `ssr: false`. All three host
-  components are already client components
-- **Language mapping.** Seeded languages are `typescript`, `dockerfile` and
-  `bash`. Monaco's ids differ in places (`bash` → `shell`), and the field is
-  free text, so unknown values need a `plaintext` fallback. A mapping helper in
-  `src/lib/` would be unit-testable
-- **Form integration.** The two forms bind the `Textarea` as an uncontrolled
-  field via `bind("content")`. Monaco is controlled through `value`/`onChange`,
-  so the content field needs wiring so the form still submits it. Leading
-  indentation must survive, as it does today (content is never trimmed)
-- **Fluid height.** Monaco does not auto-size; height has to be driven from
-  `editor.getContentHeight()` via `onDidContentSizeChange`, capped at 400px
-- **Copy button.** `getCopyText` in `src/lib/item-copy.ts` and the drawer's
-  existing Copy toast are the patterns to reuse
-- **Scrollbar.** Monaco renders its own scrollbars; style them through the
-  editor's `scrollbar` options and theme colors rather than global CSS where
-  possible
-- **Focus traps.** The drawer (`Sheet`) and the New Item `Dialog` trap focus.
-  Confirm Monaco's hidden textarea and its widgets (find, suggest) still take
-  focus, and that Escape inside the editor does not close the sheet or dialog
-  unexpectedly
-- **Theme.** Define a custom Monaco theme whose background matches the app's
-  dark surface instead of the default `vs-dark` grey
-- Not in scope: a language picker, line-number preferences, highlighting
-  outside Monaco
+<!-- Any extra notes -->
 
 ## History
 
@@ -2020,5 +1968,107 @@ Decisions worth carrying forward:
   next feature
 - Not built, as the spec does not ask: choosing a collection, favorite/pinned
   flags, the Free plan's 50-item limit, and a keyboard shortcut
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards
+
+### Code Editor — Completed (2026-09-24)
+
+Snippet and command content renders in a Monaco-based `CodeEditor`, read-only
+in the drawer and editable in edit mode and the New Item dialog. Each
+creatable type's page also gained a type-specific New button. Branch
+`feature/code-editor`. Four new source files (one a test), nine existing files
+touched, one new dependency, no migration. Spec:
+`context/features/code-editor-spec.md`.
+
+- Installed `@monaco-editor/react@4.7.0`, which brought `monaco-editor@0.56.0`
+  as a peer (used for types only; the runtime comes from the CDN)
+- Added `src/components/items/CodeEditor.tsx`: a macOS-style window with
+  red/yellow/green dots, the language and a copy button in the header, and a
+  Monaco body that grows with its content up to 400px, then scrolls. Custom
+  `devstash-dark` theme with a transparent background and 8px themed
+  scrollbars; Geist Mono via `var(--font-mono)`
+- Added `src/lib/code-editor.ts`: `resolveMonacoLanguage` (id, then alias,
+  then extension, plus a few common names like `zsh` and `golang`; anything
+  else is `plaintext`), `getCodeEditorHeight` and `estimateContentHeight`
+- `getItemTypeFields` gained a `code` flag (snippet + command, the types that
+  record a language). `ItemDetailView`, `ItemEditForm` and `NewItemDialog`
+  switch on it; prompts and notes keep the `<pre>` and the `Textarea`
+- Added `src/lib/clipboard.ts` (`copyToClipboard`), now shared by the drawer's
+  Copy button and the editor's
+- `/items/[type]` shows "New Snippet" / "New Prompt" / "New Command" /
+  "New Note" / "New Link" in its header, opening `NewItemDialog` with that type
+  selected. `NewItemDialog` gained `defaultTypeSlug`, `label` and `variant`
+- `getCreatableTypes` and `singularTypeName` moved into
+  `src/lib/item-fields.ts`, used by the top bar and the type pages
+- `getItemTypesWithCounts` is now wrapped in React `cache`, so the layout and
+  a type's page share one query per request
+- 32 unit tests across `code-editor` and `item-fields`. Suite 160 → 192
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, zero console errors after the fix
+below:
+
+- View mode: highlighting on TypeScript, Dockerfile and bash items; `bash`
+  resolves to Monaco's `shell` mode; `curl` falls back to plain text. A
+  13-line snippet sized to 292px; the 19-line Dockerfile capped at 400px with
+  a scrollbar. Typing into a read-only editor changed nothing
+- The header copy button put the exact code on the clipboard with a toast
+- The wheel scrolls the editor first, then the drawer once the editor is at
+  its end
+- New Item: an empty editor is six lines tall; the focus ring shows; Monaco
+  auto-indents; the header's language follows the Language field. Escape with
+  the suggest box open closed only the suggestions and the dialog stayed open
+- Switching a new item Snippet → Prompt fell back to the textarea with the text
+  kept. Create → view → edit → save kept the two-space indent and the edit
+- Each creatable type's page showed its button, and Files/Images none. The
+  dialog opened with the page's type selected and its fields; the top bar still
+  defaults to Snippet. The Prisma log showed a single counted `ItemType`
+  query per request
+- At 390px the editor fits with no horizontal scroll
+- Two throwaway items were created and deleted through the UI; Snippets ended
+  at 4 and Commands at 6
+
+Decisions worth carrying forward:
+
+- **Monaco loads from jsDelivr at runtime**, the wrapper's default. Bundling
+  `monaco-editor` locally under Turbopack would mean wiring its web workers by
+  hand. The loader pins `0.55.1` while the installed types are `0.56.0`; minor,
+  but pin one to the other if an API mismatch ever bites. Until Monaco arrives
+  the raw text renders at the estimated height, so nothing jumps
+- **No `useMonaco()`.** Its effect never catches the loader's cancellation, so
+  every Strict Mode mount logged an unhandled
+  `{type: "cancelation", msg: "operation is manually canceled"}` rejection.
+  `Editor` itself does catch it. Monaco's language list is taken in
+  `beforeMount` instead and cached at module scope, so later editors are
+  created highlighted rather than as plain text first
+- **Escape inside an editable editor is kept from the drawer and dialog.**
+  Radix listens for Escape on `document` in the capture phase, before Monaco
+  sees the key, so closing the suggest box also closed the form. A `window`
+  capture listener, which runs first, calls `preventDefault`; Radix's
+  `DismissableLayer` skips dismissal on a prevented event, and Monaco still
+  handles it. Read-only editors are not guarded, so Escape still closes the
+  drawer in view mode
+- **Known accessibility trade-off:** in edit mode Tab indents, so a keyboard
+  user leaves the editor with Monaco's Ctrl+M (toggle Tab focus mode). With
+  Escape guarded, that is the only keyboard exit
+- **Monaco's context menu is off.** It renders outside the drawer/dialog, where
+  a click counts as outside and dismisses them
+- **No `next/dynamic`.** All three hosts are client components that mount the
+  editor only after interaction, and the wrapper touches `window` only in
+  effects
+- **Chrome edits through a native `EditContext` div**, not the textarea: the
+  `.ime-text-area` is always `readOnly`, so checking it does not tell you
+  whether the editor is read-only
+- **The editor's height includes Monaco's horizontal scrollbar**, 8px, so the
+  last line is never covered
+- **The "Content" label is no longer tied to an input** for code types, since
+  Monaco renders no element with that id. Screen readers get the name through
+  `ariaLabel`
+- **`cache` on `getItemTypesWithCounts` also applies to `/profile`**, which calls
+  it once, so there is no change there. Outside a request, as under Vitest, the
+  client build of `cache` is a pass-through
+- `.playwright-mcp/` holds this walkthrough's screenshots and console log; it is
+  gitignored
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards
