@@ -1,39 +1,18 @@
-# Current Feature: Image Gallery View
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/items/image` renders an image gallery of thumbnail cards instead of the
-  regular `ItemCard` list
-- New image thumbnail card component shows the item's image as its main content
-- Gallery grid is 3 columns
-- Thumbnails use a 16:9 aspect ratio (`aspect-video`)
-- Images fill the frame with `object-cover` (edges may crop)
-- Subtle hover zoom: 5% scale (`scale-105`) with a 300ms transition
-- Clicking a thumbnail card still opens the item drawer
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/image-display-spec.md`
-- `ItemWithRelations` already carries `fileUrl`/`fileName`, so the card needs
-  no new query; the image loads from its public R2 URL as an `<img>`, the same
-  way the drawer and `FileUpload` preview do (no `next/image` remote config)
-- The zoom needs `overflow-hidden` on the image frame so the scaled image stays
-  inside the card
-- Reuse `ItemCardButton` (stretched invisible button) so the drawer, keyboard
-  access and focus return keep working
-- The `(app)` shell's grids use `xl` for three columns because of the ~256px
-  sidebar (Items List — Three-Column Grid). "3 columns" should likely follow
-  the existing `md:grid-cols-2 xl:grid-cols-3` responsive pattern rather than
-  a fixed three at every width
-- Spec does not say whether title/tags stay on the card, or whether the
-  dashboard's Pinned/Recent sections should use the thumbnail for images —
-  scope is the `/items/image` page
-- An image item with no `fileUrl` (none should exist, but the column is
-  nullable) needs a fallback, e.g. the type icon tile
+<!-- Any extra notes -->
 
 ## History
 
@@ -2300,3 +2279,60 @@ Decisions worth carrying forward:
   `seed-user-demo` with no database write. The token file was deleted
   afterwards. `.playwright-mcp/` holds the screenshots and the downloaded
   file; it is gitignored
+
+### Image Gallery View — Completed (2026-09-24)
+
+`/items/image` shows image items as a thumbnail gallery instead of the
+regular item cards. Branch `feature/image-gallery-view`. One new source file,
+one existing file touched, no new dependencies, no migration. Spec:
+`context/features/image-display-spec.md`.
+
+- Added `src/components/items/ImageCard.tsx`:
+  - the image in a 16:9 `aspect-video` frame with `object-cover`
+  - a 5% hover zoom (`group-hover/card:scale-105`, 300ms), kept inside the
+    card by the frame's `overflow-hidden`
+  - title, pin/favorite icons and date below the image
+  - it opens the drawer through `ItemCardButton`, so keyboard access and
+    focus return work as they do on `ItemCard`
+- `src/app/(app)/items/[type]/page.tsx` renders `ImageCard` when the type is
+  the system `image` type, and `ItemCard` for every other type
+- `npm test` (192, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the route table is unchanged
+
+Verified in the browser as the demo user, measuring rather than judging by
+eye. Zero console errors or warnings:
+
+- The frame measured exactly 16:9 (1.778) at every width
+- Columns were 1 / 2 / 3 / 3 at 390 / 768 / 1280 / 1440px, with no
+  horizontal scroll
+- On hover the image went from `scale: none` to `1.05` and stayed inside
+  the frame
+- Clicking the card opened the drawer with the image
+- `/items/snippet` still renders `ItemCard`
+
+Decisions worth carrying forward:
+
+- **"3 columns" follows the `(app)` grid pattern**, `md:grid-cols-2
+  xl:grid-cols-3`, not a fixed three at every width. It is the same
+  sidebar-width reasoning as the Three-Column Grid feature: three cards at
+  `lg` would be about 230px wide
+- **Tailwind v4's `scale-*` sets the CSS `scale` property, not
+  `transform`.** A check that reads `getComputedStyle(el).transform`
+  reports `none` while the zoom is active; read `.scale` instead
+- **Tags and description are left off the thumbnail**, where they would
+  compete with the image. The drawer still shows both
+- **Only the Images page uses the gallery.** Image items in the dashboard's
+  Pinned and Recent sections still render as `ItemCard`
+- An image item with no `fileUrl` shows the type icon tile. None should exist,
+  since `createItemSchema` requires a file for upload types, but the column
+  is nullable
+- The image is an `<img>` with `loading="lazy"` from the public R2 URL, the
+  same as the drawer. There is no `next/image` and no remote pattern config,
+  so the full-size upload is downloaded even for a small thumbnail. Fine at
+  this scale; generated thumbnails would be the fix if galleries get large
+- The walkthrough used the account's one existing image item, so several
+  thumbnails were never seen side by side. The column counts were read from
+  the grid's computed `grid-template-columns`
+- The browser session used a session JWT minted locally for
+  `seed-user-demo` with no database write. The token file was deleted
+  afterwards
