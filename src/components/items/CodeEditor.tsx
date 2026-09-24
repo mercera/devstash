@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
-import { Copy } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { copyToClipboard } from "@/lib/clipboard";
+import {
+  EditorCopyButton,
+  EditorHeader,
+  editorFrameClass,
+} from "@/components/items/EditorChrome";
 import {
   CODE_EDITOR_LINE_HEIGHT,
   CODE_EDITOR_PADDING,
@@ -14,7 +16,6 @@ import {
   resolveMonacoLanguage,
   type MonacoLanguageInfo,
 } from "@/lib/code-editor";
-import { cn } from "@/lib/utils";
 
 const THEME = "devstash-dark";
 
@@ -86,36 +87,13 @@ export function CodeEditor({
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "flex flex-col rounded-lg border bg-muted/30 transition-colors",
-        !readOnly &&
-          "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
-        invalid &&
-          "border-destructive/50 ring-3 ring-destructive/40 focus-within:border-destructive/50 focus-within:ring-destructive/40",
-      )}
-    >
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b pr-1.5 pl-3">
-        <div className="flex gap-1.5" aria-hidden>
-          <span className="size-3 rounded-full bg-[#ff5f57]" />
-          <span className="size-3 rounded-full bg-[#febc2e]" />
-          <span className="size-3 rounded-full bg-[#28c840]" />
-        </div>
+    <div ref={containerRef} className={editorFrameClass({ readOnly, invalid })}>
+      <EditorHeader>
         <span className="ml-auto font-mono text-xs text-muted-foreground">
           {languageLabel}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Copy code"
-          disabled={value.trim() === ""}
-          onClick={() => void copyToClipboard(value)}
-        >
-          <Copy />
-        </Button>
-      </div>
+        <EditorCopyButton value={value} label="Copy code" />
+      </EditorHeader>
 
       <Editor
         height={height}

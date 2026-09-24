@@ -2,14 +2,13 @@
 
 import { useActionState } from "react";
 
-import { requestPasswordResetEmail, type RequestPasswordResetState } from "@/actions/auth";
-import { FieldError } from "@/components/auth/FieldError";
+import { requestPasswordResetEmail, type EmailLinkRequestState } from "@/actions/auth";
+import { AuthFormField } from "@/components/auth/AuthFormField";
+import { FormNotice } from "@/components/auth/FieldError";
 import { SubmitButton } from "@/components/auth/SubmitButton";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 
-const INITIAL_STATE: RequestPasswordResetState = {};
+const INITIAL_STATE: EmailLinkRequestState = {};
 
 interface ForgotPasswordFormProps {
   /** Prefills the field when the address is already known, e.g. from an expired link. */
@@ -28,32 +27,20 @@ export function ForgotPasswordForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      {state.message && (
-        <p
-          role="status"
-          className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
-        >
-          {state.message}
-        </p>
-      )}
+      <FormNotice message={state.message} />
 
-      <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          // The action echoes the submitted value back, so a re-render after a
-          // failed attempt keeps what was typed rather than the original prefill.
-          defaultValue={state.email ?? defaultEmail}
-          aria-invalid={Boolean(state.error)}
-          className="h-9"
-          required
-        />
-        <FieldError messages={state.error ? [state.error] : undefined} />
-      </div>
+      <AuthFormField
+        name="email"
+        label="Email"
+        type="email"
+        autoComplete="email"
+        placeholder="you@example.com"
+        // The action echoes the submitted value back, so a re-render after a
+        // failed attempt keeps what was typed rather than the original prefill.
+        defaultValue={state.email ?? defaultEmail}
+        issues={state.error ? [state.error] : undefined}
+        required
+      />
 
       <SubmitButton size="lg" className="w-full" pendingLabel="Sending...">
         {submitLabel}

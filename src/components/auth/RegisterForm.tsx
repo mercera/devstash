@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { FieldError, FormError } from "@/components/auth/FieldError";
+import { AuthFormField } from "@/components/auth/AuthFormField";
+import { FormError } from "@/components/auth/FieldError";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { MIN_PASSWORD_LENGTH, registerSchema } from "@/lib/validations/auth";
+import { PASSWORD_LENGTH_HINT, registerSchema } from "@/lib/validations/auth";
 
 type FieldName = "name" | "email" | "password" | "confirmPassword";
 type FieldIssues = Partial<Record<FieldName, string[]>>;
@@ -135,63 +134,39 @@ export function RegisterForm() {
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <FormError message={error} />
 
-      <div className="space-y-1.5">
-        <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
-          name="name"
-          autoComplete="name"
-          placeholder="Ada Lovelace"
-          aria-invalid={Boolean(issues.name)}
-          className="h-9"
-        />
-        <FieldError messages={issues.name} />
-      </div>
+      <AuthFormField
+        name="name"
+        label="Name"
+        autoComplete="name"
+        placeholder="Ada Lovelace"
+        issues={issues.name}
+      />
 
-      <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          aria-invalid={Boolean(issues.email)}
-          className="h-9"
-        />
-        <FieldError messages={issues.email} />
-      </div>
+      <AuthFormField
+        name="email"
+        label="Email"
+        type="email"
+        autoComplete="email"
+        placeholder="you@example.com"
+        issues={issues.email}
+      />
 
-      <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          aria-invalid={Boolean(issues.password)}
-          className="h-9"
-        />
-        <FieldError messages={issues.password} />
-        {!issues.password && (
-          <p className="text-xs text-muted-foreground">
-            At least {MIN_PASSWORD_LENGTH} characters.
-          </p>
-        )}
-      </div>
+      <AuthFormField
+        name="password"
+        label="Password"
+        type="password"
+        autoComplete="new-password"
+        issues={issues.password}
+        hint={PASSWORD_LENGTH_HINT}
+      />
 
-      <div className="space-y-1.5">
-        <Label htmlFor="confirmPassword">Confirm password</Label>
-        <Input
-          id="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          aria-invalid={Boolean(issues.confirmPassword)}
-          className="h-9"
-        />
-        <FieldError messages={issues.confirmPassword} />
-      </div>
+      <AuthFormField
+        name="confirmPassword"
+        label="Confirm password"
+        type="password"
+        autoComplete="new-password"
+        issues={issues.confirmPassword}
+      />
 
       <Button type="submit" size="lg" className="w-full" disabled={isPending}>
         {isPending && <Loader2 className="animate-spin" />}

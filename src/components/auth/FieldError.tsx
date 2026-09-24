@@ -9,6 +9,22 @@ export function FieldError({ messages }: { messages?: string[] }) {
   );
 }
 
+/** A form-level confirmation, shown above the fields. */
+export function FormNotice({ message }: { message?: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <p
+      role="status"
+      className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+    >
+      {message}
+    </p>
+  );
+}
+
 /** A form-level failure message, shown above the fields. */
 export function FormError({ message }: { message?: string }) {
   if (!message) {

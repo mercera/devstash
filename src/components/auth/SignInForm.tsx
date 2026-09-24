@@ -4,10 +4,9 @@ import { useActionState } from "react";
 import Link from "next/link";
 
 import { signInWithCredentials, type SignInState } from "@/actions/auth";
-import { FieldError, FormError } from "@/components/auth/FieldError";
+import { AuthFormField } from "@/components/auth/AuthFormField";
+import { FormError } from "@/components/auth/FieldError";
 import { SubmitButton } from "@/components/auth/SubmitButton";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
 
@@ -50,43 +49,33 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
         </p>
       )}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          defaultValue={state.email}
-          aria-invalid={Boolean(state.issues?.email)}
-          className="h-9"
-          required
-        />
-        <FieldError messages={state.issues?.email} />
-      </div>
+      <AuthFormField
+        name="email"
+        label="Email"
+        type="email"
+        autoComplete="email"
+        placeholder="you@example.com"
+        defaultValue={state.email}
+        issues={state.issues?.email}
+        required
+      />
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="password">Password</Label>
+      <AuthFormField
+        name="password"
+        label="Password"
+        type="password"
+        autoComplete="current-password"
+        issues={state.issues?.password}
+        required
+        labelAction={
           <Link
             href={FORGOT_PASSWORD_PATH}
             className="text-xs text-muted-foreground hover:text-foreground hover:underline"
           >
             Forgot password?
           </Link>
-        </div>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          aria-invalid={Boolean(state.issues?.password)}
-          className="h-9"
-          required
-        />
-        <FieldError messages={state.issues?.password} />
-      </div>
+        }
+      />
 
       <SubmitButton size="lg" className="w-full" pendingLabel="Signing in...">
         Sign in
