@@ -1,18 +1,39 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Image Gallery View
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/image` renders an image gallery of thumbnail cards instead of the
+  regular `ItemCard` list
+- New image thumbnail card component shows the item's image as its main content
+- Gallery grid is 3 columns
+- Thumbnails use a 16:9 aspect ratio (`aspect-video`)
+- Images fill the frame with `object-cover` (edges may crop)
+- Subtle hover zoom: 5% scale (`scale-105`) with a 300ms transition
+- Clicking a thumbnail card still opens the item drawer
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/image-display-spec.md`
+- `ItemWithRelations` already carries `fileUrl`/`fileName`, so the card needs
+  no new query; the image loads from its public R2 URL as an `<img>`, the same
+  way the drawer and `FileUpload` preview do (no `next/image` remote config)
+- The zoom needs `overflow-hidden` on the image frame so the scaled image stays
+  inside the card
+- Reuse `ItemCardButton` (stretched invisible button) so the drawer, keyboard
+  access and focus return keep working
+- The `(app)` shell's grids use `xl` for three columns because of the ~256px
+  sidebar (Items List — Three-Column Grid). "3 columns" should likely follow
+  the existing `md:grid-cols-2 xl:grid-cols-3` responsive pattern rather than
+  a fixed three at every width
+- Spec does not say whether title/tags stay on the card, or whether the
+  dashboard's Pinned/Recent sections should use the thumbnail for images —
+  scope is the `/items/image` page
+- An image item with no `fileUrl` (none should exist, but the column is
+  nullable) needs a fallback, e.g. the type icon tile
 
 ## History
 

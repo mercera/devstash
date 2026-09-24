@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { ImageCard } from "@/components/items/ImageCard";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { getItemTypesWithCounts, getItemsByType } from "@/lib/db/items";
 import { getAccentTileClass } from "@/lib/icons";
@@ -44,6 +45,7 @@ export default async function ItemsByTypePage({
   // Custom types cannot be created yet, so their pages get no button.
   const createSlug =
     type.isSystem && isCreatableTypeSlug(type.slug) ? type.slug : null;
+  const isGallery = type.isSystem && type.slug === "image";
 
   return (
     <div className="flex flex-col gap-8">
@@ -76,9 +78,13 @@ export default async function ItemsByTypePage({
 
       {items.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <ItemCard key={item.id} item={item} />
-          ))}
+          {items.map((item) =>
+            isGallery ? (
+              <ImageCard key={item.id} item={item} />
+            ) : (
+              <ItemCard key={item.id} item={item} />
+            ),
+          )}
         </div>
       ) : (
         <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
