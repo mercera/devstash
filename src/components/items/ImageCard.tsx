@@ -1,6 +1,6 @@
 import { Pin, Star } from "lucide-react";
 
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import { ItemCardButton } from "@/components/items/ItemCardButton";
 import { Card } from "@/components/ui/card";
 import { formatShortDate } from "@/lib/format";

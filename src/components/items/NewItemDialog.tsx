@@ -13,7 +13,7 @@ import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { createItem, type CreateItemField } from "@/actions/items";
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { FileUpload } from "@/components/items/FileUpload";
 import { ItemFormField } from "@/components/items/ItemFormField";

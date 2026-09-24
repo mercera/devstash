@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, FileText, Tag } from "lucide-react";
 
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemActions } from "@/components/items/ItemActions";
 import { ItemEditForm } from "@/components/items/ItemEditForm";

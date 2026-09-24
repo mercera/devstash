@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import {
   Card,
   CardContent,

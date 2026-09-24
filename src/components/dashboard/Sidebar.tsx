@@ -26,7 +26,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/auth/UserMenu";
-import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { TypeIcon } from "@/components/items/TypeIcon";
 import { getAccentDotClass, getAccentTextClass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type {

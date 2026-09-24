@@ -3,11 +3,13 @@
 Reference for DevStash's 7 built-in (system) item types: what each one is for,
 how it is stored, and how the UI renders it today.
 
-> Researched 2026-09-23 against `main` at `30e64ef`.
+> Researched 2026-09-23 against `main` at `30e64ef`, and updated 2026-09-24
+> after items CRUD, the code and Markdown editors, and R2 uploads landed.
 >
 > Sources: `context/project-overview.md`, `prisma/schema.prisma`,
 > `prisma/seed.ts`, `context/features/seed-spec.md`, `src/lib/icons.ts`,
-> `src/types/index.ts`, `src/lib/db/items.ts` and the dashboard components.
+> `src/lib/item-fields.ts`, `src/lib/uploads.ts`, `src/types/index.ts`,
+> `src/lib/db/items.ts` and the dashboard and item components.
 > The research prompt also named `src/lib/constants.tsx`. That file does not
 > exist, and the type metadata it would have held is spread across the files
 > above.
@@ -17,7 +19,7 @@ how it is stored, and how the UI renders it today.
 ## Where type metadata lives
 
 There is no constants module for item types. The metadata is split across
-four places:
+these places:
 
 | Concern | Location |
 | --- | --- |
@@ -25,6 +27,9 @@ four places:
 | Spec hex colors | `context/features/seed-spec.md` (docs only, never stored) |
 | Icon name → lucide component | `src/lib/icons.ts` → `ICONS` / `getIcon()` |
 | Accent name → Tailwind classes | `src/lib/icons.ts` → `ACCENT_TEXT`, `ACCENT_BORDER`, `ACCENT_DOT`, `ACCENT_TILE` |
+| Which fields each type carries | `src/lib/item-fields.ts` → `getItemTypeFields()` (content, language, url, code, upload) |
+| Which types can be created | `src/lib/item-fields.ts` → `CREATABLE_TYPE_SLUGS` (all seven system types) |
+| Upload size, extension and MIME limits | `src/lib/uploads.ts` → `UPLOAD_RULES` |
 | Pro-only flag | `src/components/dashboard/Sidebar.tsx` → `PRO_TYPE_SLUGS` (display only) |
 
 The database stores the icon as a **lucide component name** (a string) and the
@@ -118,9 +123,8 @@ shared properties described [below](#shared-properties).
   documentation fragments.
 - **Key fields:** `content` (markdown). `language` is normally null.
 - **`contentType`:** `text`
-- **Seed data:** none. The sidebar count reads `0`.
-- **Roadmap:** the main consumer of the planned "Markdown editor for text
-  items".
+- **Seed data:** none.
+- **Editor:** shares the Markdown editor with prompts.
 
 ### File — `File` · gray · Pro
 
@@ -131,8 +135,9 @@ shared properties described [below](#shared-properties).
 - **`contentType`:** `file`
 - **Seed data:** none.
 - **Plan:** Pro. It is labelled with a `PRO` badge in the sidebar, but nothing
-  gates it yet. `User.isPro` is not read anywhere.
-- **Status:** File upload and R2 storage are not implemented.
+  gates it yet: any account can upload. `User.isPro` is not read anywhere.
+- **Status:** Uploads go to Cloudflare R2 (up to 10 MB, extensions limited by
+  `UPLOAD_RULES`). Downloads go through `GET /api/items/[id]/download`.
 
 ### Image — `Image` · pink · Pro
 
@@ -142,8 +147,8 @@ shared properties described [below](#shared-properties).
 - **Seed data:** none.
 - **Plan:** Labelled Pro in the sidebar. The overview's pricing table
   contradicts this. See [open questions](#inconsistencies--open-questions).
-- **Status:** Upload is not implemented. When it lands, the display should
-  probably render a thumbnail rather than an icon.
+- **Status:** Uploads go to Cloudflare R2 (up to 5 MB). Images load from their
+  public R2 URL.
 
 ### Link — `Link` · green
 
@@ -173,9 +178,12 @@ cannot tell a link apart from an empty note. Code that needs to know the
 payload shape has to branch on **type slug** (or on which column is non-null),
 not on `contentType` alone.
 
-Nothing enforces these pairings. The database allows a snippet with a `fileUrl`
-or a link with `content`. When items CRUD lands, the Zod schemas are the
-natural place to require the right column per type.
+The database does not enforce these pairings: it allows a snippet with a
+`fileUrl` or a link with `content`. The Zod schemas in
+`src/lib/validations/items.ts` do on create. `createItemSchema` requires a URL
+for a link and a file for an upload type, and stores every column the type
+does not carry as null. Edit leaves the file alone and does not check which
+fields belong to the type.
 
 Within the text class there is a second, softer split:
 
@@ -211,14 +219,19 @@ Postgres treats a null `userId` as distinct.
 
 ## Display differences (current UI)
 
-The current UI does **not** render items differently by type beyond the icon
-and accent color. `ItemCard` shows the title, description, tags, pin/star and
-date, and never reads `content`, `url`, `language` or the file fields.
+Cards stay type-neutral: `ItemCard` shows the title, description, tags,
+pin/star and date, and never reads `content`, `url`, `language` or the file
+fields. The per-type rendering happens on the Images and Files pages and in
+the detail drawer.
 
 | Surface | Per-type treatment |
 | --- | --- |
-| **Sidebar → Types** | Icon in `text-{accent}-400`, per-user item count, link to `/items/{slug}` (route not built yet). Files and Images show an outline `PRO` badge |
-| **ItemCard** (Pinned / Recent) | 4px left border `border-l-{accent}-500` and icon in a tinted tile `bg-{accent}-500/10 text-{accent}-400` |
+| **Sidebar → Types** | Icon in `text-{accent}-400`, per-user item count, link to `/items/{slug}`. Files and Images show an outline `PRO` badge |
+| **ItemCard** (Pinned / Recent, and every type page except Images and Files) | 4px left border `border-l-{accent}-500` and icon in a tinted tile `bg-{accent}-500/10 text-{accent}-400` |
+| **`/items/image`** | `ImageCard` gallery: a 16:9 thumbnail from `fileUrl` with a hover zoom |
+| **`/items/file`** | `FileRow` list: an icon chosen by extension (`src/lib/file-icons.ts`), name, size, upload date and a download button |
+| **Detail drawer** | Snippet and command content in the Monaco `CodeEditor`, highlighted by `language`. Prompt and note content in the `MarkdownEditor` preview. Links show a clickable `url`. Images show a preview, and files show their name and size. File-backed items get Download in place of Copy |
+| **New Item dialog / edit mode** | The same editors, editable. The dialog shows only the fields `getItemTypeFields()` gives the chosen type, with drag-and-drop upload for files and images |
 | **CollectionCard** | Row of type icons, most-used type first. The card's left border uses the most-used type's accent, falling back to the collection's own `color` when it has no items |
 | **Sidebar → Collections** | Non-favorite collections show a dot (`bg-{accent}-500`) in the most-used type's accent |
 | **Profile page** | Per-type breakdown with icon, name and count for all 7, including zeros |
@@ -228,17 +241,8 @@ The icon lookup falls back to lucide `File` for any name missing from
 until the dashboard moved onto live data. A custom type with an unregistered
 icon name will render as a file icon without any error.
 
-### Expected type-specific display (not built)
-
-These are implied by the spec but not implemented:
-
-- **Snippet / Command:** syntax-highlighted body using `language`. Commands
-  probably also want a one-click copy.
-- **Prompt / Note:** rendered markdown (the markdown editor is on the feature
-  list).
-- **Link:** clickable `url`, likely with its domain shown.
-- **Image:** thumbnail preview from `fileUrl`.
-- **File:** file name, human-readable size and a download action.
+Image and file items in the dashboard's Pinned and Recent sections still render
+as a plain `ItemCard`.
 
 ---
 
@@ -259,5 +263,6 @@ These are implied by the spec but not implemented:
 5. **Naming drift.** The overview calls the seventh type "URL", while the seed,
    slug and UI call it "Link" (`link`). The seed spec also lists lowercase
    singular names, while the seeded `name` is the plural display label.
-6. **No seeded rows** for note, file or image, so their display paths have
-   never rendered real data.
+6. **No seeded rows** for note, file or image. Their display paths have been
+   checked with items created through the UI, but a fresh seed still shows
+   them empty.
