@@ -1,58 +1,18 @@
-# Current Feature: File List View
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/items/file` renders file items as a single-column list of rows (Google
-  Drive / Dropbox style) instead of the grid of `ItemCard`s
-- Each row shows a file icon chosen by extension, the file name, the file
-  size, the upload date and a download button
-- Rows highlight on hover
-- Clicking a row opens the item drawer
-- The download button downloads the file directly and does not open the
-  drawer (stop propagation)
-- On mobile the row's info stacks vertically
-- Every other type page, and the Images gallery, is unchanged
+<!-- Goals & requirements -->
 
 ## Notes
 
-Spec: `context/features/file-display-spec.md`.
-
-- **URL is `/items/file`, not the spec's `/items/files`.** `ItemType.slug` is
-  singular, the same call made for Items List View and Dashboard Phase 2; the
-  plural form 404s
-- Follows the Image Gallery View pattern: a new component (e.g.
-  `src/components/items/FileRow.tsx`) chosen in
-  `src/app/(app)/items/[type]/page.tsx` when the type is the system `file`
-  type, alongside the existing `isGallery` branch. The list replaces the
-  `grid` wrapper for this type only
-- Row click reuses `ItemCardButton` (stretched invisible button over a
-  `relative` parent), which keeps the row a server component and gives
-  keyboard access and focus return for free. The download control must sit
-  above that overlay (`relative z-10`) so it gets its own clicks. Because the
-  overlay is a sibling, not an ancestor, a click on the download link never
-  reaches it, which meets the spec's "stop propagation" without an `onClick`.
-  That keeps the link a plain `<a>` and the row a server component; an
-  explicit `stopPropagation` would force a client component for no effect
-- Download goes through the existing `GET /api/items/[id]/download` route with
-  the `download` attribute, as `ItemActions` does. A direct link to the public
-  R2 URL would open the file cross-origin rather than save it
-- `ItemWithRelations` already carries `fileName`, `fileSize` and `createdAt`;
-  no query change should be needed. "Upload date" maps to `createdAt` (the
-  upload happens at create time), unlike the cards, which show `updatedAt`
-- Size uses `formatFileSize` from `src/lib/uploads.ts`; extension parsing uses
-  `getFileExtension` from the same module
-- The extension → icon mapping is new client-safe logic in `src/lib/` (a
-  pure function returning a lucide icon name or category), so it gets unit
-  tests under `/feature test`. Unknown or missing extensions fall back to a
-  generic file icon
-- Row fallbacks: a missing `fileName` shows the item title; a null `fileSize`
-  omits the size
-- Only the Files page uses the list. File items in the dashboard's Pinned and
-  Recent sections keep rendering as `ItemCard`
+<!-- Any extra notes -->
 
 ## History
 
@@ -2376,3 +2336,91 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for
   `seed-user-demo` with no database write. The token file was deleted
   afterwards
+
+### File List View — Completed (2026-09-24)
+
+`/items/file` shows file items as a single-column list of rows, like Google
+Drive, instead of the card grid. Branch `feature/file-list-view`. Three new
+source files (one a test), two existing files touched, no new dependencies,
+no migration. Spec: `context/features/file-display-spec.md`.
+
+- Added `src/components/items/FileRow.tsx`. Each row shows:
+  - an icon chosen by the file's extension, in the type's accent tile
+  - the file name, falling back to the item title, plus the pin and
+    favorite marks
+  - the size (omitted when null) and the upload date (`createdAt`)
+  - a download icon button
+
+  Below `sm` the size and date stack under the name
+- Added `src/lib/file-icons.ts`: `getFileIconName(fileName)` returns a lucide
+  icon name. pdf, txt and md map to `FileText`, json to `FileBraces`, xml to
+  `FileCode`, csv to `FileSpreadsheet`, and yaml, yml, toml and ini to
+  `FileCog`; anything else falls back to `File`. The five icons were added
+  to the `ICONS` map in `src/lib/icons.ts`
+- `src/app/(app)/items/[type]/page.tsx` renders a bordered, divided `<ul>` of
+  `FileRow`s when the type is the system `file` type. Other type pages and
+  the Images gallery are unchanged
+- 18 unit tests in `src/lib/file-icons.test.ts`. Suite 192 → 210. One test
+  checks that every extension the upload rules allow maps to an icon that is
+  registered in `icons.ts`, so a missing registration fails a test instead of
+  quietly showing the fallback
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with four throwaway files uploaded
+through "New File" (pdf, yaml, a 2.3 MB json and csv). Zero console errors or
+warnings:
+
+- Each extension showed its own icon, and sizes read 8 B to 2.3 MB
+- On hover the row's background went from transparent to `accent/30`
+- A row click opened the drawer on the right item. Escape returned focus to
+  the row, and Enter on a focused row opened the drawer
+- A click on the download link hit the link (`elementFromPoint`), made no
+  `/api/items/[id]` request and left the drawer shut. Fetched with curl
+  through the same route, the file came back byte-identical with
+  `Content-Disposition: attachment`
+- At 390px the info column switched to `flex-direction: column` with the size
+  and date under the name, and nothing scrolled sideways. At 768px it is one
+  line
+- `/items/snippet` and `/items/image` still render their grids
+- The four items were deleted through the drawer. No file items remain, and
+  the demo account is at 22 items, as before. The R2 bucket was not listed
+  afterwards, so the objects' removal was not confirmed directly
+
+Decisions worth carrying forward:
+
+- **The URL is `/items/file`, not the spec's `/items/files`**, because
+  `ItemType.slug` is singular. The plural form 404s
+- **No `stopPropagation`.** The row opens the drawer through the stretched
+  `ItemCardButton`, and the download link is a sibling of that overlay, not a
+  child. A click on the link never reaches the overlay, so the spec's
+  requirement holds without an `onClick`. The link stays a plain `<a>` and the
+  row stays a server component. `relative z-10` on the link keeps it above
+  the overlay
+- **The open button comes before the download link in the DOM.** With it
+  last, as in `ItemCard`, Tab reached a row's Download before its Open. The
+  stacking comes from `z-10`, not DOM order, so moving the button changes
+  only the tab order: Open, Download, then the next row
+- **Downloads go through `GET /api/items/[id]/download`**, as the drawer's
+  button does. A link straight to the public R2 URL is cross-origin, so the
+  browser would ignore `download` and open the file
+- **"Upload date" is `createdAt`**, since the file is uploaded when the item
+  is created. The cards show `updatedAt`
+- **The icon mapping returns a name, not a component**, like `ItemType.icon`,
+  so it goes through `getIcon` and `src/lib/file-icons.ts` stays free of
+  React. `lucide-react` 1.x has no `FileJson`; the braces icon is
+  `FileBraces`
+- **Rows sort by most recently updated**, like every other type page, not by
+  name as Google Drive does by default. There is no column header and no
+  sorting control; the spec asks for neither
+- **Only the Files page uses the list.** File items in the dashboard's Pinned
+  and Recent sections still render as `ItemCard`
+- **The Playwright MCP drops its connection whenever the browser starts a real
+  download**; it happened with `waitForEvent("download")` and with
+  `page.route` aborting the request. The check that worked was a `window`
+  capture listener that calls `preventDefault` on `a[download]` clicks,
+  recording the click without starting the download, with the bytes checked
+  by curl
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
