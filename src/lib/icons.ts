@@ -8,6 +8,11 @@
 import {
   Code,
   File,
+  FileBraces,
+  FileCode,
+  FileCog,
+  FileSpreadsheet,
+  FileText,
   Folder,
   Image,
   Link,
@@ -22,6 +27,12 @@ import type { AccentColor } from "@/types";
 const ICONS: Record<string, LucideIcon> = {
   Code,
   File,
+  // Per-extension icons for the Files list (`src/lib/file-icons.ts`).
+  FileBraces,
+  FileCode,
+  FileCog,
+  FileSpreadsheet,
+  FileText,
   Folder,
   Image,
   Link,

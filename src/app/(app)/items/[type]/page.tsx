@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { TypeIcon } from "@/components/dashboard/TypeIcon";
+import { FileRow } from "@/components/items/FileRow";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { getItemTypesWithCounts, getItemsByType } from "@/lib/db/items";
@@ -46,6 +47,7 @@ export default async function ItemsByTypePage({
   const createSlug =
     type.isSystem && isCreatableTypeSlug(type.slug) ? type.slug : null;
   const isGallery = type.isSystem && type.slug === "image";
+  const isFileList = type.isSystem && type.slug === "file";
 
   return (
     <div className="flex flex-col gap-8">
@@ -76,7 +78,13 @@ export default async function ItemsByTypePage({
         )}
       </header>
 
-      {items.length > 0 ? (
+      {items.length > 0 && isFileList ? (
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {items.map((item) => (
+            <FileRow key={item.id} item={item} />
+          ))}
+        </ul>
+      ) : items.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((item) =>
             isGallery ? (
