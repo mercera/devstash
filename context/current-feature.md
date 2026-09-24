@@ -2424,3 +2424,84 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Sign-In Open Redirect Fix + Component Split — Completed (2026-09-24)
+
+A `code-auditor` sweep of the full tree found one real vulnerability, fixed
+here, and a size/duplication pass split the largest components. Branch
+`fix/sign-in-open-redirect`, merged as two commits: `fix:` then `refactor:`.
+
+**The fix.** `/sign-in` redirected an already-signed-in visitor straight to
+`?callbackUrl`, and its inline check only rejected a leading `//`.
+
+- `/sign-in?callbackUrl=/\evil.com` and `/%09/evil.com` both sent the
+  browser to `evil.com`. Confirmed against the dev server: the old code
+  answered `307 Location: /\evil.com`
+- `toSafeRedirect` moved to `src/lib/routes.ts` and now serves both the page
+  and the sign-in actions. It resolves the value against a placeholder
+  origin, requires the origin to be unchanged, and re-checks the normalised
+  path
+- 17 tests in `src/lib/routes.test.ts`
+
+**The refactor.**
+
+- Item forms share a `useItemForm` hook, `src/lib/item-form.ts` and
+  `ItemContentFields`. `NewItemForm.tsx` was split out of `NewItemDialog`, and
+  `useUnsavedUpload` holds the discard-on-close logic. `NewItemForm` went
+  from 212 to 114 lines, and `ItemEditForm` from 125 to 67
+- `FileUpload` became a `useFileUpload` hook plus `DropZone` and
+  `UploadPreview`, and went from 202 to 80 lines
+- `EditorChrome.tsx` holds the frame, header dots and copy button shared by
+  `CodeEditor` and `MarkdownEditor`
+- The register route hashes through `hashPassword` instead of its own
+  `BCRYPT_ROUNDS`
+- `AuthFormField` and `FormNotice` replace 13 field blocks and 3 notice boxes
+  across six auth and profile forms. `PASSWORD_LENGTH_HINT` lives in
+  `src/lib/validations/auth.ts`
+- `handleEmailLinkRequest` backs `resendVerificationEmail` and
+  `requestPasswordResetEmail`. Their state types merged into
+  `EmailLinkRequestState`
+- 18 new tests: `src/lib/item-form.test.ts` (7) and
+  `src/actions/auth.test.ts` (11, the first tests for that module). The suite
+  went from 210 to 245
+
+`npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+route table is unchanged. The fix commit was checked on its own: it
+typechecks and passes 227 tests without the refactor.
+
+Verified in the browser, zero console errors:
+
+- The sign-in, register and forgot-password forms show the same messages as
+  before, keep what was typed and hide the password hint while it has an
+  error
+- Drawer view and edit mode work for commands, links and prompts. A
+  `javascript:` URL is rejected under its field
+- New Item: each type shows its own fields, and Create stays disabled until
+  the required ones are filled. A dropped file uploads (201); Remove and
+  Cancel each discard it (200); a `.exe` is refused with no request
+- The profile page's change-password form renders its three fields and hint
+
+Decisions worth carrying forward:
+
+- **Resolve redirect targets, don't pattern-match them.** The old regex
+  blocked `//` and `/\` but not tabs or newlines, which the URL parser strips
+  before it resolves the value. Checking the parsed origin covers every parser
+  quirk at once. Dot segments are the one gap: `/.//evil.com` normalises to
+  `//evil.com`, and the returned path is resolved again by the browser, so it
+  is checked a second time
+- **A placeholder origin, not our own.** `AUTH_URL` is not set in production
+  and the `Host` header can be forged. Only paths are accepted anyway, so the
+  origin only has to stay the same, not be real. `.invalid` is reserved and
+  never resolves
+- **Testing `src/actions/auth.ts` means mocking `next-auth`.** Its entry
+  imports `next/server` without an extension, which only resolves under Next's
+  bundler. The action needs only `AuthError` and `CredentialsSignin`
+- **`RegisterForm` (90 lines) and `CodeEditor` (79) are still over 50.** The
+  rest is markup and Monaco's options object. Left as is by choice
+- **Smaller findings from the same pass, not done:** the stat grid duplicated
+  between the dashboard and profile pages; the item-type field list written
+  out in three `src/lib/db/` places; and splitting the profile page,
+  `/items/[type]` and the sidebar types list
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards. Two files
+  uploaded to R2 during the check were discarded through the UI
