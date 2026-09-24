@@ -26,11 +26,8 @@ import {
   retryAfterSeconds,
   type RateLimitName,
 } from "@/lib/rate-limit";
-import { FORGOT_PASSWORD_PATH } from "@/lib/routes";
+import { FORGOT_PASSWORD_PATH, toSafeRedirect } from "@/lib/routes";
 import { resetPasswordSchema, signInSchema } from "@/lib/validations/auth";
-
-/** Where a successful sign-in lands when no callback URL was supplied. */
-const DEFAULT_REDIRECT = "/dashboard";
 
 /**
  * Rate limits an action, returning the message to show if the caller is over
@@ -68,26 +65,6 @@ export interface SignInState {
   needsVerification?: boolean;
   /** Set when the attempt was refused by the rate limiter, not by Auth.js. */
   rateLimited?: boolean;
-}
-
-/**
- * A callback URL only ever comes from the query string, so it is attacker
- * controlled. Auth.js's own `redirect` callback already refuses other origins,
- * but this rejects anything that is not a plain in-app path before it gets
- * that far — `//evil.com` is a protocol-relative URL, not a local route.
- */
-function toSafeRedirect(callbackUrl: FormDataEntryValue | null): string {
-  if (typeof callbackUrl !== "string") {
-    return DEFAULT_REDIRECT;
-  }
-
-  // `//evil.com` is a protocol-relative URL, and browsers normalise the
-  // backslash in `/\evil.com` to the same thing — neither is a local route.
-  if (!callbackUrl.startsWith("/") || /^\/[/\\]/.test(callbackUrl)) {
-    return DEFAULT_REDIRECT;
-  }
-
-  return callbackUrl;
 }
 
 /**
