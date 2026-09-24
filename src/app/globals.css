@@ -128,3 +128,99 @@
     @apply font-sans;
     }
 }
+/* A thin scrollbar in the same colours as CodeEditor's Monaco theme. */
+@utility scrollbar-themed {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+}
+
+/*
+ * Rendered Markdown in MarkdownEditor's Preview tab. A plain class rather than
+ * utilities, since react-markdown emits bare elements with no class names.
+ */
+@layer components {
+  .markdown-preview {
+    @apply text-sm leading-relaxed break-words text-foreground;
+  }
+  .markdown-preview > :first-child {
+    @apply mt-0;
+  }
+  .markdown-preview > :last-child {
+    @apply mb-0;
+  }
+  .markdown-preview :where(p, ul, ol, blockquote, pre, table, hr) {
+    @apply my-3;
+  }
+  .markdown-preview :where(h1, h2, h3, h4, h5, h6) {
+    @apply mt-5 mb-2 font-semibold leading-tight tracking-tight;
+  }
+  .markdown-preview h1 {
+    @apply border-b pb-1.5 text-2xl font-bold;
+  }
+  .markdown-preview h2 {
+    @apply border-b pb-1 text-xl;
+  }
+  .markdown-preview h3 {
+    @apply text-lg;
+  }
+  .markdown-preview h4 {
+    @apply text-base;
+  }
+  .markdown-preview h5 {
+    @apply text-sm;
+  }
+  .markdown-preview h6 {
+    @apply text-xs tracking-wide text-muted-foreground uppercase;
+  }
+  .markdown-preview :where(strong) {
+    @apply font-semibold;
+  }
+  .markdown-preview a {
+    @apply text-blue-400 underline underline-offset-2 transition-colors hover:text-blue-300;
+  }
+  .markdown-preview ul {
+    @apply list-disc pl-6;
+  }
+  .markdown-preview ol {
+    @apply list-decimal pl-6;
+  }
+  .markdown-preview li {
+    @apply my-1 marker:text-muted-foreground;
+  }
+  .markdown-preview li > :where(ul, ol) {
+    @apply my-1;
+  }
+  .markdown-preview li:has(> input[type="checkbox"]) {
+    @apply list-none;
+  }
+  .markdown-preview input[type="checkbox"] {
+    @apply mr-2 -ml-5 align-middle accent-blue-400;
+  }
+  .markdown-preview blockquote {
+    @apply border-l-4 border-blue-400/60 pl-4 text-muted-foreground italic;
+  }
+  .markdown-preview :not(pre) > code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+  .markdown-preview pre {
+    @apply overflow-x-auto rounded-md border bg-background p-3 font-mono text-[13px] leading-5;
+  }
+  .markdown-preview pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown-preview hr {
+    @apply border-border;
+  }
+  .markdown-preview table {
+    @apply block w-max max-w-full overflow-x-auto border-collapse text-sm;
+  }
+  .markdown-preview :where(th, td) {
+    @apply border px-3 py-1.5 text-left;
+  }
+  .markdown-preview th {
+    @apply bg-muted font-semibold;
+  }
+  .markdown-preview img {
+    @apply max-w-full rounded-md;
+  }
+}

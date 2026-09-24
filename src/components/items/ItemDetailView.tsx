@@ -7,6 +7,7 @@ import { TypeIcon } from "@/components/dashboard/TypeIcon";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemActions } from "@/components/items/ItemActions";
 import { ItemEditForm } from "@/components/items/ItemEditForm";
+import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import {
   CollectionSection,
   DatesSection,
@@ -115,9 +116,7 @@ function ItemBody({ item }: { item: ItemDetail }) {
               readOnly
             />
           ) : (
-            <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-[13px] leading-relaxed">
-              <code>{item.content}</code>
-            </pre>
+            <MarkdownEditor value={item.content} ariaLabel="Content" readOnly />
           )}
         </Section>
       )}
