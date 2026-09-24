@@ -1,18 +1,58 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: File List View
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/file` renders file items as a single-column list of rows (Google
+  Drive / Dropbox style) instead of the grid of `ItemCard`s
+- Each row shows a file icon chosen by extension, the file name, the file
+  size, the upload date and a download button
+- Rows highlight on hover
+- Clicking a row opens the item drawer
+- The download button downloads the file directly and does not open the
+  drawer (stop propagation)
+- On mobile the row's info stacks vertically
+- Every other type page, and the Images gallery, is unchanged
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/file-display-spec.md`.
+
+- **URL is `/items/file`, not the spec's `/items/files`.** `ItemType.slug` is
+  singular, the same call made for Items List View and Dashboard Phase 2; the
+  plural form 404s
+- Follows the Image Gallery View pattern: a new component (e.g.
+  `src/components/items/FileRow.tsx`) chosen in
+  `src/app/(app)/items/[type]/page.tsx` when the type is the system `file`
+  type, alongside the existing `isGallery` branch. The list replaces the
+  `grid` wrapper for this type only
+- Row click reuses `ItemCardButton` (stretched invisible button over a
+  `relative` parent), which keeps the row a server component and gives
+  keyboard access and focus return for free. The download control must sit
+  above that overlay (`relative z-10`) so it gets its own clicks. Because the
+  overlay is a sibling, not an ancestor, a click on the download link never
+  reaches it, which meets the spec's "stop propagation" without an `onClick`.
+  That keeps the link a plain `<a>` and the row a server component; an
+  explicit `stopPropagation` would force a client component for no effect
+- Download goes through the existing `GET /api/items/[id]/download` route with
+  the `download` attribute, as `ItemActions` does. A direct link to the public
+  R2 URL would open the file cross-origin rather than save it
+- `ItemWithRelations` already carries `fileName`, `fileSize` and `createdAt`;
+  no query change should be needed. "Upload date" maps to `createdAt` (the
+  upload happens at create time), unlike the cards, which show `updatedAt`
+- Size uses `formatFileSize` from `src/lib/uploads.ts`; extension parsing uses
+  `getFileExtension` from the same module
+- The extension → icon mapping is new client-safe logic in `src/lib/` (a
+  pure function returning a lucide icon name or category), so it gets unit
+  tests under `/feature test`. Unknown or missing extensions fall back to a
+  generic file icon
+- Row fallbacks: a missing `fileName` shows the item title; a null `fileSize`
+  omits the size
+- Only the Files page uses the list. File items in the dashboard's Pinned and
+  Recent sections keep rendering as `ItemCard`
 
 ## History
 
