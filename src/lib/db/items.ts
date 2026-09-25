@@ -3,10 +3,10 @@
  *
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
- * `getItemsByCollection`, `createItem`, `updateItem` and `deleteItem` are the
- * exceptions: they take the caller's user id, because they back an API route,
- * server actions and the collection pages, none of which may reach another
- * user's item.
+ * `getItemsByCollection`, `getSearchItems`, `createItem`, `updateItem` and
+ * `deleteItem` are the exceptions: they take the caller's user id, because they
+ * back an API route, server actions, the collection pages and the command
+ * palette, none of which may reach another user's item.
  */
 
 import { cache } from "react";
@@ -15,12 +15,14 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { CollectionNotFoundError } from "@/lib/db/errors";
 import { prisma } from "@/lib/prisma";
+import { toSearchPreview } from "@/lib/search";
 import type { CreateItemData, UpdateItemData } from "@/lib/validations/items";
 import type {
   ItemDetail,
   ItemType,
   ItemTypeWithCount,
   ItemWithRelations,
+  SearchItem,
 } from "@/types";
 
 const DEMO_USER_ID = "seed-user-demo";
@@ -318,6 +320,38 @@ export async function getItemsByCollection(
   });
 
   return items.map(toItemWithRelations);
+}
+
+/**
+ * Every one of the user's items in the slim shape the command palette
+ * searches, most recently updated first.
+ *
+ * Loaded with the app shell on every request, so only the fields the palette
+ * shows are selected and the preview is cut short here — the payload that
+ * crosses to the client stays bounded per item. The full content still has to
+ * be read, since Prisma cannot truncate a column in a `select`.
+ */
+export async function getSearchItems(userId: string): Promise<SearchItem[]> {
+  const items = await prisma.item.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      url: true,
+      fileName: true,
+      description: true,
+      type: { select: { name: true, icon: true, color: true } },
+    },
+  });
+
+  return items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    type: item.type,
+    preview: toSearchPreview(item),
+  }));
 }
 
 /**

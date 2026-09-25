@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById`, `getItemsByCollection`, `createItem`, `updateItem` and
- * `deleteItem` are covered here: they are the queries in this module scoped to
- * a caller-supplied user, backing a public API route, server actions and the
- * collection pages. The database is mocked, so these tests pin the
+ * Only `getItemById`, `getItemsByCollection`, `getSearchItems`, `createItem`,
+ * `updateItem` and `deleteItem` are covered here: they are the queries in this
+ * module scoped to a caller-supplied user, backing a public API route, server
+ * actions, the collection pages and the command palette. The database is mocked, so these tests pin the
  * queries' shape and the mapping, not Postgres behaviour.
  */
 
@@ -37,8 +37,10 @@ import {
   deleteItem,
   getItemById,
   getItemsByCollection,
+  getSearchItems,
   updateItem,
 } from "@/lib/db/items";
+import { SEARCH_PREVIEW_LENGTH } from "@/lib/search";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
 const updatedAt = new Date("2026-09-04T10:00:00Z");
@@ -467,6 +469,41 @@ describe("getItemsByCollection", () => {
     expect(item.tags).toEqual(["process", "terminal"]);
     expect(item).not.toHaveProperty("userId");
     expect(item).not.toHaveProperty("collections");
+  });
+});
+
+describe("getSearchItems", () => {
+  it("scopes the search data to the owner, newest first", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([]);
+
+    await getSearchItems("user-1");
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        orderBy: { updatedAt: "desc" },
+      }),
+    );
+  });
+
+  it("maps rows to the slim palette shape with a preview, not the full content", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([
+      {
+        id: "item-1",
+        title: "Long snippet",
+        content: "x".repeat(500),
+        url: null,
+        fileName: null,
+        description: null,
+        type: { name: "Snippets", icon: "Code", color: "blue" },
+      },
+    ]);
+
+    const [item] = await getSearchItems("user-1");
+
+    expect(Object.keys(item).sort()).toEqual(["id", "preview", "title", "type"]);
+    expect(item.type).toEqual({ name: "Snippets", icon: "Code", color: "blue" });
+    expect(item.preview?.length).toBe(SEARCH_PREVIEW_LENGTH);
   });
 });
 

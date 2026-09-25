@@ -1,36 +1,30 @@
-import { Search } from "lucide-react";
-
 import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
-import { Input } from "@/components/ui/input";
+import { GlobalSearch } from "@/components/search/GlobalSearch";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getCreatableTypes } from "@/lib/item-fields";
-import type { ItemType } from "@/types";
+import type { ItemType, SearchCollection, SearchItem } from "@/types";
 
 interface TopBarProps {
   /** Every item type the user can see; the New Item dialog offers the creatable ones. */
   itemTypes: ItemType[];
+  /** What the command palette searches, pre-fetched with the app shell. */
+  searchItems: SearchItem[];
+  searchCollections: SearchCollection[];
 }
 
-export function TopBar({ itemTypes }: TopBarProps) {
+export function TopBar({
+  itemTypes,
+  searchItems,
+  searchCollections,
+}: TopBarProps) {
   const creatableTypes = getCreatableTypes(itemTypes);
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
       <SidebarTrigger className="shrink-0" />
 
-      <div className="relative w-full max-w-sm">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Search items..."
-          aria-label="Search items"
-          className="pr-14 pl-8"
-        />
-        <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground select-none sm:flex">
-          <span className="text-xs">⌘</span>K
-        </kbd>
-      </div>
+      <GlobalSearch items={searchItems} collections={searchCollections} />
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <NewCollectionDialog />

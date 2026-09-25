@@ -127,6 +127,27 @@ export interface ItemDetail extends ItemWithRelations {
 }
 
 /**
+ * An item as the command palette searches and lists it. Pre-fetched for every
+ * item on each app-shell request, so it carries a short preview rather than
+ * the item's full content.
+ */
+export interface SearchItem {
+  id: string;
+  title: string;
+  type: Pick<ItemType, "name" | "icon" | "color">;
+  /** Up to `SEARCH_PREVIEW_LENGTH` characters of content, URL, file name or description. */
+  preview: string | null;
+}
+
+/** A collection as the command palette searches and lists it. */
+export interface SearchCollection {
+  id: string;
+  name: string;
+  slug: string;
+  itemCount: number;
+}
+
+/**
  * The signed-in user as the profile page renders them.
  *
  * `hasPassword` stands in for the password column itself — the page needs to
