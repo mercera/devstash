@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 
+import { CollectionCardMenu } from "@/components/collections/CollectionCardMenu";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -18,6 +20,9 @@ import type { CollectionCardData } from "@/types";
  * the card is clickable anywhere while the link's accessible name stays the
  * collection name and no block content sits inside an `<a>`. The ring is
  * inset because the card's `overflow-hidden` clips an outset one.
+ *
+ * The three-dots menu is a sibling of the link, lifted above the overlay, so
+ * it is the one part of the card that does not navigate.
  */
 export function CollectionCard({
   collection,
@@ -46,6 +51,9 @@ export function CollectionCard({
         <CardDescription className="text-xs">
           {collection.itemCount} items
         </CardDescription>
+        <CardAction>
+          <CollectionCardMenu collection={collection} />
+        </CardAction>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-3">

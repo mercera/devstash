@@ -28,3 +28,13 @@ export function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
 
   return `${base}-${suffix}`;
 }
+
+/**
+ * Whether `slug` is one `uniqueSlug` could have produced for `base` — `base`
+ * itself or `base-N`. A rename that keeps the name keeps a slug like
+ * `react-patterns-2` rather than moving it to `react-patterns` once that frees
+ * up.
+ */
+export function isSlugFor(slug: string, base: string): boolean {
+  return slug === base || new RegExp(`^${base}-[1-9]\\d*$`).test(slug);
+}

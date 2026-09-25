@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { slugify, uniqueSlug } from "@/lib/slug";
+import { isSlugFor, slugify, uniqueSlug } from "@/lib/slug";
 
 describe("slugify", () => {
   it.each([
@@ -36,5 +36,26 @@ describe("uniqueSlug", () => {
 
   it("fills a gap rather than always counting up", () => {
     expect(uniqueSlug("react", new Set(["react", "react-3"]))).toBe("react-2");
+  });
+});
+
+describe("isSlugFor", () => {
+  it.each([
+    ["react-patterns", "react-patterns"],
+    ["react-patterns-2", "react-patterns"],
+    ["react-patterns-12", "react-patterns"],
+  ])("accepts %j for %j", (slug, base) => {
+    expect(isSlugFor(slug, base)).toBe(true);
+  });
+
+  it.each([
+    ["react-patterns-old", "react-patterns"],
+    ["react-patterns-0", "react-patterns"],
+    ["react-patterns-", "react-patterns"],
+    ["react", "react-patterns"],
+    ["react-patterns", "react"],
+    ["python-snippets", "react-patterns"],
+  ])("rejects %j for %j", (slug, base) => {
+    expect(isSlugFor(slug, base)).toBe(false);
   });
 });

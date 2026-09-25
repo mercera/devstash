@@ -86,6 +86,15 @@ export interface CollectionCardData {
   types: ItemType[];
 }
 
+/**
+ * What the collection edit, delete and favorite controls need — satisfied by
+ * both a full `Collection` and a `CollectionCardData`.
+ */
+export type EditableCollection = Pick<
+  Collection,
+  "id" | "name" | "slug" | "description" | "isFavorite"
+>;
+
 /** The signed-in user as the sidebar footer renders them. */
 export interface CurrentUser {
   name: string | null;

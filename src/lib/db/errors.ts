@@ -22,3 +22,16 @@ export function isUniqueConstraintError(error: unknown): boolean {
     (error as { code: unknown }).code === "P2002"
   );
 }
+
+/**
+ * Whether a Prisma error says the record to update or delete was not found
+ * (P2025), e.g. because it was deleted between a read and a write.
+ */
+export function isRecordNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "P2025"
+  );
+}
