@@ -1,45 +1,18 @@
-# Current Feature: Collections Pages
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/collections` lists every one of the signed-in user's collections as the
-  existing `CollectionCard`s, in a responsive grid
-- `/collections/[slug]` shows the collection's name, description and item
-  count, and its items as the existing `ItemCard`s. Clicking a card opens the
-  item drawer, as on the type pages
-- An unknown slug, or another user's collection, returns 404; a collection
-  with no items shows an empty state
-- The sidebar's "View all collections" links to `/collections` and each
-  collection row links to its page (both already do; confirm they resolve)
-- The whole `CollectionCard` is clickable and links to its collection page,
-  not just the name
-- Both routes are behind the proxy (`/collections/:path*` in the matcher)
-- Unit tests for any new `src/lib/db` getter; `npm test`, `npm run lint` and
-  `npm run build` pass
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description, no spec file
-- **The route uses the slug, not the id.** The request says
-  `/collections/[id]`, but the sidebar and cards already link to
-  `/collections/${slug}`, and `Collection.slug` is unique per user — the same
-  call made for `/items/[type]`
-- Both pages go inside the `(app)` route group so they get the sidebar and
-  top bar
-- **Scoped to the signed-in user.** Collection reads already are (Collection
-  Create); the collection's items are fetched through the `ItemCollection`
-  join with the collection lookup scoped to the session user, so the page
-  lists items in that user's collection. Other item reads stay demo-scoped
-- Card clickability should follow the stretched-overlay pattern
-  `ItemCardButton` uses, so `CollectionCard` stays a server component and no
-  block content is nested inside an `<a>`
-- Items in a collection sort most recently updated first, like the type
-  pages; grid `md:grid-cols-2 xl:grid-cols-3`
-- Not in scope: collection edit/delete, favorite toggling, search, pagination
+<!-- Any extra notes -->
 
 ## History
 
@@ -2715,3 +2688,75 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Collections Pages — Completed (2026-09-25)
+
+`/collections` lists the signed-in user's collections, and
+`/collections/[slug]` shows one collection's items. Branch
+`feature/collections-pages`. Two new pages, six existing files touched plus
+two test files, no new dependencies, no migration. Loaded from an inline
+description rather than a spec file.
+
+- Added `src/app/(app)/collections/page.tsx`: every collection as the
+  existing `CollectionCard`, most recently updated first, in a
+  `md:grid-cols-2 xl:grid-cols-3` grid, with a count and a dashed empty state
+- Added `src/app/(app)/collections/[slug]/page.tsx`: the collection's name,
+  favorite star, description and item count over its items as `ItemCard`s,
+  which open the drawer. `notFound()` for an unknown or foreign slug, and an
+  empty state for a collection with no items. The tab title is the
+  collection name
+- Added `getCollectionBySlug(userId, slug)` to `src/lib/db/collections.ts` and
+  `getItemsByCollection(userId, collectionId)` to `src/lib/db/items.ts`
+- `CollectionCard`'s name link now covers the whole card through an `::after`
+  overlay, so the card is clickable anywhere, including on the dashboard
+- The sidebar's "View all collections" is marked active on `/collections`
+- `src/proxy.ts`'s matcher gained `/collections/:path*`
+- 4 unit tests across `db/collections` and `db/items`. Suite 288 → 292
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  build registers `ƒ /collections` and `ƒ /collections/[slug]`
+
+Verified in the browser as the demo user. The only console error was the
+expected 404 resource log:
+
+- Anonymous `/collections` → `/sign-in?callbackUrl=%2Fcollections`
+- A click near a dashboard card's bottom-right corner, away from the name,
+  opened `/collections/c-methods`. Its 2 items rendered, and one opened in the
+  drawer
+- "View all collections" opened `/collections` with all 6 cards and the link
+  active
+- Tabbing to a card's link showed the inset ring, and Enter opened the
+  collection
+- `/collections/does-not-exist` returned 404 inside the app shell
+- `/collections/react-patterns` read "React Patterns | DevStash" with the star,
+  description and 3 items
+- Columns were 3 at 1280px and 1 at 390px, with no horizontal scroll
+
+Decisions worth carrying forward:
+
+- **The route uses the slug, not the id** the request named. The sidebar and
+  cards already linked to `/collections/${slug}`, and `Collection.slug` is
+  unique per user. This is the same call as `/items/[type]`
+- **Both pages are scoped to the signed-in user.** The collection lookup is
+  `{ userId, slug }`, and the items query filters on `userId` as well as the
+  `ItemCollection` join, so a link to another user's item cannot surface. The
+  sidebar's type counts and the dashboard's item sections are still
+  demo-scoped
+- **The card link is stretched with a pseudo-element**, not an overlay element
+  like `ItemCardButton`. This keeps `CollectionCard` a server component and the
+  link's accessible name the collection name. The ring is inset because
+  `Card` is `overflow-hidden`. The name's `truncate` does not clip the
+  overlay, because the overlay's containing block is the card, not the link
+- **Programmatic `.focus()` does not trigger `:focus-visible`** after a mouse
+  click, so the ring read `none` until the check tabbed to the link with the
+  keyboard
+- **The header uses a neutral folder tile**, not an accent color. A
+  collection's stored `color` is usually the default `gray`, while its card's
+  accent comes from its items, so the two would disagree
+- `generateMetadata` and the page share one lookup through React `cache`, as
+  on `/items/[type]`. After a client-side navigation the tab title updates a
+  moment after the URL does, so read it after the page has loaded
+- Not built, as the request does not ask: collection edit and delete, a New
+  Item button that preselects the collection, favorite toggling and pagination
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshot; it is gitignored
