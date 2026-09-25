@@ -1,54 +1,18 @@
-# Current Feature: Add Items to Collections
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- An item can belong to zero, one or several collections
-- The New Item dialog has a collections input that lists the signed-in
-  user's collections and allows selecting more than one
-- The drawer's edit mode has the same input, pre-selected with the item's
-  current collections, and saving replaces the item's collection set
-- The drawer's view mode lists every collection the item belongs to
-  (the "Collections" section already exists and shows zero or one badge)
-- Collection counts and type icons on the dashboard cards and the sidebar
-  stay correct when an item is in several collections
-- The server only accepts collection ids owned by the caller; a foreign or
-  unknown id is rejected rather than linked
-- Unit tests cover the validation, the db writes and the actions for the
-  new collection field (`/feature test`)
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- **Decided at load time: a join table**, not a single collection per item
-- **Needs a schema change.** `Item.collectionId` is a single nullable foreign
-  key today, so "multiple collections" means a many-to-many join table (e.g.
-  `ItemCollection` with `@@id([itemId, collectionId])`, like `ItemTag`) and a
-  migration through `prisma migrate dev`. The existing `collectionId` values
-  (the seeded demo items) have to be copied into the join table in that
-  migration before the column is dropped
-- Code that reads `collectionId` / `collection` today and will need to move:
-  `getRecentCollections`' `groupBy(["collectionId", "typeId"])`, the
-  `getItemById` include and `ItemDetail.collection`, `ItemSections`'
-  collection block, `prisma/seed.ts` and `scripts/delete-users.ts`
-- Deleting a collection currently sets `collectionId` to null and keeps the
-  items; with a join table the equivalent is cascading the join rows only
-- Collection options come from the signed-in user (collection reads are
-  already session-scoped); item reads are still demo-scoped
-- Out of scope: collection pages (`/collections/[slug]`), creating a
-  collection from inside the item form, and the Free plan's limits
-- Migration `20260925120000_item_collections` was hand-written (a column drop
-  makes `migrate dev` stop for confirmation) and applied to the dev branch with
-  `migrate deploy`, with the user's go-ahead. 17 items had a collection before;
-  17 `ItemCollection` rows after, and `Item.collectionId` is gone
-- Collection card counts now come from a raw `$queryRaw` GROUP BY over the
-  join, since Prisma's `groupBy` cannot group by `Item.typeId` through it
-- A running `next dev` keeps the old Prisma client after a schema change,
-  because `src/lib/prisma.ts` caches it on `globalThis`. Every page 500'd until
-  the dev server was restarted
+<!-- Any extra notes -->
 
 ## History
 
@@ -2632,3 +2596,95 @@ Decisions worth carrying forward:
 - The browser session used session JWTs minted locally for `seed-user-demo`
   and `reset-flow@devstash.io`. The token files were deleted afterwards.
   `.playwright-mcp/` holds the screenshot; it is gitignored
+
+### Add Items to Collections — Completed (2026-09-25)
+
+An item can now belong to any number of its owner's collections, chosen in the
+New Item dialog and in the drawer's edit mode. Branch
+`feature/item-collections`. Two new source files and a migration, nineteen
+existing files touched, no new dependencies. Loaded from an inline description
+rather than a spec file.
+
+- `Item.collectionId` was replaced by an `ItemCollection` join table
+  (`@@id([itemId, collectionId])`, like `ItemTag`), cascading from both sides.
+  Deleting a collection removes only its links; the items stay
+- Migration `20260925120000_item_collections` creates the table, copies every
+  same-owner `collectionId` into it, then drops the column, index and foreign
+  key. Applied to the Neon **dev** branch: 17 links before, 17 rows after
+- `createItem`/`updateItem` in `src/lib/db/items.ts` gained `linkCollections`.
+  An update replaces the set the same way it replaces tags
+- Added `CollectionNotFoundError` to `src/lib/db/errors.ts`. Both item actions
+  map it to a message under the `collectionIds` field
+- `updateItemSchema` (and so `createItemSchema`) gained a required,
+  de-duplicated `collectionIds` array
+- `ItemDetail.collection` became `collections: ItemCollectionSummary[]`,
+  ordered by name, and `Item.collectionId` is gone from `src/types`. The
+  drawer's Collections section renders one badge each
+- Added `src/components/items/CollectionPicker.tsx`: toggle chips (with
+  `aria-pressed`), one per collection, and an empty state pointing at New
+  Collection
+- Added `src/components/collections/CollectionOptionsProvider.tsx`
+- `getRecentCollections` counts through the join with `$queryRaw`
+- `prisma/seed.ts` upserts `ItemCollection` rows; `docs/item-types.md` updated
+- Tests went from 276 to 288 across `db/items`, `db/collections`,
+  `actions/items` and `validations/items`
+- `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` and
+  `prisma migrate status` pass; the route table is unchanged
+
+Verified in the browser as the demo user at 390px, with no console errors or
+warnings and no horizontal scroll:
+
+- The dashboard's cards read 3/4/4/3/3 = the 17 migrated links
+- The picker listed all six collections by name, and toggling one twice left
+  it off
+- A note created in DevOps and React Patterns moved those cards from 4 to 5
+  and from 3 to 4
+- The drawer showed both badges, and edit mode opened with both selected
+- Swapping React Patterns for C# Methods saved, updated the badges, and moved
+  the cards to 3 and 1
+- Deleting the note removed its links. The database ended at 24 items and 17
+  links, as it started
+
+Decisions worth carrying forward:
+
+- **Ownership of collection ids is checked inside the write's transaction**:
+  `findMany({ id: { in }, userId })`, then a count comparison. A foreign or
+  deleted id throws and rolls back the whole save, including the item's own
+  fields and tags, rather than silently linking the rest. The action reports it
+  as "A chosen collection no longer exists" without logging, since it is a
+  user-reachable state, not a fault
+- **`collectionIds` is required, not defaulted.** A default of `[]` would let a
+  caller that omits the field clear an item's collections on edit. The tags
+  array was already required for the same reason
+- **Counts go through raw SQL.** Prisma's `groupBy` cannot group by a column on
+  a related model, and loading every link with its item would bring back the
+  unbounded payload the Dashboard Query Over-Fetch fix removed. The query joins
+  on `Item.userId`; the collection side needs no filter because only the
+  caller's collections are mapped. An item in two collections counts once in
+  each
+- **The picker's options come from a context**, not props. The New Item dialog
+  sits in the top bar and on every type page, and the edit form in the drawer,
+  so the list would otherwise be threaded through three paths. The layout
+  already fetched every collection for the sidebar, so this costs no query, and
+  `router.refresh()` after a New Collection brings the new one in
+- **Toggle chips, not a dropdown.** ShadCN has no multi-select, the `shadcn`
+  CLI keeps reproducing the `import { cn } from "cn"` bug, and the chips match
+  the type picker. The group scrolls past `max-h-32` for users with many
+  collections
+- **The migration was hand-written and applied with `migrate deploy`.**
+  `migrate dev` stops for confirmation on a column drop and cannot run
+  non-interactively, the same as the unique-index case under Email
+  Verification. The copy step runs between creating the table and dropping the
+  column, and skips any pair whose owners differ (there were none)
+- **A running `next dev` does not pick up a schema change.** `src/lib/prisma.ts`
+  caches the client on `globalThis` outside production, so hot reload kept the
+  pre-migration client and every page returned 500
+  (`column (not available) does not exist`). The user's dev server on :3000 was
+  restarted. Restart after every migration
+- Adding an item to a collection does not touch the collection's `updatedAt`,
+  so the "recent" ordering of collections does not change
+- The foreign-id rejection was unit-tested but not exercised through the UI,
+  since the picker only ever offers the user's own collections
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
