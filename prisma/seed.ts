@@ -526,13 +526,18 @@ async function seedItems(userId: string) {
       isPinned: item.isPinned ?? false,
       userId,
       typeId,
-      collectionId,
     };
 
     await prisma.item.upsert({
       where: { id: item.id },
       update: data,
       create: { id: item.id, ...data },
+    });
+
+    await prisma.itemCollection.upsert({
+      where: { itemId_collectionId: { itemId: item.id, collectionId } },
+      update: {},
+      create: { itemId: item.id, collectionId },
     });
 
     for (const tagName of item.tags) {

@@ -1,18 +1,54 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Add Items to Collections
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- An item can belong to zero, one or several collections
+- The New Item dialog has a collections input that lists the signed-in
+  user's collections and allows selecting more than one
+- The drawer's edit mode has the same input, pre-selected with the item's
+  current collections, and saving replaces the item's collection set
+- The drawer's view mode lists every collection the item belongs to
+  (the "Collections" section already exists and shows zero or one badge)
+- Collection counts and type icons on the dashboard cards and the sidebar
+  stay correct when an item is in several collections
+- The server only accepts collection ids owned by the caller; a foreign or
+  unknown id is rejected rather than linked
+- Unit tests cover the validation, the db writes and the actions for the
+  new collection field (`/feature test`)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- **Decided at load time: a join table**, not a single collection per item
+- **Needs a schema change.** `Item.collectionId` is a single nullable foreign
+  key today, so "multiple collections" means a many-to-many join table (e.g.
+  `ItemCollection` with `@@id([itemId, collectionId])`, like `ItemTag`) and a
+  migration through `prisma migrate dev`. The existing `collectionId` values
+  (the seeded demo items) have to be copied into the join table in that
+  migration before the column is dropped
+- Code that reads `collectionId` / `collection` today and will need to move:
+  `getRecentCollections`' `groupBy(["collectionId", "typeId"])`, the
+  `getItemById` include and `ItemDetail.collection`, `ItemSections`'
+  collection block, `prisma/seed.ts` and `scripts/delete-users.ts`
+- Deleting a collection currently sets `collectionId` to null and keeps the
+  items; with a join table the equivalent is cascading the join rows only
+- Collection options come from the signed-in user (collection reads are
+  already session-scoped); item reads are still demo-scoped
+- Out of scope: collection pages (`/collections/[slug]`), creating a
+  collection from inside the item form, and the Free plan's limits
+- Migration `20260925120000_item_collections` was hand-written (a column drop
+  makes `migrate dev` stop for confirmation) and applied to the dev branch with
+  `migrate deploy`, with the user's go-ahead. 17 items had a collection before;
+  17 `ItemCollection` rows after, and `Item.collectionId` is gone
+- Collection card counts now come from a raw `$queryRaw` GROUP BY over the
+  join, since Prisma's `groupBy` cannot group by `Item.typeId` through it
+- A running `next dev` keeps the old Prisma client after a schema change,
+  because `src/lib/prisma.ts` caches it on `globalThis`. Every page 500'd until
+  the dev server was restarted
 
 ## History
 

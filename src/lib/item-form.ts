@@ -41,12 +41,13 @@ export function itemToFormValues(item: ItemDetail): ItemFormValues {
  * included: on edit an absent field is left alone by the server, so a hidden
  * field can never clear a column, and on create a value typed under another
  * type and left behind cannot fail validation for a field that is not on
- * screen.
+ * screen. The collection ids are held apart from these text values and added
+ * by each form.
  */
 export function toItemFieldsPayload(
   values: ItemFormValues,
   fields: ItemTypeFields,
-): UpdateItemInput {
+): Omit<UpdateItemInput, "collectionIds"> {
   return {
     title: values.title,
     description: values.description,

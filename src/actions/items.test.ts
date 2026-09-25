@@ -27,6 +27,7 @@ vi.mock("@/lib/r2", () => ({
 }));
 
 import { createItem, deleteItem, updateItem } from "@/actions/items";
+import { CollectionNotFoundError } from "@/lib/db/errors";
 
 const saved = { id: "item-1", title: "Renamed" };
 
@@ -41,7 +42,12 @@ beforeEach(() => {
 });
 
 describe("createItem", () => {
-  const snippet = { typeSlug: "snippet" as const, title: "useDebounce", tags: [] };
+  const snippet = {
+    typeSlug: "snippet" as const,
+    title: "useDebounce",
+    tags: [],
+    collectionIds: [],
+  };
 
   it("refuses without a session", async () => {
     signedInAs(null);
@@ -61,6 +67,7 @@ describe("createItem", () => {
       title: "  ",
       url: "javascript:alert(1)",
       tags: [""],
+      collectionIds: [""],
     });
 
     expect(result.success).toBe(false);
@@ -69,6 +76,7 @@ describe("createItem", () => {
     expect(result.issues?.title).toEqual(["Title is required"]);
     expect(result.issues?.url).toBeDefined();
     expect(result.issues?.tags).toBeDefined();
+    expect(result.issues?.collectionIds).toBeDefined();
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
@@ -99,6 +107,7 @@ describe("createItem", () => {
       content: "  const x = 1;",
       language: " ts ",
       tags: ["react", " react ", "hooks"],
+      collectionIds: ["col-1", "col-2", "col-1"],
     });
 
     expect(result).toEqual({ success: true, data: saved });
@@ -114,7 +123,23 @@ describe("createItem", () => {
       fileName: null,
       fileSize: null,
       tags: ["react", "hooks"],
+      collectionIds: ["col-1", "col-2"],
     });
+  });
+
+  it("reports a collection the user does not own under the collections field", async () => {
+    mocks.createItem.mockRejectedValue(new CollectionNotFoundError());
+
+    const result = await createItem({ ...snippet, collectionIds: ["someone-elses"] });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Please check the details you entered",
+      issues: {
+        collectionIds: ["A chosen collection no longer exists. Reload and try again."],
+      },
+    });
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("reports a type missing from the database as unavailable", async () => {
@@ -144,7 +169,7 @@ describe("updateItem", () => {
   it("refuses without a session", async () => {
     signedInAs(null);
 
-    const result = await updateItem("item-1", { title: "Renamed", tags: [] });
+    const result = await updateItem("item-1", { title: "Renamed", tags: [], collectionIds: [] });
 
     expect(result).toEqual({
       success: false,
@@ -158,6 +183,7 @@ describe("updateItem", () => {
       title: "  ",
       url: "javascript:alert(1)",
       tags: ["react", ""],
+      collectionIds: [],
     });
 
     expect(result.success).toBe(false);
@@ -170,7 +196,7 @@ describe("updateItem", () => {
   });
 
   it("rejects a missing item id", async () => {
-    const result = await updateItem("", { title: "Renamed", tags: [] });
+    const result = await updateItem("", { title: "Renamed", tags: [], collectionIds: [] });
 
     expect(result).toEqual({ success: false, error: "This item could not be found." });
     expect(mocks.updateItem).not.toHaveBeenCalled();
@@ -183,6 +209,7 @@ describe("updateItem", () => {
       title: " Renamed ",
       description: "",
       tags: ["react", " react "],
+      collectionIds: ["col-2", "col-2"],
     });
 
     expect(result).toEqual({ success: true, data: saved });
@@ -190,6 +217,7 @@ describe("updateItem", () => {
       title: "Renamed",
       description: null,
       tags: ["react"],
+      collectionIds: ["col-2"],
     });
   });
 
@@ -199,15 +227,33 @@ describe("updateItem", () => {
     const result = await updateItem("someone-elses-item", {
       title: "Renamed",
       tags: [],
+      collectionIds: [],
     });
 
     expect(result).toEqual({ success: false, error: "This item could not be found." });
   });
 
+  it("reports a collection the user does not own under the collections field", async () => {
+    mocks.updateItem.mockRejectedValue(new CollectionNotFoundError());
+
+    const result = await updateItem("item-1", {
+      title: "Renamed",
+      tags: [],
+      collectionIds: ["someone-elses"],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    expect(result.issues?.collectionIds).toEqual([
+      "A chosen collection no longer exists. Reload and try again.",
+    ]);
+  });
+
   it("returns a generic error when the database fails", async () => {
     mocks.updateItem.mockRejectedValue(new Error("connection lost"));
 
-    const result = await updateItem("item-1", { title: "Renamed", tags: [] });
+    const result = await updateItem("item-1", { title: "Renamed", tags: [], collectionIds: [] });
 
     expect(result).toEqual({
       success: false,

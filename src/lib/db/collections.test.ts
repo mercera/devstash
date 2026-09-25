@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   prisma: {
     collection: { findMany: vi.fn(), count: vi.fn(), create: vi.fn() },
     itemType: { findMany: vi.fn() },
-    item: { groupBy: vi.fn() },
+    $queryRaw: vi.fn(),
   },
 }));
 
@@ -44,7 +44,7 @@ describe("getRecentCollections", () => {
   it("scopes the collections, custom types and item counts to the user", async () => {
     mocks.prisma.collection.findMany.mockResolvedValue([]);
     mocks.prisma.itemType.findMany.mockResolvedValue([]);
-    mocks.prisma.item.groupBy.mockResolvedValue([]);
+    mocks.prisma.$queryRaw.mockResolvedValue([]);
 
     await getRecentCollections("user-1", 6);
 
@@ -56,11 +56,43 @@ describe("getRecentCollections", () => {
         where: { OR: [{ isSystem: true }, { userId: "user-1" }] },
       }),
     );
-    expect(mocks.prisma.item.groupBy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: "user-1", collectionId: { not: null } },
-      }),
-    );
+
+    // A tagged template: the SQL fragments, then the bound values.
+    const [strings, ...values] = mocks.prisma.$queryRaw.mock.calls[0];
+    expect(strings.join("?")).toContain('JOIN "Item" i ON i."id" = ic."itemId"');
+    expect(strings.join("?")).toContain('WHERE i."userId" = ?');
+    expect(values).toEqual(["user-1"]);
+  });
+
+  it("counts an item in every collection it belongs to, most-used type first", async () => {
+    const snippet = { id: "type-snippet", name: "Snippets", slug: "snippet", icon: "Code", color: "blue", isSystem: true };
+    const command = { id: "type-command", name: "Commands", slug: "command", icon: "Terminal", color: "orange", isSystem: true };
+
+    mocks.prisma.collection.findMany.mockResolvedValue([
+      { ...created, id: "col-1", color: "gray" },
+      { ...created, id: "col-2", name: "Shell", slug: "shell", color: "pink" },
+      { ...created, id: "col-3", name: "Empty", slug: "empty", color: "green" },
+    ]);
+    mocks.prisma.itemType.findMany.mockResolvedValue([snippet, command]);
+    // One command item sits in both col-1 and col-2.
+    mocks.prisma.$queryRaw.mockResolvedValue([
+      { collectionId: "col-1", typeId: "type-snippet", count: 1 },
+      { collectionId: "col-1", typeId: "type-command", count: 2 },
+      { collectionId: "col-2", typeId: "type-command", count: 1 },
+    ]);
+
+    const cards = await getRecentCollections("user-1");
+
+    expect(cards.map(({ id, itemCount, accentColor, types }) => ({
+      id,
+      itemCount,
+      accentColor,
+      types: types.map((type) => type.slug),
+    }))).toEqual([
+      { id: "col-1", itemCount: 3, accentColor: "orange", types: ["command", "snippet"] },
+      { id: "col-2", itemCount: 1, accentColor: "orange", types: ["command"] },
+      { id: "col-3", itemCount: 0, accentColor: "green", types: [] },
+    ]);
   });
 });
 

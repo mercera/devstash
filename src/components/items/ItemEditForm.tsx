@@ -1,13 +1,14 @@
 "use client";
 
-import { useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateItem } from "@/actions/items";
+import { CollectionPicker } from "@/components/items/CollectionPicker";
 import { ItemContentFields } from "@/components/items/ItemContentFields";
 import { ItemFormField } from "@/components/items/ItemFormField";
-import { CollectionSection, DatesSection } from "@/components/items/ItemSections";
+import { DatesSection } from "@/components/items/ItemSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +27,7 @@ const SAVE_FAILED = "Something went wrong. Please try again.";
 
 /**
  * Edit mode for the drawer. Replaces the action bar with Save and Cancel and
- * the body with inputs; the item type, collection and dates stay read-only.
+ * the body with inputs; the item type and dates stay read-only.
  *
  * The title check here only arms the Save button — the server action
  * validates every field, and its per-field messages render under the inputs.
@@ -36,6 +37,9 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
   const fields = getItemTypeFields(item.type.slug);
   const form = useItemForm("item-edit", () => itemToFormValues(item));
   const { values, issues, setIssues, idFor, bind } = form;
+  const [collectionIds, setCollectionIds] = useState(() =>
+    item.collections.map((collection) => collection.id),
+  );
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -43,7 +47,10 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
 
     startTransition(async () => {
       try {
-        const result = await updateItem(item.id, toItemFieldsPayload(values, fields));
+        const result = await updateItem(item.id, {
+          ...toItemFieldsPayload(values, fields),
+          collectionIds,
+        });
 
         if (!result.success) {
           setIssues(result.issues ?? {});
@@ -104,8 +111,15 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
 
         <ItemContentFields form={form} fields={fields} />
 
+        <CollectionPicker
+          id="item-edit"
+          selected={collectionIds}
+          onChange={setCollectionIds}
+          disabled={isPending}
+          issues={issues.collectionIds}
+        />
+
         <hr />
-        <CollectionSection item={item} />
         <DatesSection item={item} />
       </div>
     </form>

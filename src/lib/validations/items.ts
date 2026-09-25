@@ -60,6 +60,12 @@ export const updateItemSchema = z.object({
   tags: z
     .array(z.string().trim().min(1, "Tags cannot be blank"))
     .transform((tags) => [...new Set(tags)]),
+  // The item's full collection set, replacing whatever it had. Whether each id
+  // is one of the caller's collections needs the database, so the write checks
+  // that; this only checks the shape. De-duplicated for the same reason as tags.
+  collectionIds: z
+    .array(z.string().min(1, "Choose a collection"))
+    .transform((ids) => [...new Set(ids)]),
 });
 
 /** What the drawer sends. */

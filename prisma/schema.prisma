@@ -95,7 +95,7 @@ model Collection {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  items Item[]
+  items ItemCollection[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -128,18 +128,14 @@ model Item {
   typeId String
   type   ItemType @relation(fields: [typeId], references: [id], onDelete: Restrict)
 
-  /// Deleting a collection keeps its items; they just become uncollected.
-  collectionId String?
-  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-
-  tags ItemTag[]
+  collections ItemCollection[]
+  tags        ItemTag[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([typeId])
-  @@index([collectionId])
   @@index([userId, updatedAt])
   @@index([userId, isPinned])
   @@index([userId, isFavorite])
@@ -169,6 +165,21 @@ model ItemTag {
 
   @@id([itemId, tagId])
   @@index([tagId])
+}
+
+/// An item can sit in any number of the owner's collections. Deleting either
+/// side removes only the link: a deleted collection's items stay, uncollected.
+model ItemCollection {
+  itemId       String
+  collectionId String
+
+  item       Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  addedAt DateTime @default(now())
+
+  @@id([itemId, collectionId])
+  @@index([collectionId])
 }
 
 // ---------------------------------------------------------------------------

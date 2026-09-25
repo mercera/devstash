@@ -56,7 +56,6 @@ export interface Item {
   isFavorite: boolean;
   isPinned: boolean;
   typeId: string;
-  collectionId: string | null;
   /**
    * Flattened tag names. The database models these through `Tag`/`ItemTag`,
    * but the UI only ever renders the names.
@@ -95,15 +94,14 @@ export interface CurrentUser {
 }
 
 /**
- * An item joined with its type, ready to render. The parent collection is not
- * joined — `collectionId` is carried on `Item` for anything that needs to
- * filter, and no card renders the collection itself.
+ * An item joined with its type, ready to render. Its collections are not
+ * joined — no card renders them.
  */
 export interface ItemWithRelations extends Item {
   type: ItemType;
 }
 
-/** The parent collection as the item drawer renders it. */
+/** A collection as the item drawer renders it, and as the item forms offer it. */
 export interface ItemCollectionSummary {
   id: string;
   name: string;
@@ -112,10 +110,11 @@ export interface ItemCollectionSummary {
 
 /**
  * An item with everything the detail drawer shows. Unlike the card shape, this
- * joins the parent collection — the drawer is the one place that renders it.
+ * joins the item's collections (by name) — the drawer is the one place that
+ * renders them.
  */
 export interface ItemDetail extends ItemWithRelations {
-  collection: ItemCollectionSummary | null;
+  collections: ItemCollectionSummary[];
 }
 
 /**

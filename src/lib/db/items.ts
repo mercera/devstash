@@ -12,6 +12,7 @@ import { cache } from "react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { ItemGetPayload } from "@/generated/prisma/models";
+import { CollectionNotFoundError } from "@/lib/db/errors";
 import { prisma } from "@/lib/prisma";
 import type { CreateItemData, UpdateItemData } from "@/lib/validations/items";
 import type {
@@ -27,9 +28,7 @@ const DEMO_USER_ID = "seed-user-demo";
  * Everything `ItemCard` needs: the item's type (icon + accent color) and the
  * tag names behind the `Tag`/`ItemTag` join.
  *
- * The parent `Collection` is deliberately not joined — no card renders it, and
- * including it pulled a full collection row per item. `collectionId` is already
- * on the item for anything that needs to filter.
+ * The item's collections are deliberately not joined — no card renders them.
  */
 const itemInclude = {
   type: true,
@@ -57,7 +56,6 @@ function toItemWithRelations(item: ItemRow): ItemWithRelations {
     isFavorite: item.isFavorite,
     isPinned: item.isPinned,
     typeId: item.typeId,
-    collectionId: item.collectionId,
     tags: item.tags.map(({ tag }) => tag.name),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
@@ -65,10 +63,13 @@ function toItemWithRelations(item: ItemRow): ItemWithRelations {
   };
 }
 
-/** The card include plus the parent collection, for the detail drawer. */
+/** The card include plus the item's collections, by name, for the detail drawer. */
 const itemDetailInclude = {
   ...itemInclude,
-  collection: { select: { id: true, name: true, slug: true } },
+  collections: {
+    select: { collection: { select: { id: true, name: true, slug: true } } },
+    orderBy: { collection: { name: "asc" } },
+  },
 } as const;
 
 /**
@@ -89,7 +90,41 @@ export async function getItemById(
 
   if (item === null) return null;
 
-  return { ...toItemWithRelations(item), collection: item.collection };
+  return {
+    ...toItemWithRelations(item),
+    collections: item.collections.map(({ collection }) => collection),
+  };
+}
+
+/**
+ * Links an item to the given collections, all of which must be `userId`'s.
+ *
+ * Ownership is checked against the database inside the transaction, so a
+ * crafted request cannot put an item into another user's collection. An id
+ * that is unknown or foreign throws `CollectionNotFoundError`, rolling back
+ * the whole write rather than linking the rest. Expects the item to have no
+ * `ItemCollection` rows yet.
+ */
+async function linkCollections(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+  userId: string,
+  collectionIds: string[],
+): Promise<void> {
+  if (collectionIds.length === 0) return;
+
+  const owned = await tx.collection.findMany({
+    where: { id: { in: collectionIds }, userId },
+    select: { id: true },
+  });
+
+  if (owned.length !== collectionIds.length) {
+    throw new CollectionNotFoundError();
+  }
+
+  await tx.itemCollection.createMany({
+    data: owned.map((collection) => ({ itemId, collectionId: collection.id })),
+  });
 }
 
 /**
@@ -127,14 +162,15 @@ async function linkTags(
  *
  * The type is resolved by slug before the transaction, keeping the
  * transaction to the writes. System types only: custom types do not exist yet.
- * The item and its tags are written together, and the result is read back
- * after the commit, as in `updateItem`.
+ * The item, its tags and its collections are written together, and the result
+ * is read back after the commit, as in `updateItem`. Throws
+ * `CollectionNotFoundError` when a collection id is not the user's.
  */
 export async function createItem(
   userId: string,
   data: CreateItemData,
 ): Promise<ItemDetail | null> {
-  const { typeSlug, tags, ...fields } = data;
+  const { typeSlug, tags, collectionIds, ...fields } = data;
 
   const type = await prisma.itemType.findFirst({
     where: { slug: typeSlug, isSystem: true },
@@ -150,6 +186,7 @@ export async function createItem(
     });
 
     await linkTags(tx, item.id, userId, tags);
+    await linkCollections(tx, item.id, userId, collectionIds);
 
     return item.id;
   });
@@ -165,6 +202,8 @@ export async function createItem(
  * named tags are created where the user does not have them yet, and the item is
  * linked to each. Runs in one transaction so a failure part-way cannot leave the
  * item with its tags stripped. Tags no item uses any more are left in place.
+ * The item's collections are replaced the same way, and a collection id that is
+ * not the user's throws `CollectionNotFoundError` and rolls the edit back.
  *
  * The steps are explicit rather than one nested write so their order is not
  * left to Prisma.
@@ -179,7 +218,7 @@ export async function updateItem(
   userId: string,
   data: UpdateItemData,
 ): Promise<ItemDetail | null> {
-  const { tags, ...fields } = data;
+  const { tags, collectionIds, ...fields } = data;
 
   const updated = await prisma.$transaction(async (tx) => {
     // Ownership is part of the write, as in `getItemById`.
@@ -192,6 +231,9 @@ export async function updateItem(
 
     await tx.itemTag.deleteMany({ where: { itemId: id } });
     await linkTags(tx, id, userId, tags);
+
+    await tx.itemCollection.deleteMany({ where: { itemId: id } });
+    await linkCollections(tx, id, userId, collectionIds);
 
     return true;
   });
