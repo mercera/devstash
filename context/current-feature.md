@@ -1,58 +1,18 @@
-# Current Feature: Global Search / Command Palette
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-Complete
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Cmd+K (Mac) / Ctrl+K (Windows) opens a global command palette from any page in the `(app)` shell
-- Fuzzy search across all items and collections, entirely client-side (no server round trips while typing)
-- Results grouped into an **Items** section and a **Collections** section
-- Keyboard navigation: arrow keys move, Enter selects, Escape closes
-- Item results show the type icon; collection results show the item count
-- Selecting an item opens the item drawer; selecting a collection navigates to `/collections/[slug]`
-- Clicking the TopBar search input opens the palette
-- The TopBar search input shows the ⌘K hint
+<!-- Goals & requirements -->
 
 ## Notes
 
-Spec: `context/features/global-search-spec.md`.
-
-Technical requirements from the spec:
-
-- Use the shadcn `Command` component (`cmdk`)
-- Pre-fetch the searchable data on app load
-- Search data: items (id, title, type, content preview), collections (id, name, itemCount)
-- Reuse existing data fetching functions
-
-Findings from checking the codebase at load time:
-
-- **Neither `cmdk` nor `components/ui/command.tsx` is installed.** `shadcn add command`
-  will be needed. The CLI has reproduced the `import { cn } from "cn"` bug in four of
-  its last five runs, so check the generated imports and remove any junk `cn` package
-- **Collections can reuse `getRecentCollections(userId)`**, which `(app)/layout.tsx`
-  already fetches for the sidebar and which already carries `itemCount` and `slug`.
-  No extra query
-- **Items have no existing "all items" getter.** `getItemsByType`, `getPinnedItems`
-  and `getRecentItems` are all partial and load the full card include (tags etc.).
-  A slim `getSearchableItems` in `src/lib/db/items.ts` (id, title, type icon/color,
-  content preview) will likely be needed rather than reusing one of those
-- **Scope mismatch to decide:** item getters are still demo-scoped (`DEMO_USER_ID`),
-  while collections and the drawer's `GET /api/items/[id]` are session-scoped. Search
-  results drawn from the demo user would only open in the drawer for the demo account
-- **The TopBar sits outside `ItemDrawerProvider`** in `(app)/layout.tsx`, so
-  `useOpenItem()` is not reachable from the palette as the tree stands. The provider
-  will need to move up to wrap the TopBar (or the palette mounted inside it)
-- The TopBar already renders a hardcoded `⌘K` `<kbd>` badge (a known gap from
-  Dashboard Phase 1). The shortcut is not wired to anything yet, and the badge does not
-  switch to Ctrl on Windows
-- **⌘B is taken** by the ShadCN sidebar toggle; ⌘K is free
-- "Content preview" should be truncated server-side so the pre-fetched payload does
-  not grow with full snippet bodies. File/image items have no content and would fall
-  back to the file name or description
-- The payload is loaded on every `(app)` request and grows with the user's item count.
-  Fine at demo scale; worth noting if it ever needs lazy loading
+<!-- Any extra notes -->
 
 ## History
 
@@ -2909,6 +2869,106 @@ Decisions worth carrying forward:
 - **A shell heredoc dropped a backslash** from the `isSlugFor` regex
   (`\d` → `\d` → `d`), which the new tests caught. Write regexes with the Edit
   tool, not heredocs
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Global Search / Command Palette — Completed (2026-09-25)
+
+Cmd+K / Ctrl+K opens a command palette that fuzzy-searches the user's items
+and collections in the browser. Branch `feature/global-search`. Two new source
+files and one new test file plus two generated UI components, five existing
+source files touched plus one test file, one new dependency, no migration. Spec:
+`context/features/global-search-spec.md`.
+
+- Installed `cmdk@1.1.1` and added the shadcn `command` component, with the
+  `input-group` component it depends on
+- Added `src/components/search/GlobalSearch.tsx`. It renders the top bar's
+  search field, which is now a button, and the palette dialog it opens:
+  - Ctrl+K or ⌘K toggles the palette from anywhere in the `(app)` shell
+  - results are grouped into **Items** (type icon in its accent color, title,
+    a one-line monospace preview, type name) and **Collections** (item count)
+  - an item opens in the drawer; a collection opens `/collections/[slug]`
+  - with no query it shows the 5 most recent items and collections
+- Added `src/lib/search.ts`:
+  - `fuzzyScore`, `searchItems` and `searchCollections` rank the results
+  - `toSearchPreview` builds the item's preview
+- Added `getSearchItems(userId)` to `src/lib/db/items.ts`, and the
+  `SearchItem` / `SearchCollection` types to `src/types/index.ts`
+- `(app)/layout.tsx` fetches the search items alongside the sidebar data. It
+  reuses `getRecentCollections` for collections, so no new collection query
+- `ItemDrawerProvider` moved up in the layout to wrap the top bar
+- `TypeIcon`'s prop narrowed to `Pick<ItemType, "icon">`, the only field it
+  reads
+- 21 unit tests: `src/lib/search.test.ts` (19) and `getSearchItems` in
+  `src/lib/db/items.test.ts` (2). Suite 320 → 341
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user. Zero console errors or warnings on
+the final code:
+
+- The hint read "Ctrl K" on Windows. Opening focused the input
+- The shortcut toggled the palette closed as well as open. Escape returned
+  focus to the search button
+- "dock" returned four Docker items. ArrowDown then Enter opened the second in
+  the drawer, and closing the drawer returned focus to the search button.
+  Clicking a row worked the same way
+- "rpat" found React Patterns (3 items), and Enter navigated to it
+- Reopening straight after a navigation started blank. A query with no match
+  showed "No results found."
+- Ctrl+K inside a Monaco editor in the drawer's edit mode did not open the
+  palette
+- At 390px the dialog is 340px wide, the hint is hidden and nothing scrolls
+  sideways
+
+Decisions worth carrying forward:
+
+- **Search reads the signed-in user's items**, not the demo user's. The user
+  did not answer the scope question raised at load time, so the default was
+  the one that lets every account open its results: the drawer's API is
+  session-scoped. The item lists and sidebar counts are still demo-scoped
+- **Filtering is ours, not cmdk's** (`shouldFilter={false}`), so the ranking
+  can be unit tested and the groups filter independently:
+  - every contiguous match outranks every subsequence match
+  - titles weigh double the type name, so "snippet" lists every snippet
+  - the preview only counts a contiguous match. Fuzzy-matching 120 characters
+    finds almost any short query somewhere
+  - every word of the query must match
+  - equal scores keep recency order
+- **Scattered letters score 0.** The first version put a floor of 1 on any
+  subsequence, and "dock" matched "List and Update Outdated Packages". A match
+  whose gap penalty outweighs its score is now dropped
+- **cmdk's `vimBindings` are off.** They bind Ctrl+J/K/N/P and mark Ctrl+K
+  handled, so the shortcut could open the palette but not close it
+- **The global listener ignores an already-handled event**, which is how
+  Monaco keeps its Ctrl+K chords. The shortcut skips Alt and Shift variants
+- **An item is opened after the palette has closed**, from
+  `onCloseAutoFocus`, a microtask after Radix restores focus. Opening it
+  straight away would record the vanishing palette input as the drawer's
+  return target, and the palette's focus scope would fight the drawer's.
+  The drawer therefore appears after the palette's 100ms exit animation
+- **The query resets on open, not after close.** The close animation's
+  callback never runs if the palette is reopened mid-animation, which is what
+  left an old query behind in the browser check. A pending item is cleared on
+  open for the same reason. The toggle reads the current state through
+  `useEffectEvent`
+- **The hint is rendered only in the browser** (`useSyncExternalStore` with a
+  null server snapshot), so a Windows user never sees ⌘ flash first
+- **Previews are cut to 120 characters on the server**, so the payload sent to
+  the browser is bounded per item. Prisma still reads the full `content`, since
+  a `select` cannot truncate a column. Order: content, URL, file name,
+  description
+- **The shadcn CLI's overwrite prompts ignore piped input**, and it installed
+  the junk `cn` package for the fifth time in six runs. `shadcn add command
+  --path tmp-shadcn --yes` wrote every file into a scratch folder with no
+  prompts; `command.tsx` and `input-group.tsx` were moved in with their
+  imports fixed, and `cn` was uninstalled
+- **Tags are not searched.** The spec lists title, type and preview, so
+  "react" does not find an item that is only tagged `react`. Adding tag names
+  to `SearchItem` would be a small change
+- The search payload is loaded on every `(app)` request and grows with the
+  user's item count. Fine at this scale
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshots; it is gitignored
