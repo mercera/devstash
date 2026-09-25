@@ -1,18 +1,58 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Global Search / Command Palette
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+Complete
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Cmd+K (Mac) / Ctrl+K (Windows) opens a global command palette from any page in the `(app)` shell
+- Fuzzy search across all items and collections, entirely client-side (no server round trips while typing)
+- Results grouped into an **Items** section and a **Collections** section
+- Keyboard navigation: arrow keys move, Enter selects, Escape closes
+- Item results show the type icon; collection results show the item count
+- Selecting an item opens the item drawer; selecting a collection navigates to `/collections/[slug]`
+- Clicking the TopBar search input opens the palette
+- The TopBar search input shows the ⌘K hint
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/global-search-spec.md`.
+
+Technical requirements from the spec:
+
+- Use the shadcn `Command` component (`cmdk`)
+- Pre-fetch the searchable data on app load
+- Search data: items (id, title, type, content preview), collections (id, name, itemCount)
+- Reuse existing data fetching functions
+
+Findings from checking the codebase at load time:
+
+- **Neither `cmdk` nor `components/ui/command.tsx` is installed.** `shadcn add command`
+  will be needed. The CLI has reproduced the `import { cn } from "cn"` bug in four of
+  its last five runs, so check the generated imports and remove any junk `cn` package
+- **Collections can reuse `getRecentCollections(userId)`**, which `(app)/layout.tsx`
+  already fetches for the sidebar and which already carries `itemCount` and `slug`.
+  No extra query
+- **Items have no existing "all items" getter.** `getItemsByType`, `getPinnedItems`
+  and `getRecentItems` are all partial and load the full card include (tags etc.).
+  A slim `getSearchableItems` in `src/lib/db/items.ts` (id, title, type icon/color,
+  content preview) will likely be needed rather than reusing one of those
+- **Scope mismatch to decide:** item getters are still demo-scoped (`DEMO_USER_ID`),
+  while collections and the drawer's `GET /api/items/[id]` are session-scoped. Search
+  results drawn from the demo user would only open in the drawer for the demo account
+- **The TopBar sits outside `ItemDrawerProvider`** in `(app)/layout.tsx`, so
+  `useOpenItem()` is not reachable from the palette as the tree stands. The provider
+  will need to move up to wrap the TopBar (or the palette mounted inside it)
+- The TopBar already renders a hardcoded `⌘K` `<kbd>` badge (a known gap from
+  Dashboard Phase 1). The shortcut is not wired to anything yet, and the badge does not
+  switch to Ctrl on Windows
+- **⌘B is taken** by the ShadCN sidebar toggle; ⌘K is free
+- "Content preview" should be truncated server-side so the pre-fetched payload does
+  not grow with full snippet bodies. File/image items have no content and would fall
+  back to the file name or description
+- The payload is loaded on every `(app)` request and grows with the user's item count.
+  Fine at demo scale; worth noting if it ever needs lazy loading
 
 ## History
 

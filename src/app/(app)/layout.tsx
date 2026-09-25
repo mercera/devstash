@@ -8,7 +8,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getRecentCollections } from "@/lib/db/collections";
-import { getItemTypesWithCounts } from "@/lib/db/items";
+import { getItemTypesWithCounts, getSearchItems } from "@/lib/db/items";
 import { getCurrentUser } from "@/lib/db/user";
 import { getSessionUserId } from "@/lib/session";
 
@@ -31,25 +31,36 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect(SIGN_IN_PATH);
   }
 
-  const [itemTypes, collections, user] = await Promise.all([
+  const [itemTypes, collections, user, searchItems] = await Promise.all([
     getItemTypesWithCounts(),
     getRecentCollections(userId),
     getCurrentUser(),
+    getSearchItems(userId),
   ]);
 
   const collectionOptions = collections
     .map(({ id, name, slug }) => ({ id, name, slug }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const searchCollections = collections.map(
+    ({ id, name, slug, itemCount }) => ({ id, name, slug, itemCount }),
+  );
+
+  // The drawer provider wraps the top bar too, so the command palette in it
+  // can open an item in the drawer.
   return (
     <SidebarProvider className="min-h-full flex-1">
       <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
       <SidebarInset>
         <CollectionOptionsProvider collections={collectionOptions}>
-          <TopBar itemTypes={itemTypes} />
-          <div className="min-w-0 flex-1 p-6">
-            <ItemDrawerProvider>{children}</ItemDrawerProvider>
-          </div>
+          <ItemDrawerProvider>
+            <TopBar
+              itemTypes={itemTypes}
+              searchItems={searchItems}
+              searchCollections={searchCollections}
+            />
+            <div className="min-w-0 flex-1 p-6">{children}</div>
+          </ItemDrawerProvider>
         </CollectionOptionsProvider>
       </SidebarInset>
     </SidebarProvider>

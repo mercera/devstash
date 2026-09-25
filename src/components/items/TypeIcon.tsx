@@ -4,7 +4,7 @@ import { getIcon } from "@/lib/icons";
 import type { ItemType } from "@/types";
 
 interface TypeIconProps {
-  type: ItemType;
+  type: Pick<ItemType, "icon">;
   className?: string;
   /** Accessible name — omit for icons that only decorate labelled text. */
   label?: string;
