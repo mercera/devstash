@@ -3,9 +3,10 @@
  *
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
- * `createItem`, `updateItem` and `deleteItem` are the exceptions: they take the
- * caller's user id, because they back an API route and server actions that
- * must never reach another user's item.
+ * `getItemsByCollection`, `createItem`, `updateItem` and `deleteItem` are the
+ * exceptions: they take the caller's user id, because they back an API route,
+ * server actions and the collection pages, none of which may reach another
+ * user's item.
  */
 
 import { cache } from "react";
@@ -294,6 +295,25 @@ export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
     where: { userId: DEMO_USER_ID },
     orderBy: { updatedAt: "desc" },
     take: limit,
+    include: itemInclude,
+  });
+
+  return items.map(toItemWithRelations);
+}
+
+/**
+ * The user's items in one collection, most recently updated first.
+ *
+ * Scoped to `userId` on the item as well as through the caller's collection
+ * lookup, so a link to another user's item can never surface here.
+ */
+export async function getItemsByCollection(
+  userId: string,
+  collectionId: string,
+): Promise<ItemWithRelations[]> {
+  const items = await prisma.item.findMany({
+    where: { userId, collections: { some: { collectionId } } },
+    orderBy: { updatedAt: "desc" },
     include: itemInclude,
   });
 

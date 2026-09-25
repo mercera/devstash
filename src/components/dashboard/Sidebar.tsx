@@ -156,6 +156,7 @@ export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
+                  isActive={pathname === "/collections"}
                   className="text-sidebar-foreground/50 hover:text-sidebar-foreground"
                 >
                   <Link href="/collections">View all collections</Link>

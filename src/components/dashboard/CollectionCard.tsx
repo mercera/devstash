@@ -13,6 +13,12 @@ import { getAccentBorderClass, getAccentTextClass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { CollectionCardData } from "@/types";
 
+/**
+ * The name link is stretched over the whole card with an `::after` overlay, so
+ * the card is clickable anywhere while the link's accessible name stays the
+ * collection name and no block content sits inside an `<a>`. The ring is
+ * inset because the card's `overflow-hidden` clips an outset one.
+ */
 export function CollectionCard({
   collection,
 }: {
@@ -21,7 +27,7 @@ export function CollectionCard({
   return (
     <Card
       className={cn(
-        "border-l-4 transition-colors hover:bg-accent/30",
+        "relative border-l-4 transition-colors hover:bg-accent/30",
         getAccentBorderClass(collection.accentColor),
       )}
     >
@@ -29,7 +35,7 @@ export function CollectionCard({
         <CardTitle className="flex items-center gap-1.5">
           <Link
             href={`/collections/${collection.slug}`}
-            className="truncate hover:underline"
+            className="truncate outline-none after:absolute after:inset-0 after:rounded-xl hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
           >
             {collection.name}
           </Link>

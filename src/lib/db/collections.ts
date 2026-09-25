@@ -152,6 +152,20 @@ export async function getRecentCollections(
   });
 }
 
+/**
+ * One of the user's collections, by slug, or null when the user has none with
+ * that slug. Another user's collection is indistinguishable from a missing one.
+ */
+export async function getCollectionBySlug(
+  userId: string,
+  slug: string,
+): Promise<Collection | null> {
+  return prisma.collection.findFirst({
+    where: { userId, slug },
+    select: collectionSelect,
+  });
+}
+
 /** Collection counts for the dashboard stat cards. */
 export async function getCollectionStats(userId: string): Promise<{
   collectionCount: number;

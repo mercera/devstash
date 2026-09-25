@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import authConfig, { SIGN_IN_PATH } from "@/auth.config";
 
 /**
- * Route protection for `/dashboard/*`, `/items/*` and `/profile`.
+ * Route protection for `/dashboard/*`, `/items/*`, `/collections/*` and
+ * `/profile`.
  *
  * Next.js 16 renamed `middleware.ts` to `proxy.ts` and the exported function
  * with it — the named export must be `proxy`.
@@ -31,9 +32,14 @@ export const proxy = auth((req) => {
 });
 
 export const config = {
-  // `:path*` matches zero or more segments, so this covers `/dashboard` and
-  // `/items` themselves. `/profile` has no children, so it is listed on its
+  // `:path*` matches zero or more segments, so this covers `/dashboard`,
+  // `/items` and `/collections` themselves. `/profile` has no children, so it is listed on its
   // own. These must stay literal — Next.js reads the matcher statically at
   // build time and cannot resolve an imported constant.
-  matcher: ["/dashboard/:path*", "/items/:path*", "/profile"],
+  matcher: [
+    "/dashboard/:path*",
+    "/items/:path*",
+    "/collections/:path*",
+    "/profile",
+  ],
 };
