@@ -1,53 +1,18 @@
-# Current Feature: Collection Create
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- The top bar's display-only "New Collection" button opens a ShadCN `Dialog`
-  with Name (required) and Description (optional) fields
-- Creating saves a collection owned by the **signed-in** user; the session is
-  resolved on every call, never `seed-user-demo`
-- Input is validated with Zod on the server whatever the client checked
-  (`src/lib/validations/collections.ts`); per-field messages render under the
-  inputs, Create is disabled until there is a name
-- A unique slug is generated from the name, and a clash with one of the user's
-  existing collections (`@@unique([userId, slug])`) is resolved rather than
-  surfaced as a 500
-- The write lives in `src/lib/db/collections.ts` (`createCollection`), called
-  from the mutation layer, in the `{ success, data, error }` shape
-- A toast on success and on failure; the dialog stays open on failure with the
-  values kept, and closes on success
-- On save, every surface showing collections updates without a manual reload:
-  the sidebar list, the dashboard's Collections grid and the collection stat
-  card
-- Those collection reads are scoped to the signed-in user, so any account sees
-  its own collections, including ones it just created
-- Unit tests for the new validation, db function and mutation; `npm test`,
-  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description, not a spec file
-- Follow the item create pattern: `NewItemDialog` / `NewItemForm`,
-  `ItemFormField`, `createItem` in `src/actions/items.ts` and
-  `src/lib/db/items.ts`, `router.refresh()` after success, and the dialog
-  refusing to close while a save is pending
-- **Decided: server action, not an API route.** A `createCollection` server
-  action in `src/actions/collections.ts`, matching item create/edit/delete and
-  the coding standards. The request's "api routes for any client-side calls"
-  was raised at load time and resolved by the user
-- **Decided: collection reads move onto the signed-in user.**
-  `getRecentCollections` and `getCollectionStats` take a `userId` and drop
-  `DEMO_USER_ID`; their callers (`(app)/layout.tsx`, `(app)/dashboard/page.tsx`,
-  `profile/page.tsx`) resolve it from the session. Item reads stay demo-scoped
-  — moving those is still its own feature. Consequence: a collection card's
-  item count and type icons now come from the signed-in user's items
-- Not in scope unless asked: color picker (column defaults to `gray`, and the
-  card accent is derived from items anyway), favorite flag, the Free plan's
-  3-collection limit, edit/delete, a `/collections` page
+<!-- Any extra notes -->
 
 ## History
 
@@ -2540,3 +2505,94 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards. Two files
   uploaded to R2 during the check were discarded through the UI
+
+### Collection Create — Completed (2026-09-25)
+
+The top bar's "New Collection" button opens a ShadCN `Dialog` that creates a
+collection, and the collection reads moved onto the signed-in user. Branch
+`feature/collection-create`. Ten new source files (four of them tests), eight
+existing files touched, no new dependencies, no migration. Loaded from an
+inline description rather than a spec file.
+
+- Added `src/components/collections/NewCollectionDialog.tsx`, replacing the
+  display-only button: Name (required) and Description (optional), Create
+  disabled until there is a name, a toast on success and on failure, and
+  `router.refresh()` after a save
+- Added the `createCollection(data)` server action in
+  `src/actions/collections.ts`: session first, then Zod, returning
+  `{ success, data, error }` with per-field `issues`
+- Added `createCollectionSchema` in `src/lib/validations/collections.ts`
+- Added `createCollection(userId, data)` to `src/lib/db/collections.ts`,
+  returning the `Collection` domain type
+- Added `src/lib/slug.ts`: `slugify` (accents folded; `collection` when nothing
+  is left) and `uniqueSlug` (`base`, then `base-2`, …)
+- `getRecentCollections(userId, limit?)` and `getCollectionStats(userId)` now
+  take the user; `DEMO_USER_ID` is gone from the module. `(app)/layout.tsx`,
+  `(app)/dashboard/page.tsx` and `/profile` pass the session user
+- Added `src/lib/session.ts`: `getSessionUserId`, wrapped in React `cache`, so
+  the layout and page resolve the session once per request
+- `isUniqueConstraintError` moved from the register route into
+  `src/lib/db/errors.ts` so the collection create can use it too
+- 31 unit tests across `slug`, `validations/collections`, `db/collections` and
+  `actions/collections`. Suite 245 → 276
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as a non-demo account (`reset-flow@devstash.io`,
+which started with no collections), zero console errors or warnings:
+
+- The dialog opens with focus on Name. Create is disabled for a blank name
+  and for spaces only
+- Creating "  React Patterns " with a padded description showed the "Collection
+  created" toast in ~0.9s and closed the dialog. The sidebar, the dashboard
+  grid and the Collections stat card (0 → 1) all updated
+- Reopening started blank. The same name again was saved as
+  `react-patterns-2`, and the stat card went to 2
+- In the database: the name and description were trimmed, and the blank
+  description was stored as null
+- A blank name sent past the disabled button (DOM-tampered) came back with the
+  "Please check the details you entered" toast. "Name is required" showed under
+  the field with `aria-invalid`. The dialog stayed open with the description
+  kept
+- The demo account still shows its own 5 collections on the dashboard and on
+  `/profile`
+- At 390px the dialog is 358px wide with no horizontal scroll
+
+Decisions worth carrying forward:
+
+- **A server action, not an API route**, though the request asked for API
+  routes for client-side calls. Item create, edit and delete are all server
+  actions, and the coding standards say client components use them. The user
+  chose this at load time
+- **Collection reads are session-scoped; item reads are still demo-scoped.**
+  The user chose this at load time. A non-demo account therefore sees its own
+  collection counts beside the demo account's item counts, on both the
+  dashboard and `/profile`. A collection card's item count and type icons come
+  from the signed-in user's items. Moving the item getters is still its own
+  feature
+- **The getters take `userId` as a parameter** rather than calling `auth()`
+  themselves, like `getItemById`. That keeps them testable, and one cached
+  session lookup serves the layout and the page
+- **The slug is picked by reading the user's existing slugs**
+  (`startsWith: base`). The unique index settles a race: on P2002 the create
+  re-reads and picks again, up to 3 attempts. Any other error is not retried.
+  `uniqueSlug` fills gaps, so `react-patterns-2` can be reused after a delete
+- **An expired session shows the generic "Something went wrong" toast, not
+  "Your session has expired".** The action's POST goes to the current page,
+  which the proxy guards, so the proxy redirects it to `/sign-in` before the
+  action runs. The item dialogs already behave the same way. The action's
+  own session check still matters, because a server action can be called
+  directly
+- **`ItemFormField` is reused for the collection form**, despite its name.
+  Rename it to something generic if a third form uses it
+- Not built, as asked: a color picker (the column defaults to `gray`, and the
+  card accent comes from the items anyway), the favorite flag, the Free plan's
+  3-collection limit, edit and delete, and a `/collections` page. The sidebar
+  and grid still link to `/collections/[slug]`, which does not exist yet
+- **The dashboard's Collections grid has no empty state.** An account with no
+  collections sees the heading with nothing under it
+- `reset-flow@devstash.io` has two collections in the Neon **dev** database
+  from the walkthrough. `npm run db:delete-users -- --confirm` clears them
+- The browser session used session JWTs minted locally for `seed-user-demo`
+  and `reset-flow@devstash.io`. The token files were deleted afterwards.
+  `.playwright-mcp/` holds the screenshot; it is gitignored
