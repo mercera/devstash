@@ -1,56 +1,18 @@
-# Current Feature: Collection Actions — Edit, Delete & Favorite
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/collections/[slug]` header gains three buttons: **Edit**, **Delete** and
-  **Favorite**
-- **Edit** opens a modal to edit the collection's metadata (name and
-  description), saves through a server action, toasts, and refreshes
-- **Delete** asks for confirmation first, then deletes the collection. Its
-  **items are not deleted** — they only stop belonging to that collection.
-  After deleting from the collection page, the user lands somewhere that still
-  exists (e.g. `/collections`)
-- **Favorite** is an icon button only — rendered, but no handler and no
-  persistence yet
-- Collection cards on `/collections` and the dashboard gain a **three-dots
-  (`MoreHorizontal`) menu** with Edit, Delete and Favorite, reusing the same
-  edit modal and delete confirmation
-- Clicking anywhere else on a card still navigates to that collection's page;
-  opening the menu or choosing an item from it does not
-- Edit and delete are scoped to the signed-in user (ownership in the query);
-  a missing or foreign collection is "not found"
-- Unit tests for the new server actions, DB functions and validation schema;
-  `npm test` and `npm run build` pass
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- Items are protected by the schema already: `ItemCollection` cascades from
-  `Collection`, so deleting a collection removes only its links. No migration
-  should be needed — verify item count is unchanged after a delete
-- **Renaming changes the slug (decided at load).** A rename regenerates the
-  slug with `slugify` + `uniqueSlug`, excluding the collection's own current
-  slug so an unchanged name keeps it. The action returns the new slug, and an
-  edit made from `/collections/[slug]` navigates to `/collections/[newSlug]`.
-  Edits from a card just refresh
-- Reuse existing patterns: `NewCollectionDialog` / `createCollectionSchema` for
-  the edit modal, `DeleteItemDialog` for the confirmation (plain `Button`
-  confirm, not `AlertDialogAction`; controlled dialog that refuses to close
-  while pending), `createCollection` action shape for `{ success, data, error }`
-- `CollectionCard` is a server component with a stretched `::after` link. The
-  menu trigger must sit above the overlay (`relative z-10`) and be a sibling
-  of the link, as with `FileRow`'s download link — so the card becomes partly
-  client (the menu) while the card itself can stay a server component
-- Opening a dialog from a `DropdownMenu` item: Radix unmounts the menu on
-  select, so the dialogs must be rendered outside the menu content and opened
-  via state, or focus/unmount issues will follow
-- Favorite on the cards' menu is display-only, like the page's button
-- Not in scope: persisting favorites, changing collection color, the Free
-  plan's collection limit
+<!-- Any extra notes -->
 
 ## History
 
@@ -2798,3 +2760,115 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshot; it is gitignored
+
+### Collection Actions — Edit, Delete & Favorite — Completed (2026-09-25)
+
+Collections can be renamed, re-described and deleted from their own page and
+from a three-dots menu on every collection card. Favorite is rendered but not
+wired up. Branch `feature/collection-actions`. Five new source files, eight
+existing files touched plus their tests, no new dependencies, no migration.
+Loaded from an inline description rather than a spec file.
+
+- Added `updateCollection(userId, id, data)` and
+  `deleteCollection(userId, id)` to `src/lib/db/collections.ts`. Slug picking
+  moved into a shared `pickFreeSlug` helper that `createCollection` now uses too
+- Added the `updateCollection(collectionId, data)` and
+  `deleteCollection(collectionId)` server actions to
+  `src/actions/collections.ts`: session first, then Zod, returning
+  `{ success, data, error }` with per-field `issues`. A missing or foreign
+  collection is "This collection could not be found."
+- Added `updateCollectionSchema` (the create schema, re-exported),
+  `isSlugFor` in `src/lib/slug.ts`, `isRecordNotFoundError` (P2025) in
+  `src/lib/db/errors.ts`, and the `EditableCollection` type
+- Added under `src/components/collections/`:
+  - `CollectionForm`: the name and description form, now shared by the New
+    and Edit dialogs
+  - `EditCollectionDialog` and `DeleteCollectionDialog`: controlled, with no
+    trigger of their own
+  - `CollectionActions`: the collection page's Favorite, Edit and Delete
+    buttons
+  - `CollectionCardMenu`: the cards' dropdown
+- `NewCollectionDialog` moved onto `CollectionForm`, with no change in
+  behaviour
+- `CollectionCard` renders the menu in the header's `CardAction` slot and stays
+  a server component
+- The collection page dropped the star beside its heading; the Favorite button
+  now shows that state
+- 28 unit tests across `slug`, `db/collections` and `actions/collections`.
+  Suite 292 → 320
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with a throwaway collection and a
+throwaway note:
+
+- Card menu:
+  - opening it did not navigate
+  - Edit opened prefilled with focus on Name
+  - the rename moved the card's link to the new slug and updated the sidebar
+  - focus returned to the three-dots button, and `body` kept its pointer events
+- Delete's confirmation names the collection and says its items are kept.
+  Cancel closed only the dialog
+- A click on a card away from the name and the menu opened the collection, on
+  both `/collections` and the dashboard
+- Collection page:
+  - Save is disabled for a blank name
+  - a rename moved to `/collections/zz-page-rename` and updated the heading,
+    description, tab title and sidebar
+  - a save with the name unchanged kept the URL, and the old slug returned 404
+- Delete from the page:
+  - showed "Deleting...", then replaced the URL with `/collections` (6 cards)
+    and removed the collection from the sidebar
+  - the note that was in the collection **still existed** afterwards, showing
+    "Not in a collection"
+- Favorite showed `aria-pressed="true"` on AI Workflows, and the card menu read
+  "Unfavorite" there
+- At 390px the header buttons are icons only and nothing scrolls sideways
+- The note and the collection were deleted through the UI; the demo account is
+  back to 6 collections
+
+Decisions worth carrying forward:
+
+- **A rename changes the slug, and the old URL 404s.** Chosen by the user at
+  load time, so the URL always matches the name. There is no redirect from old
+  slugs; bookmarks to a renamed collection break
+- **A slug is kept when it still fits the name**, checked with
+  `isSlugFor(slug, slugify(name))`, which accepts `base` or `base-N`. Saving
+  "React Patterns" keeps `react-patterns-2` rather than moving to
+  `react-patterns` once that becomes free. Otherwise the new slug is picked with
+  the collection's own row left out of the clash check
+- **The write is `update` with `where: { id, userId }`**, preceded by a
+  scoped `findFirst` for the current slug. A P2025 from a collection deleted
+  between the two becomes null ("not found"), and a lost slug race re-picks,
+  the same as create
+- **Delete relies on the schema's cascade.** `deleteMany({ id, userId })`
+  removes the collection, and `ItemCollection` cascades from it, so only the
+  links go. The note verified this in the browser
+- **Both navigations use `replace` then `refresh`.** `replace` because the old
+  URL no longer resolves, so Back should not land on a 404. `refresh` because
+  the shared `(app)` layout, which renders the sidebar, is not refetched when
+  navigating between two collection pages
+- **The dialogs are siblings of the dropdown, not inside it.** Radix unmounts
+  the menu content when an item is chosen, which would take a nested dialog
+  with it. Nothing triggered them, so `onCloseAutoFocus` hands focus back to
+  the three-dots button by hand
+- **The menu button is lifted above the card's stretched link** (`relative
+  z-10`) as a sibling, the same way `FileRow`'s download link works, so the
+  card stays a server component and only the menu is client code
+- **The page passes a trimmed object to `CollectionActions`** (id, name, slug,
+  description, isFavorite), so the timestamps do not cross the client boundary
+- **A rename from the page took ~9s to land on the new URL** in dev against
+  Neon, since the new page has to render with its items. The dialog shows
+  "Saving..." throughout. Most of it is round trips to Neon
+- **Radix exit animations take ~2.4s to unmount in the headless browser**,
+  for the existing sidebar user menu as much as the new ones, so a DOM check
+  straight after closing a menu or dialog still finds it. Wait for `detached`
+  rather than a fixed timeout
+- Favorite is display-only in both places, as asked. Persisting it, collection
+  color and the Free plan's 3-collection limit are not built
+- **A shell heredoc dropped a backslash** from the `isSlugFor` regex
+  (`\d` → `\d` → `d`), which the new tests caught. Write regexes with the Edit
+  tool, not heredocs
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
