@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Boxes, Clock, FolderOpen, Folders, Pin, Star } from "lucide-react";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
 import { ItemCard } from "@/components/items/ItemCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { getCollectionStats, getRecentCollections } from "@/lib/db/collections";
 import { getItemStats, getPinnedItems, getRecentItems } from "@/lib/db/items";
+import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -25,10 +28,16 @@ const RECENT_ITEM_LIMIT = 10;
 const COLLECTION_CARD_LIMIT = 6;
 
 export default async function DashboardPage() {
+  const userId = await getSessionUserId();
+
+  if (!userId) {
+    redirect(SIGN_IN_PATH);
+  }
+
   const [collections, collectionStats, pinnedItems, recentItems, itemStats] =
     await Promise.all([
-      getRecentCollections(COLLECTION_CARD_LIMIT),
-      getCollectionStats(),
+      getRecentCollections(userId, COLLECTION_CARD_LIMIT),
+      getCollectionStats(userId),
       getPinnedItems(),
       getRecentItems(RECENT_ITEM_LIMIT),
       getItemStats(),

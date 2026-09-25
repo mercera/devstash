@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
@@ -7,6 +9,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getItemTypesWithCounts } from "@/lib/db/items";
 import { getCurrentUser } from "@/lib/db/user";
+import { getSessionUserId } from "@/lib/session";
 
 /**
  * The signed-in app shell — sidebar, top bar and main area — shared by
@@ -20,9 +23,16 @@ import { getCurrentUser } from "@/lib/db/user";
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
+  const userId = await getSessionUserId();
+
+  // The proxy already turns anonymous requests away; this covers the types.
+  if (!userId) {
+    redirect(SIGN_IN_PATH);
+  }
+
   const [itemTypes, collections, user] = await Promise.all([
     getItemTypesWithCounts(),
-    getRecentCollections(),
+    getRecentCollections(userId),
     getCurrentUser(),
   ]);
 
