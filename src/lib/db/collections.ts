@@ -1,14 +1,33 @@
 /**
- * Prisma-backed collection queries for the dashboard.
+ * Prisma-backed collection queries.
  *
- * No auth/session exists yet, so every query here is scoped to the seeded
- * demo user (see `prisma/seed.ts`) until real sessions land.
+ * Every query is scoped to a caller-supplied user — the signed-in one, resolved
+ * from the session by the page or action. The item getters in `items.ts` are
+ * still scoped to the seeded demo user.
  */
 
+import { isUniqueConstraintError } from "@/lib/db/errors";
 import { prisma } from "@/lib/prisma";
-import type { CollectionCardData, ItemType } from "@/types";
+import { slugify, uniqueSlug } from "@/lib/slug";
+import type { CreateCollectionData } from "@/lib/validations/collections";
+import type { Collection, CollectionCardData, ItemType } from "@/types";
 
-const DEMO_USER_ID = "seed-user-demo";
+/**
+ * How many times a create re-picks its slug after losing a race to another
+ * create of the same name. More than one clash in a row is not a race.
+ */
+const MAX_SLUG_ATTEMPTS = 3;
+
+const collectionSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  description: true,
+  color: true,
+  isFavorite: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 /** The columns of `ItemType` the UI renders — nothing else crosses to the client. */
 const itemTypeSelect = {
@@ -72,22 +91,23 @@ function tallyTypesByCollection(
  * joining `items` grew with the user's total item count on every request.
  */
 export async function getRecentCollections(
+  userId: string,
   limit?: number,
 ): Promise<CollectionCardData[]> {
   const [collections, types, typeCounts] = await Promise.all([
     prisma.collection.findMany({
-      where: { userId: DEMO_USER_ID },
+      where: { userId },
       orderBy: { updatedAt: "desc" },
       take: limit,
     }),
     prisma.itemType.findMany({
-      where: { OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
+      where: { OR: [{ isSystem: true }, { userId }] },
       orderBy: { createdAt: "asc" },
       select: itemTypeSelect,
     }),
     prisma.item.groupBy({
       by: ["collectionId", "typeId"],
-      where: { userId: DEMO_USER_ID, collectionId: { not: null } },
+      where: { userId, collectionId: { not: null } },
       _count: true,
     }),
   ]);
@@ -111,16 +131,49 @@ export async function getRecentCollections(
 }
 
 /** Collection counts for the dashboard stat cards. */
-export async function getCollectionStats(): Promise<{
+export async function getCollectionStats(userId: string): Promise<{
   collectionCount: number;
   favoriteCollectionCount: number;
 }> {
   const [collectionCount, favoriteCollectionCount] = await Promise.all([
-    prisma.collection.count({ where: { userId: DEMO_USER_ID } }),
-    prisma.collection.count({
-      where: { userId: DEMO_USER_ID, isFavorite: true },
-    }),
+    prisma.collection.count({ where: { userId } }),
+    prisma.collection.count({ where: { userId, isFavorite: true } }),
   ]);
 
   return { collectionCount, favoriteCollectionCount };
+}
+
+/**
+ * Creates a collection for `userId`, with a slug built from its name that is
+ * unique among that user's collections (`react-patterns`, then
+ * `react-patterns-2`, …).
+ *
+ * The free slug is picked by reading the user's existing ones, so two creates
+ * of the same name at once can pick the same slug. The unique index decides;
+ * the loser re-reads and picks again rather than failing.
+ */
+export async function createCollection(
+  userId: string,
+  data: CreateCollectionData,
+): Promise<Collection> {
+  const base = slugify(data.name);
+
+  for (let attempt = 1; ; attempt += 1) {
+    const existing = await prisma.collection.findMany({
+      where: { userId, slug: { startsWith: base } },
+      select: { slug: true },
+    });
+    const slug = uniqueSlug(base, new Set(existing.map((row) => row.slug)));
+
+    try {
+      return await prisma.collection.create({
+        data: { userId, slug, name: data.name, description: data.description },
+        select: collectionSelect,
+      });
+    } catch (error) {
+      if (!isUniqueConstraintError(error) || attempt >= MAX_SLUG_ATTEMPTS) {
+        throw error;
+      }
+    }
+  }
 }

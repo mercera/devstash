@@ -1,18 +1,53 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Collection Create
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The top bar's display-only "New Collection" button opens a ShadCN `Dialog`
+  with Name (required) and Description (optional) fields
+- Creating saves a collection owned by the **signed-in** user; the session is
+  resolved on every call, never `seed-user-demo`
+- Input is validated with Zod on the server whatever the client checked
+  (`src/lib/validations/collections.ts`); per-field messages render under the
+  inputs, Create is disabled until there is a name
+- A unique slug is generated from the name, and a clash with one of the user's
+  existing collections (`@@unique([userId, slug])`) is resolved rather than
+  surfaced as a 500
+- The write lives in `src/lib/db/collections.ts` (`createCollection`), called
+  from the mutation layer, in the `{ success, data, error }` shape
+- A toast on success and on failure; the dialog stays open on failure with the
+  values kept, and closes on success
+- On save, every surface showing collections updates without a manual reload:
+  the sidebar list, the dashboard's Collections grid and the collection stat
+  card
+- Those collection reads are scoped to the signed-in user, so any account sees
+  its own collections, including ones it just created
+- Unit tests for the new validation, db function and mutation; `npm test`,
+  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description, not a spec file
+- Follow the item create pattern: `NewItemDialog` / `NewItemForm`,
+  `ItemFormField`, `createItem` in `src/actions/items.ts` and
+  `src/lib/db/items.ts`, `router.refresh()` after success, and the dialog
+  refusing to close while a save is pending
+- **Decided: server action, not an API route.** A `createCollection` server
+  action in `src/actions/collections.ts`, matching item create/edit/delete and
+  the coding standards. The request's "api routes for any client-side calls"
+  was raised at load time and resolved by the user
+- **Decided: collection reads move onto the signed-in user.**
+  `getRecentCollections` and `getCollectionStats` take a `userId` and drop
+  `DEMO_USER_ID`; their callers (`(app)/layout.tsx`, `(app)/dashboard/page.tsx`,
+  `profile/page.tsx`) resolve it from the session. Item reads stay demo-scoped
+  — moving those is still its own feature. Consequence: a collection card's
+  item count and type icons now come from the signed-in user's items
+- Not in scope unless asked: color picker (column defaults to `gray`, and the
+  card accent is derived from items anyway), favorite flag, the Free plan's
+  3-collection limit, edit/delete, a `/collections` page
 
 ## History
 

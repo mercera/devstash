@@ -15,6 +15,7 @@ import { getItemStats, getItemTypesWithCounts } from "@/lib/db/items";
 import { getProfileUser } from "@/lib/db/user";
 import { formatLongDate } from "@/lib/format";
 import { getAccentTextClass } from "@/lib/icons";
+import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -34,26 +35,26 @@ export const dynamic = "force-dynamic";
  * dashboard layout would mean restructuring both routes into a shared group,
  * which is more than this feature needs.
  *
- * The **usage stats below are the seeded demo account's**, not the signed-in
- * user's: `getItemStats`, `getItemTypesWithCounts` and `getCollectionStats` are
- * all still scoped to `seed-user-demo`. The identity card above them is the real
- * session user, so the two disagree. That is deliberate for now — moving every
- * getter onto the session is its own change, and it would take the dashboard
- * with it. The account **actions** are session-scoped; only the reads are not.
+ * The **item stats below are the seeded demo account's**, not the signed-in
+ * user's: `getItemStats` and `getItemTypesWithCounts` are still scoped to
+ * `seed-user-demo`, while `getCollectionStats` reads the session user. That is
+ * deliberate for now — moving the item getters onto the session is its own
+ * change, and it would take the dashboard with it. The account **actions** are
+ * session-scoped.
  */
 export default async function ProfilePage() {
-  const user = await getProfileUser();
+  const [userId, user] = await Promise.all([getSessionUserId(), getProfileUser()]);
 
   // The proxy already turns anonymous requests away, so this is the second
   // lock: a session whose `User` row has since been deleted still carries a
   // valid JWT and would otherwise reach a page with nothing to render.
-  if (!user) {
+  if (!userId || !user) {
     redirect(SIGN_IN_PATH);
   }
 
   const [itemStats, collectionStats, itemTypes] = await Promise.all([
     getItemStats(),
-    getCollectionStats(),
+    getCollectionStats(userId),
     getItemTypesWithCounts(),
   ]);
 

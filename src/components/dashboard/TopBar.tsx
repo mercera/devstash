@@ -1,7 +1,7 @@
-import { FolderPlus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
+import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getCreatableTypes } from "@/lib/item-fields";
@@ -33,10 +33,7 @@ export function TopBar({ itemTypes }: TopBarProps) {
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <Button variant="outline" aria-label="New Collection">
-          <FolderPlus />
-          <span className="hidden sm:inline">New Collection</span>
-        </Button>
+        <NewCollectionDialog />
         <NewItemDialog types={creatableTypes} />
       </div>
     </header>

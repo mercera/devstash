@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isUniqueConstraintError } from "@/lib/db/errors";
 import { issueEmailVerification } from "@/lib/email-verification";
 import { isEmailVerificationEnabled } from "@/lib/flags";
 import { hashPassword } from "@/lib/password";
@@ -149,13 +150,4 @@ export async function POST(request: Request): Promise<NextResponse<RegisterRespo
       { status: 500 },
     );
   }
-}
-
-function isUniqueConstraintError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "P2002"
-  );
 }
