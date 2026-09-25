@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
-import { FolderOpen, Star } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
+import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/items/ItemCard";
 import { getCollectionBySlug } from "@/lib/db/collections";
 import { getItemsByCollection } from "@/lib/db/items";
@@ -49,15 +50,9 @@ export default async function CollectionPage({
         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <FolderOpen className="size-5" />
         </span>
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-            <span className="truncate">{collection.name}</span>
-            {collection.isFavorite && (
-              <Star
-                aria-label="Favorite"
-                className="size-5 shrink-0 fill-yellow-400 text-yellow-400"
-              />
-            )}
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-3xl font-semibold tracking-tight">
+            {collection.name}
           </h1>
           {collection.description && (
             <p className="mt-1 text-muted-foreground">
@@ -68,6 +63,15 @@ export default async function CollectionPage({
             {items.length} {items.length === 1 ? "item" : "items"}
           </p>
         </div>
+        <CollectionActions
+          collection={{
+            id: collection.id,
+            name: collection.name,
+            slug: collection.slug,
+            description: collection.description,
+            isFavorite: collection.isFavorite,
+          }}
+        />
       </header>
 
       {items.length > 0 ? (

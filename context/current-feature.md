@@ -1,18 +1,56 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Collection Actions — Edit, Delete & Favorite
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/collections/[slug]` header gains three buttons: **Edit**, **Delete** and
+  **Favorite**
+- **Edit** opens a modal to edit the collection's metadata (name and
+  description), saves through a server action, toasts, and refreshes
+- **Delete** asks for confirmation first, then deletes the collection. Its
+  **items are not deleted** — they only stop belonging to that collection.
+  After deleting from the collection page, the user lands somewhere that still
+  exists (e.g. `/collections`)
+- **Favorite** is an icon button only — rendered, but no handler and no
+  persistence yet
+- Collection cards on `/collections` and the dashboard gain a **three-dots
+  (`MoreHorizontal`) menu** with Edit, Delete and Favorite, reusing the same
+  edit modal and delete confirmation
+- Clicking anywhere else on a card still navigates to that collection's page;
+  opening the menu or choosing an item from it does not
+- Edit and delete are scoped to the signed-in user (ownership in the query);
+  a missing or foreign collection is "not found"
+- Unit tests for the new server actions, DB functions and validation schema;
+  `npm test` and `npm run build` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- Items are protected by the schema already: `ItemCollection` cascades from
+  `Collection`, so deleting a collection removes only its links. No migration
+  should be needed — verify item count is unchanged after a delete
+- **Renaming changes the slug (decided at load).** A rename regenerates the
+  slug with `slugify` + `uniqueSlug`, excluding the collection's own current
+  slug so an unchanged name keeps it. The action returns the new slug, and an
+  edit made from `/collections/[slug]` navigates to `/collections/[newSlug]`.
+  Edits from a card just refresh
+- Reuse existing patterns: `NewCollectionDialog` / `createCollectionSchema` for
+  the edit modal, `DeleteItemDialog` for the confirmation (plain `Button`
+  confirm, not `AlertDialogAction`; controlled dialog that refuses to close
+  while pending), `createCollection` action shape for `{ success, data, error }`
+- `CollectionCard` is a server component with a stretched `::after` link. The
+  menu trigger must sit above the overlay (`relative z-10`) and be a sibling
+  of the link, as with `FileRow`'s download link — so the card becomes partly
+  client (the menu) while the card itself can stay a server component
+- Opening a dialog from a `DropdownMenu` item: Radix unmounts the menu on
+  select, so the dialogs must be rendered outside the menu content and opened
+  via state, or focus/unmount issues will follow
+- Favorite on the cards' menu is display-only, like the page's button
+- Not in scope: persisting favorites, changing collection color, the Free
+  plan's collection limit
 
 ## History
 

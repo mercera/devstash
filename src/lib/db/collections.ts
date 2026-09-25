@@ -6,10 +6,13 @@
  * still scoped to the seeded demo user.
  */
 
-import { isUniqueConstraintError } from "@/lib/db/errors";
+import { isRecordNotFoundError, isUniqueConstraintError } from "@/lib/db/errors";
 import { prisma } from "@/lib/prisma";
-import { slugify, uniqueSlug } from "@/lib/slug";
-import type { CreateCollectionData } from "@/lib/validations/collections";
+import { isSlugFor, slugify, uniqueSlug } from "@/lib/slug";
+import type {
+  CreateCollectionData,
+  UpdateCollectionData,
+} from "@/lib/validations/collections";
 import type { Collection, CollectionCardData, ItemType } from "@/types";
 
 /**
@@ -195,11 +198,7 @@ export async function createCollection(
   const base = slugify(data.name);
 
   for (let attempt = 1; ; attempt += 1) {
-    const existing = await prisma.collection.findMany({
-      where: { userId, slug: { startsWith: base } },
-      select: { slug: true },
-    });
-    const slug = uniqueSlug(base, new Set(existing.map((row) => row.slug)));
+    const slug = await pickFreeSlug(userId, base);
 
     try {
       return await prisma.collection.create({
@@ -212,4 +211,85 @@ export async function createCollection(
       }
     }
   }
+}
+
+/**
+ * The first free slug for `base` among the user's collections, leaving out
+ * `excludeId` — the collection being renamed, whose own slug is not a clash.
+ */
+async function pickFreeSlug(
+  userId: string,
+  base: string,
+  excludeId?: string,
+): Promise<string> {
+  const existing = await prisma.collection.findMany({
+    where: {
+      userId,
+      slug: { startsWith: base },
+      ...(excludeId && { id: { not: excludeId } }),
+    },
+    select: { slug: true },
+  });
+
+  return uniqueSlug(base, new Set(existing.map((row) => row.slug)));
+}
+
+/**
+ * Updates one of the user's collections and returns it, or null when the user
+ * has no collection with that id.
+ *
+ * The slug follows the name: a rename picks a new one the same way a create
+ * does, while a save that leaves the name alone keeps the current slug. Like
+ * `createCollection`, a lost race on the unique index re-picks.
+ */
+export async function updateCollection(
+  userId: string,
+  id: string,
+  data: UpdateCollectionData,
+): Promise<Collection | null> {
+  const current = await prisma.collection.findFirst({
+    where: { id, userId },
+    select: { slug: true },
+  });
+
+  if (current === null) return null;
+
+  const base = slugify(data.name);
+
+  for (let attempt = 1; ; attempt += 1) {
+    const slug = isSlugFor(current.slug, base)
+      ? current.slug
+      : await pickFreeSlug(userId, base, id);
+
+    try {
+      return await prisma.collection.update({
+        where: { id, userId },
+        data: { slug, name: data.name, description: data.description },
+        select: collectionSelect,
+      });
+    } catch (error) {
+      // Deleted between the read and the write.
+      if (isRecordNotFoundError(error)) return null;
+
+      if (!isUniqueConstraintError(error) || attempt >= MAX_SLUG_ATTEMPTS) {
+        throw error;
+      }
+    }
+  }
+}
+
+/**
+ * Deletes one of the user's collections, returning whether a row went. Its
+ * items are not touched: `ItemCollection` cascades from `Collection`, so only
+ * the links go.
+ */
+export async function deleteCollection(
+  userId: string,
+  id: string,
+): Promise<boolean> {
+  const { count } = await prisma.collection.deleteMany({
+    where: { id, userId },
+  });
+
+  return count > 0;
 }

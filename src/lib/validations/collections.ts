@@ -20,3 +20,10 @@ export type CreateCollectionInput = z.input<typeof createCollectionSchema>;
 
 /** What the database layer receives. */
 export type CreateCollectionData = z.output<typeof createCollectionSchema>;
+
+/** The Edit Collection dialog edits the same fields the New dialog sets. */
+export const updateCollectionSchema = createCollectionSchema;
+
+export type UpdateCollectionInput = z.input<typeof updateCollectionSchema>;
+
+export type UpdateCollectionData = z.output<typeof updateCollectionSchema>;

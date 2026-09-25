@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
       findFirst: vi.fn(),
       count: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
     },
     itemType: { findMany: vi.fn() },
     $queryRaw: vi.fn(),
@@ -22,9 +24,11 @@ vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
 import {
   createCollection,
+  deleteCollection,
   getCollectionBySlug,
   getCollectionStats,
   getRecentCollections,
+  updateCollection,
 } from "@/lib/db/collections";
 
 const created = {
@@ -212,5 +216,114 @@ describe("createCollection", () => {
 
     await expect(createCollection("user-1", data)).rejects.toThrow("connection lost");
     expect(mocks.prisma.collection.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("updateCollection", () => {
+  const data = { name: "React Hooks", description: "Custom hooks" };
+
+  function notFoundOnWrite() {
+    return Object.assign(new Error("Record not found"), { code: "P2025" });
+  }
+
+  it("returns null without writing when the user has no such collection", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue(null);
+
+    await expect(updateCollection("user-1", "col-1", data)).resolves.toBeNull();
+    expect(mocks.prisma.collection.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "col-1", userId: "user-1" } }),
+    );
+    expect(mocks.prisma.collection.update).not.toHaveBeenCalled();
+  });
+
+  it("scopes the write to the owner and moves the slug to the new name", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue({ slug: "react-patterns" });
+    mocks.prisma.collection.findMany.mockResolvedValue([{ slug: "react-hooks" }]);
+    mocks.prisma.collection.update.mockResolvedValue(created);
+
+    await expect(updateCollection("user-1", "col-1", data)).resolves.toBe(created);
+
+    // The collection's own row is left out of the clash check.
+    expect(mocks.prisma.collection.findMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        slug: { startsWith: "react-hooks" },
+        id: { not: "col-1" },
+      },
+      select: { slug: true },
+    });
+    expect(mocks.prisma.collection.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "col-1", userId: "user-1" },
+        data: { slug: "react-hooks-2", name: "React Hooks", description: "Custom hooks" },
+      }),
+    );
+  });
+
+  it("keeps a numbered slug when the name is unchanged", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue({ slug: "react-patterns-2" });
+    mocks.prisma.collection.update.mockResolvedValue(created);
+
+    await updateCollection("user-1", "col-1", {
+      name: "React Patterns",
+      description: null,
+    });
+
+    expect(mocks.prisma.collection.findMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.collection.update.mock.calls[0][0].data.slug).toBe(
+      "react-patterns-2",
+    );
+  });
+
+  it("picks again after losing a race for the slug", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue({ slug: "react-patterns" });
+    mocks.prisma.collection.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ slug: "react-hooks" }]);
+    mocks.prisma.collection.update
+      .mockRejectedValueOnce(uniqueViolation())
+      .mockResolvedValueOnce(created);
+
+    await updateCollection("user-1", "col-1", data);
+
+    const slugs = mocks.prisma.collection.update.mock.calls.map(
+      ([args]) => args.data.slug,
+    );
+    expect(slugs).toEqual(["react-hooks", "react-hooks-2"]);
+  });
+
+  it("returns null when the collection is deleted before the write", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue({ slug: "react-patterns" });
+    mocks.prisma.collection.findMany.mockResolvedValue([]);
+    mocks.prisma.collection.update.mockRejectedValue(notFoundOnWrite());
+
+    await expect(updateCollection("user-1", "col-1", data)).resolves.toBeNull();
+  });
+
+  it("rethrows any other database error", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue({ slug: "react-patterns" });
+    mocks.prisma.collection.findMany.mockResolvedValue([]);
+    mocks.prisma.collection.update.mockRejectedValue(new Error("connection lost"));
+
+    await expect(updateCollection("user-1", "col-1", data)).rejects.toThrow(
+      "connection lost",
+    );
+  });
+});
+
+describe("deleteCollection", () => {
+  it("deletes only the owner's collection", async () => {
+    mocks.prisma.collection.deleteMany.mockResolvedValue({ count: 1 });
+
+    await expect(deleteCollection("user-1", "col-1")).resolves.toBe(true);
+    expect(mocks.prisma.collection.deleteMany).toHaveBeenCalledWith({
+      where: { id: "col-1", userId: "user-1" },
+    });
+  });
+
+  it("reports a missing or foreign collection", async () => {
+    mocks.prisma.collection.deleteMany.mockResolvedValue({ count: 0 });
+
+    await expect(deleteCollection("user-1", "col-2")).resolves.toBe(false);
   });
 });
