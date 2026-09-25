@@ -1,18 +1,45 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Collections Pages
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/collections` lists every one of the signed-in user's collections as the
+  existing `CollectionCard`s, in a responsive grid
+- `/collections/[slug]` shows the collection's name, description and item
+  count, and its items as the existing `ItemCard`s. Clicking a card opens the
+  item drawer, as on the type pages
+- An unknown slug, or another user's collection, returns 404; a collection
+  with no items shows an empty state
+- The sidebar's "View all collections" links to `/collections` and each
+  collection row links to its page (both already do; confirm they resolve)
+- The whole `CollectionCard` is clickable and links to its collection page,
+  not just the name
+- Both routes are behind the proxy (`/collections/:path*` in the matcher)
+- Unit tests for any new `src/lib/db` getter; `npm test`, `npm run lint` and
+  `npm run build` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description, no spec file
+- **The route uses the slug, not the id.** The request says
+  `/collections/[id]`, but the sidebar and cards already link to
+  `/collections/${slug}`, and `Collection.slug` is unique per user — the same
+  call made for `/items/[type]`
+- Both pages go inside the `(app)` route group so they get the sidebar and
+  top bar
+- **Scoped to the signed-in user.** Collection reads already are (Collection
+  Create); the collection's items are fetched through the `ItemCollection`
+  join with the collection lookup scoped to the session user, so the page
+  lists items in that user's collection. Other item reads stay demo-scoped
+- Card clickability should follow the stretched-overlay pattern
+  `ItemCardButton` uses, so `CollectionCard` stays a server component and no
+  block content is nested inside an `<a>`
+- Items in a collection sort most recently updated first, like the type
+  pages; grid `md:grid-cols-2 xl:grid-cols-3`
+- Not in scope: collection edit/delete, favorite toggling, search, pagination
 
 ## History
 

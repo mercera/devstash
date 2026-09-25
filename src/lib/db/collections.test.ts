@@ -7,7 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   prisma: {
-    collection: { findMany: vi.fn(), count: vi.fn(), create: vi.fn() },
+    collection: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn(),
+      create: vi.fn(),
+    },
     itemType: { findMany: vi.fn() },
     $queryRaw: vi.fn(),
   },
@@ -17,6 +22,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
 import {
   createCollection,
+  getCollectionBySlug,
   getCollectionStats,
   getRecentCollections,
 } from "@/lib/db/collections";
@@ -93,6 +99,27 @@ describe("getRecentCollections", () => {
       { id: "col-2", itemCount: 1, accentColor: "orange", types: ["command"] },
       { id: "col-3", itemCount: 0, accentColor: "green", types: [] },
     ]);
+  });
+});
+
+describe("getCollectionBySlug", () => {
+  it("scopes the lookup to both the slug and the owner", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue(created);
+
+    await expect(getCollectionBySlug("user-1", "react-patterns")).resolves.toBe(
+      created,
+    );
+    expect(mocks.prisma.collection.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1", slug: "react-patterns" },
+      }),
+    );
+  });
+
+  it("returns null when the user has no collection with that slug", async () => {
+    mocks.prisma.collection.findFirst.mockResolvedValue(null);
+
+    await expect(getCollectionBySlug("user-1", "missing")).resolves.toBeNull();
   });
 });
 

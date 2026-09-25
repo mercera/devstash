@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById`, `createItem`, `updateItem` and `deleteItem` are covered here: they are
- * the queries in this module scoped to a caller-supplied user, backing a public
- * API route and server actions. The database is mocked, so these tests pin the
+ * Only `getItemById`, `getItemsByCollection`, `createItem`, `updateItem` and
+ * `deleteItem` are covered here: they are the queries in this module scoped to
+ * a caller-supplied user, backing a public API route, server actions and the
+ * collection pages. The database is mocked, so these tests pin the
  * queries' shape and the mapping, not Postgres behaviour.
  */
 
@@ -19,7 +20,7 @@ const mocks = vi.hoisted(() => {
   return {
     tx,
     prisma: {
-      item: { findFirst: vi.fn(), deleteMany: vi.fn() },
+      item: { findFirst: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
       itemType: { findFirst: vi.fn() },
       $transaction: vi.fn(async (run: (client: typeof tx) => Promise<unknown>) =>
         run(tx),
@@ -31,7 +32,13 @@ const mocks = vi.hoisted(() => {
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
 import { CollectionNotFoundError } from "@/lib/db/errors";
-import { createItem, deleteItem, getItemById, updateItem } from "@/lib/db/items";
+import {
+  createItem,
+  deleteItem,
+  getItemById,
+  getItemsByCollection,
+  updateItem,
+} from "@/lib/db/items";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
 const updatedAt = new Date("2026-09-04T10:00:00Z");
@@ -435,6 +442,31 @@ describe("updateItem", () => {
 
     await expect(updateItem("item-1", "user-1", edits)).rejects.toThrow("deadlock");
     expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("getItemsByCollection", () => {
+  it("scopes the items to both the owner and the collection, newest first", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([]);
+
+    await getItemsByCollection("user-1", "col-1");
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1", collections: { some: { collectionId: "col-1" } } },
+        orderBy: { updatedAt: "desc" },
+      }),
+    );
+  });
+
+  it("maps rows to the card shape, flattening tags and dropping the owner", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([itemRow()]);
+
+    const [item] = await getItemsByCollection("user-1", "col-1");
+
+    expect(item.tags).toEqual(["process", "terminal"]);
+    expect(item).not.toHaveProperty("userId");
+    expect(item).not.toHaveProperty("collections");
   });
 });
 
