@@ -6,8 +6,8 @@ import { formatLongDate } from "@/lib/format";
 import type { ItemDetail } from "@/types";
 
 /**
- * Drawer sections shared by the view and edit modes. The collection and the
- * dates are display-only in both.
+ * Drawer sections. The collections are shown in view mode (edit mode has the
+ * picker instead); the dates are display-only in both.
  */
 
 export function Section({
@@ -33,9 +33,13 @@ export function Section({
 export function CollectionSection({ item }: { item: ItemDetail }) {
   return (
     <Section title="Collections" icon={<FolderOpen className="size-3.5" />}>
-      {item.collection ? (
-        <div>
-          <Badge variant="outline">{item.collection.name}</Badge>
+      {item.collections.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {item.collections.map((collection) => (
+            <Badge key={collection.id} variant="outline">
+              {collection.name}
+            </Badge>
+          ))}
         </div>
       ) : (
         <p className="text-muted-foreground">Not in a collection.</p>

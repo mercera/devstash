@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => {
     item: { create: vi.fn(), updateMany: vi.fn() },
     itemTag: { deleteMany: vi.fn(), createMany: vi.fn() },
     tag: { createMany: vi.fn(), findMany: vi.fn() },
+    itemCollection: { deleteMany: vi.fn(), createMany: vi.fn() },
+    collection: { findMany: vi.fn() },
   };
 
   return {
@@ -28,6 +30,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
+import { CollectionNotFoundError } from "@/lib/db/errors";
 import { createItem, deleteItem, getItemById, updateItem } from "@/lib/db/items";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
@@ -59,7 +62,6 @@ function itemRow(overrides: Record<string, unknown> = {}) {
     isPinned: true,
     userId: "user-1",
     typeId: type.id,
-    collectionId: "col-1",
     createdAt,
     updatedAt,
     type,
@@ -67,7 +69,10 @@ function itemRow(overrides: Record<string, unknown> = {}) {
       { itemId: "item-1", tagId: "tag-1", tag: { id: "tag-1", name: "process" } },
       { itemId: "item-1", tagId: "tag-2", tag: { id: "tag-2", name: "terminal" } },
     ],
-    collection: { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" },
+    collections: [
+      { collection: { id: "col-2", name: "DevOps", slug: "devops" } },
+      { collection: { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" } },
+    ],
     ...overrides,
   };
 }
@@ -87,15 +92,16 @@ describe("getItemById", () => {
     );
   });
 
-  it("joins the parent collection by its display fields only", async () => {
+  it("joins the collections by their display fields only, by name", async () => {
     mocks.prisma.item.findFirst.mockResolvedValue(null);
 
     await getItemById("item-1", "user-1");
 
     const [{ include }] = mocks.prisma.item.findFirst.mock.calls[0];
 
-    expect(include.collection).toEqual({
-      select: { id: true, name: true, slug: true },
+    expect(include.collections).toEqual({
+      select: { collection: { select: { id: true, name: true, slug: true } } },
+      orderBy: { collection: { name: "asc" } },
     });
     expect(include.type).toBe(true);
   });
@@ -106,7 +112,7 @@ describe("getItemById", () => {
     await expect(getItemById("someone-elses-item", "user-1")).resolves.toBeNull();
   });
 
-  it("flattens the tags, keeps the collection and drops the owner id", async () => {
+  it("flattens the tags and collections and drops the owner id", async () => {
     mocks.prisma.item.findFirst.mockResolvedValue(itemRow());
 
     const item = await getItemById("item-1", "user-1");
@@ -119,21 +125,22 @@ describe("getItemById", () => {
       isPinned: true,
       tags: ["process", "terminal"],
       type,
-      collection: { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" },
+      collections: [
+        { id: "col-2", name: "DevOps", slug: "devops" },
+        { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" },
+      ],
       createdAt,
       updatedAt,
     });
     expect(item).not.toHaveProperty("userId");
   });
 
-  it("returns a null collection for an item outside any collection", async () => {
-    mocks.prisma.item.findFirst.mockResolvedValue(
-      itemRow({ collectionId: null, collection: null, tags: [] }),
-    );
+  it("returns no collections for an item outside any collection", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue(itemRow({ collections: [], tags: [] }));
 
     const item = await getItemById("item-1", "user-1");
 
-    expect(item?.collection).toBeNull();
+    expect(item?.collections).toEqual([]);
     expect(item?.tags).toEqual([]);
   });
 
@@ -161,6 +168,7 @@ describe("createItem", () => {
     fileName: null,
     fileSize: null,
     tags: ["process", "terminal"],
+    collectionIds: [] as string[],
   };
 
   beforeEach(() => {
@@ -237,6 +245,40 @@ describe("createItem", () => {
     expect(tx.itemTag.createMany).not.toHaveBeenCalled();
   });
 
+  it("links the new item to each collection the caller owns", async () => {
+    tx.collection.findMany.mockResolvedValue([{ id: "col-1" }, { id: "col-2" }]);
+
+    await createItem("user-1", { ...input, collectionIds: ["col-1", "col-2"] });
+
+    expect(tx.collection.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ["col-1", "col-2"] }, userId: "user-1" },
+      select: { id: true },
+    });
+    expect(tx.itemCollection.createMany).toHaveBeenCalledWith({
+      data: [
+        { itemId: "item-1", collectionId: "col-1" },
+        { itemId: "item-1", collectionId: "col-2" },
+      ],
+    });
+  });
+
+  it("writes no collection links when none are chosen", async () => {
+    await createItem("user-1", input);
+
+    expect(tx.collection.findMany).not.toHaveBeenCalled();
+    expect(tx.itemCollection.createMany).not.toHaveBeenCalled();
+  });
+
+  it("rolls back when a collection is not the caller's, linking none", async () => {
+    tx.collection.findMany.mockResolvedValue([{ id: "col-1" }]);
+
+    await expect(
+      createItem("user-1", { ...input, collectionIds: ["col-1", "someone-elses"] }),
+    ).rejects.toBeInstanceOf(CollectionNotFoundError);
+    expect(tx.itemCollection.createMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
+  });
+
   it("reads the new item back, scoped to the owner, after the commit", async () => {
     const item = await createItem("user-1", input);
 
@@ -266,11 +308,13 @@ describe("updateItem", () => {
     description: null,
     content: "lsof -i :4000",
     tags: ["process", "ports"],
+    collectionIds: ["col-1"],
   };
 
   beforeEach(() => {
     tx.item.updateMany.mockResolvedValue({ count: 1 });
     tx.tag.findMany.mockResolvedValue([{ id: "tag-1" }, { id: "tag-3" }]);
+    tx.collection.findMany.mockResolvedValue([{ id: "col-1" }]);
     mocks.prisma.item.findFirst.mockResolvedValue(itemRow({ title: "Renamed" }));
   });
 
@@ -283,12 +327,14 @@ describe("updateItem", () => {
     });
   });
 
-  it("returns null and writes no tags when the item is not the user's", async () => {
+  it("returns null and writes no links when the item is not the user's", async () => {
     tx.item.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(updateItem("someone-elses-item", "user-1", edits)).resolves.toBeNull();
     expect(tx.itemTag.deleteMany).not.toHaveBeenCalled();
     expect(tx.tag.createMany).not.toHaveBeenCalled();
+    expect(tx.itemCollection.deleteMany).not.toHaveBeenCalled();
+    expect(tx.itemCollection.createMany).not.toHaveBeenCalled();
     expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
   });
 
@@ -326,6 +372,43 @@ describe("updateItem", () => {
     expect(tx.itemTag.createMany).not.toHaveBeenCalled();
   });
 
+  it("replaces the collections: clears the links, then links the owned ones", async () => {
+    await updateItem("item-1", "user-1", edits);
+
+    expect(tx.itemCollection.deleteMany).toHaveBeenCalledWith({
+      where: { itemId: "item-1" },
+    });
+    expect(tx.collection.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ["col-1"] }, userId: "user-1" },
+      select: { id: true },
+    });
+    expect(tx.itemCollection.createMany).toHaveBeenCalledWith({
+      data: [{ itemId: "item-1", collectionId: "col-1" }],
+    });
+    expect(tx.itemCollection.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.itemCollection.createMany.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("removes the item from every collection when none are chosen", async () => {
+    await updateItem("item-1", "user-1", { ...edits, collectionIds: [] });
+
+    expect(tx.itemCollection.deleteMany).toHaveBeenCalledWith({
+      where: { itemId: "item-1" },
+    });
+    expect(tx.itemCollection.createMany).not.toHaveBeenCalled();
+  });
+
+  it("rolls back when a collection is not the caller's", async () => {
+    tx.collection.findMany.mockResolvedValue([]);
+
+    await expect(
+      updateItem("item-1", "user-1", { ...edits, collectionIds: ["someone-elses"] }),
+    ).rejects.toBeInstanceOf(CollectionNotFoundError);
+    expect(tx.itemCollection.createMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.item.findFirst).not.toHaveBeenCalled();
+  });
+
   it("reads the updated detail back after the transaction commits", async () => {
     const item = await updateItem("item-1", "user-1", edits);
 
@@ -339,7 +422,10 @@ describe("updateItem", () => {
       id: "item-1",
       title: "Renamed",
       tags: ["process", "terminal"],
-      collection: { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" },
+      collections: [
+        { id: "col-2", name: "DevOps", slug: "devops" },
+        { id: "col-1", name: "Terminal Commands", slug: "terminal-commands" },
+      ],
     });
     expect(item).not.toHaveProperty("userId");
   });

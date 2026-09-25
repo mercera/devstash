@@ -6,7 +6,7 @@ import {
   updateItemSchema,
 } from "@/lib/validations/items";
 
-const base = { title: "Title", tags: [] };
+const base = { title: "Title", tags: [], collectionIds: [] };
 
 describe("updateItemSchema", () => {
   it("trims the title and rejects a blank one", () => {
@@ -112,7 +112,29 @@ describe("updateItemSchema", () => {
   });
 
   it("requires the tags array", () => {
-    expect(updateItemSchema.safeParse({ title: "Title" }).success).toBe(false);
+    expect(
+      updateItemSchema.safeParse({ title: "Title", collectionIds: [] }).success,
+    ).toBe(false);
+  });
+
+  it("de-duplicates collection ids", () => {
+    const data = updateItemSchema.parse({
+      ...base,
+      collectionIds: ["col-1", "col-2", "col-1"],
+    });
+
+    expect(data.collectionIds).toEqual(["col-1", "col-2"]);
+  });
+
+  it("rejects a blank collection id", () => {
+    const result = updateItemSchema.safeParse({ ...base, collectionIds: ["col-1", ""] });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.flatten().fieldErrors.collectionIds).toBeDefined();
+  });
+
+  it("requires the collection ids array, so an edit never clears them by omission", () => {
+    expect(updateItemSchema.safeParse({ title: "Title", tags: [] }).success).toBe(false);
   });
 });
 
@@ -131,7 +153,7 @@ describe("parseTagInput", () => {
 });
 
 describe("createItemSchema", () => {
-  const base = { title: "Title", tags: [] };
+  const base = { title: "Title", tags: [], collectionIds: [] };
 
   it.each(["snippet", "prompt", "command", "note"] as const)(
     "accepts a %s without a URL",
@@ -195,6 +217,7 @@ describe("createItemSchema", () => {
       fileName: null,
       fileSize: null,
       tags: [],
+      collectionIds: [],
     });
   });
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { CollectionNotFoundError } from "@/lib/db/errors";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
@@ -27,6 +28,20 @@ const SESSION_EXPIRED = "Your session has expired. Sign in again to continue.";
 const NOT_FOUND = "This item could not be found.";
 const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
 const INVALID_INPUT = "Please check the details you entered";
+
+const COLLECTION_NOT_FOUND = "A chosen collection no longer exists. Reload and try again.";
+
+/**
+ * A collection that was deleted after the form loaded, or a crafted id. Either
+ * way the item write was rolled back and nothing was saved.
+ */
+function collectionNotFound() {
+  return {
+    success: false as const,
+    error: INVALID_INPUT,
+    issues: { collectionIds: [COLLECTION_NOT_FOUND] },
+  };
+}
 
 export type CreateItemField = keyof CreateItemInput;
 
@@ -103,6 +118,8 @@ export async function createItem(
 
     return { success: true, data: item };
   } catch (error) {
+    if (error instanceof CollectionNotFoundError) return collectionNotFound();
+
     console.error("Failed to create item:", error);
 
     return { success: false, error: SOMETHING_WENT_WRONG };
@@ -150,6 +167,8 @@ export async function updateItem(
 
     return { success: true, data: item };
   } catch (error) {
+    if (error instanceof CollectionNotFoundError) return collectionNotFound();
+
     console.error("Failed to update item:", error);
 
     return { success: false, error: SOMETHING_WENT_WRONG };

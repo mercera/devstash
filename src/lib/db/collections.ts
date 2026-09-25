@@ -39,6 +39,32 @@ const itemTypeSelect = {
   isSystem: true,
 } as const;
 
+/** How many of a collection's items are of one type. */
+interface CollectionTypeCount {
+  collectionId: string;
+  typeId: string;
+  count: number;
+}
+
+/**
+ * The user's items counted per collection and type, through the
+ * `ItemCollection` join. Raw SQL because Prisma's `groupBy` cannot group by a
+ * column of a related model (`Item.typeId`), and the alternative — loading
+ * every link with its item — grows with the user's item count. An item in two
+ * collections counts once in each.
+ */
+function countItemsByCollectionAndType(
+  userId: string,
+): Promise<CollectionTypeCount[]> {
+  return prisma.$queryRaw<CollectionTypeCount[]>`
+    SELECT ic."collectionId", i."typeId", COUNT(*)::int AS "count"
+    FROM "ItemCollection" ic
+    JOIN "Item" i ON i."id" = ic."itemId"
+    WHERE i."userId" = ${userId}
+    GROUP BY ic."collectionId", i."typeId"
+  `;
+}
+
 /** A type tally for one collection. `order` is the tie-break, not rendered. */
 interface TypeTally {
   type: ItemType;
@@ -53,7 +79,7 @@ interface TypeTally {
  * happened to return the groups in.
  */
 function tallyTypesByCollection(
-  rows: { collectionId: string | null; typeId: string; _count: number }[],
+  rows: CollectionTypeCount[],
   types: ItemType[],
 ): Map<string, TypeTally[]> {
   const typeById = new Map(
@@ -63,10 +89,10 @@ function tallyTypesByCollection(
 
   for (const row of rows) {
     const entry = typeById.get(row.typeId);
-    if (row.collectionId === null || entry === undefined) continue;
+    if (entry === undefined) continue;
 
     const tallies = byCollection.get(row.collectionId) ?? [];
-    tallies.push({ type: entry.type, count: row._count, order: entry.order });
+    tallies.push({ type: entry.type, count: row.count, order: entry.order });
     byCollection.set(row.collectionId, tallies);
   }
 
@@ -86,7 +112,7 @@ function tallyTypesByCollection(
  * stored `color`, so a collection falls back to that stored color only when
  * it has no items yet.
  *
- * The per-type counts come from a `groupBy` aggregate rather than loading the
+ * The per-type counts come from a grouped aggregate rather than loading the
  * items themselves: the result is bounded by collections × types, where
  * joining `items` grew with the user's total item count on every request.
  */
@@ -105,11 +131,7 @@ export async function getRecentCollections(
       orderBy: { createdAt: "asc" },
       select: itemTypeSelect,
     }),
-    prisma.item.groupBy({
-      by: ["collectionId", "typeId"],
-      where: { userId, collectionId: { not: null } },
-      _count: true,
-    }),
+    countItemsByCollectionAndType(userId),
   ]);
 
   const byCollection = tallyTypesByCollection(typeCounts, types);

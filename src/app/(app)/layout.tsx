@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { SIGN_IN_PATH } from "@/auth.config";
+import { CollectionOptionsProvider } from "@/components/collections/CollectionOptionsProvider";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
@@ -36,14 +37,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     getCurrentUser(),
   ]);
 
+  const collectionOptions = collections
+    .map(({ id, name, slug }) => ({ id, name, slug }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <SidebarProvider className="min-h-full flex-1">
       <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
       <SidebarInset>
-        <TopBar itemTypes={itemTypes} />
-        <div className="min-w-0 flex-1 p-6">
-          <ItemDrawerProvider>{children}</ItemDrawerProvider>
-        </div>
+        <CollectionOptionsProvider collections={collectionOptions}>
+          <TopBar itemTypes={itemTypes} />
+          <div className="min-w-0 flex-1 p-6">
+            <ItemDrawerProvider>{children}</ItemDrawerProvider>
+          </div>
+        </CollectionOptionsProvider>
       </SidebarInset>
     </SidebarProvider>
   );

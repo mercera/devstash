@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createItem } from "@/actions/items";
+import { CollectionPicker } from "@/components/items/CollectionPicker";
 import { FileUpload } from "@/components/items/FileUpload";
 import { ItemContentFields } from "@/components/items/ItemContentFields";
 import { ItemFormField } from "@/components/items/ItemFormField";
@@ -56,6 +57,7 @@ export function NewItemForm({
   );
   const form = useItemForm("item-new", EMPTY_ITEM_FORM_VALUES);
   const { values, issues, setIssues, idFor, bind } = form;
+  const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [file, setFile] = useState<UploadedFile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -90,6 +92,7 @@ export function NewItemForm({
         const result = await createItem({
           typeSlug,
           ...toItemFieldsPayload(values, fields),
+          collectionIds,
           ...(fields.upload && file ? { file } : {}),
         });
 
@@ -159,6 +162,14 @@ export function NewItemForm({
         )}
 
         <ItemContentFields form={form} fields={fields} urlRequired />
+
+        <CollectionPicker
+          id="item-new"
+          selected={collectionIds}
+          onChange={setCollectionIds}
+          disabled={isPending}
+          issues={issues.collectionIds}
+        />
       </div>
 
       <DialogFooter className="mx-0 mb-0">

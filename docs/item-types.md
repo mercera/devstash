@@ -205,7 +205,7 @@ Every item has these regardless of type (`model Item`):
 | `isFavorite`, `isPinned` | Star / pin markers. Indexed per user |
 | `userId` | Owner. Cascades on user delete |
 | `typeId` | Required. `onDelete: Restrict`, so a type that has items cannot be deleted |
-| `collectionId` | Optional. Deleting the collection sets this to null and keeps the item |
+| `collections` | Many-to-many through `ItemCollection`: zero or more of the owner's collections. Deleting a collection removes only the link and keeps the item |
 | `tags` | Many-to-many through `Tag`/`ItemTag`. Flattened to `string[]` in the UI, sorted by name |
 
 `ItemType` itself also carries `isSystem` and `userId`. The 7 types here are
