@@ -5,14 +5,14 @@ import type { ItemDrawerState } from "@/components/items/ItemDrawerProvider";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ItemDetail } from "@/types";
+import type { ItemDetailPatch } from "@/types";
 
 interface ItemDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   state: ItemDrawerState;
   onRetry: (id: string) => void;
-  onSaved: (item: ItemDetail) => void;
+  onSaved: (patch: ItemDetailPatch) => void;
   onDeleted: (id: string) => void;
   onCloseAutoFocus: (event: Event) => void;
 }

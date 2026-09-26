@@ -4,37 +4,40 @@ import { startTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-type FavoriteResult<T> = { success: true; data: T } | { success: false; error: string };
+type ToggleResult<T> = { success: true; data: T } | { success: false; error: string };
 
-interface UseFavoriteToggleOptions<T> {
+interface UseOptimisticToggleOptions<T> {
   /** The stored state, as last rendered by the server or the drawer. */
-  isFavorite: boolean;
+  value: boolean;
   /** The server action, called with the state to set. */
-  save: (isFavorite: boolean) => Promise<FavoriteResult<T>>;
+  save: (value: boolean) => Promise<ToggleResult<T>>;
   /** Runs after a successful save, before the refresh. */
   onSaved?: (data: T) => void;
+  /** A toast to show after a successful save, given the state that was set. */
+  successMessage?: (value: boolean) => string;
 }
 
 const NETWORK_ERROR = "Could not save. Check your connection and try again.";
 
 /**
- * A favorite star that flips the moment it is clicked.
+ * A boolean flag (favorite, pin) that flips the moment it is clicked.
  *
  * The flip is `useOptimistic` state, so it lasts exactly as long as the
- * transition: a failed save lets it fall back to `isFavorite` on its own, with
- * a toast. On success `onSaved` and `router.refresh()` run in a nested
+ * transition: a failed save lets it fall back to `value` on its own, with a
+ * toast. On success `onSaved` and `router.refresh()` run in a nested
  * transition, which React entangles with this one, so the optimistic value is
  * held until the refreshed props arrive instead of flickering back first. The
- * refresh is what brings the sidebar, the dashboard stats and `/favorites` up
- * to date.
+ * refresh is what brings the sidebar, the dashboard and the listings up to
+ * date.
  */
-export function useFavoriteToggle<T>({
-  isFavorite,
+export function useOptimisticToggle<T>({
+  value,
   save,
   onSaved,
-}: UseFavoriteToggleOptions<T>) {
+  successMessage,
+}: UseOptimisticToggleOptions<T>) {
   const router = useRouter();
-  const [optimistic, setOptimistic] = useOptimistic(isFavorite);
+  const [optimistic, setOptimistic] = useOptimistic(value);
 
   function toggle() {
     const next = !optimistic;
@@ -42,7 +45,7 @@ export function useFavoriteToggle<T>({
     startTransition(async () => {
       setOptimistic(next);
 
-      let result: FavoriteResult<T>;
+      let result: ToggleResult<T>;
 
       try {
         result = await save(next);
@@ -59,6 +62,8 @@ export function useFavoriteToggle<T>({
 
       const { data } = result;
 
+      if (successMessage) toast.success(successMessage(next));
+
       startTransition(() => {
         onSaved?.(data);
         router.refresh();
@@ -66,5 +71,5 @@ export function useFavoriteToggle<T>({
     });
   }
 
-  return { isFavorite: optimistic, toggle };
+  return { value: optimistic, toggle };
 }

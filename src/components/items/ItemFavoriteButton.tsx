@@ -4,7 +4,7 @@ import { Star } from "lucide-react";
 
 import { setItemFavorite } from "@/actions/items";
 import { Button } from "@/components/ui/button";
-import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
+import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 
 interface ItemFavoriteButtonProps {
@@ -23,8 +23,8 @@ interface ItemFavoriteButtonProps {
  * drawer, and the card itself stays a server component.
  */
 export function ItemFavoriteButton({ itemId, title, isFavorite }: ItemFavoriteButtonProps) {
-  const favorite = useFavoriteToggle({
-    isFavorite,
+  const favorite = useOptimisticToggle({
+    value: isFavorite,
     save: (next) => setItemFavorite(itemId, next),
   });
 
@@ -33,16 +33,16 @@ export function ItemFavoriteButton({ itemId, title, isFavorite }: ItemFavoriteBu
       variant="ghost"
       size="icon-xs"
       aria-label={`Favorite ${title}`}
-      aria-pressed={favorite.isFavorite}
+      aria-pressed={favorite.value}
       onClick={favorite.toggle}
       className={cn(
         "relative z-10 -my-1 shrink-0",
-        favorite.isFavorite
+        favorite.value
           ? "text-yellow-400 hover:text-yellow-400"
           : "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
       )}
     >
-      <Star className={cn(favorite.isFavorite && "fill-yellow-400")} />
+      <Star className={cn(favorite.value && "fill-yellow-400")} />
     </Button>
   );
 }

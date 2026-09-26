@@ -8,7 +8,7 @@ import { setCollectionFavorite } from "@/actions/collections";
 import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
 import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
 import { Button } from "@/components/ui/button";
-import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
+import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 import type { Collection, EditableCollection } from "@/types";
 
@@ -24,8 +24,8 @@ export function CollectionActions({ collection }: { collection: EditableCollecti
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const favorite = useFavoriteToggle({
-    isFavorite: collection.isFavorite,
+  const favorite = useOptimisticToggle({
+    value: collection.isFavorite,
     save: (isFavorite) => setCollectionFavorite(collection.id, isFavorite),
   });
 
@@ -47,11 +47,11 @@ export function CollectionActions({ collection }: { collection: EditableCollecti
         variant="ghost"
         size="sm"
         aria-label="Favorite"
-        aria-pressed={favorite.isFavorite}
+        aria-pressed={favorite.value}
         onClick={favorite.toggle}
-        className={cn(favorite.isFavorite && "text-yellow-400 hover:text-yellow-400")}
+        className={cn(favorite.value && "text-yellow-400 hover:text-yellow-400")}
       >
-        <Star className={cn(favorite.isFavorite && "fill-yellow-400")} />
+        <Star className={cn(favorite.value && "fill-yellow-400")} />
         <span className="hidden sm:inline">Favorite</span>
       </Button>
       <Button variant="ghost" size="sm" aria-label="Edit" onClick={() => setEditOpen(true)}>

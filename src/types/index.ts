@@ -127,6 +127,13 @@ export interface ItemDetail extends ItemWithRelations {
 }
 
 /**
+ * A save handed back to the drawer: the whole item after an edit, or just the
+ * changed fields after a favorite or pin toggle. Merged into the drawer's copy,
+ * so two quick toggles cannot overwrite each other with a stale snapshot.
+ */
+export type ItemDetailPatch = Pick<ItemDetail, "id"> & Partial<ItemDetail>;
+
+/**
  * An item as the command palette searches and lists it. Pre-fetched for every
  * item on each app-shell request, so it carries a short preview rather than
  * the item's full content.

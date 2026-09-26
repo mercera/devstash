@@ -138,6 +138,12 @@ export type CreateItemInput = z.input<typeof createItemSchema>;
 /** What the database layer receives: every column set, unused ones null. */
 export type CreateItemData = z.output<typeof createItemSchema>;
 
+/**
+ * The drawer's pin toggle payload: the state to set, never a bare flip, like
+ * `isFavoriteSchema`.
+ */
+export const isPinnedSchema = z.boolean();
+
 /** Splits the drawer's comma-separated tag field into tag names. */
 export function parseTagInput(input: string): string[] {
   return input

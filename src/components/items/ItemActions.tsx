@@ -2,36 +2,41 @@
 
 import { Copy, Download, Pencil, Pin, Star } from "lucide-react";
 
-import { setItemFavorite } from "@/actions/items";
+import { setItemFavorite, setItemPinned } from "@/actions/items";
 import { DeleteItemDialog } from "@/components/items/DeleteItemDialog";
 import { Button } from "@/components/ui/button";
-import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
+import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getCopyText } from "@/lib/item-copy";
 import { cn } from "@/lib/utils";
-import type { ItemDetail } from "@/types";
+import type { ItemDetail, ItemDetailPatch } from "@/types";
 
 interface ItemActionsProps {
   item: ItemDetail;
   onEdit: () => void;
-  onSaved: (item: ItemDetail) => void;
+  onSaved: (patch: ItemDetailPatch) => void;
   onDeleted: (id: string) => void;
 }
 
 /**
- * The drawer's action bar. Favorite, Copy (Download for a file or image item),
- * Edit and Delete work; Pin is display-only until its mutation lands, but
- * already shows the item's current state.
+ * The drawer's action bar: Favorite, Pin, Copy (Download for a file or image
+ * item), Edit and Delete.
  *
- * A favorite save is handed back through `onSaved`, since the drawer keeps its
- * own copy of the item, which a page refresh does not reach.
+ * A favorite or pin save is handed back through `onSaved`, since the drawer
+ * keeps its own copy of the item, which a page refresh does not reach.
  */
 export function ItemActions({ item, onEdit, onSaved, onDeleted }: ItemActionsProps) {
   const copyText = getCopyText(item);
-  const favorite = useFavoriteToggle({
-    isFavorite: item.isFavorite,
+  const favorite = useOptimisticToggle({
+    value: item.isFavorite,
     save: (isFavorite) => setItemFavorite(item.id, isFavorite),
-    onSaved: ({ isFavorite, updatedAt }) => onSaved({ ...item, isFavorite, updatedAt }),
+    onSaved: ({ isFavorite, updatedAt }) => onSaved({ id: item.id, isFavorite, updatedAt }),
+  });
+  const pin = useOptimisticToggle({
+    value: item.isPinned,
+    save: (isPinned) => setItemPinned(item.id, isPinned),
+    onSaved: ({ isPinned, updatedAt }) => onSaved({ id: item.id, isPinned, updatedAt }),
+    successMessage: (isPinned) => (isPinned ? "Item pinned" : "Item unpinned"),
   });
 
   function handleCopy() {
@@ -43,15 +48,15 @@ export function ItemActions({ item, onEdit, onSaved, onDeleted }: ItemActionsPro
       <Button
         variant="ghost"
         size="sm"
-        aria-pressed={favorite.isFavorite}
+        aria-pressed={favorite.value}
         onClick={favorite.toggle}
-        className={cn(favorite.isFavorite && "text-yellow-400 hover:text-yellow-400")}
+        className={cn(favorite.value && "text-yellow-400 hover:text-yellow-400")}
       >
-        <Star className={cn(favorite.isFavorite && "fill-yellow-400")} />
+        <Star className={cn(favorite.value && "fill-yellow-400")} />
         Favorite
       </Button>
-      <Button variant="ghost" size="sm" aria-pressed={item.isPinned}>
-        <Pin className={cn(item.isPinned && "fill-current")} />
+      <Button variant="ghost" size="sm" aria-pressed={pin.value} onClick={pin.toggle}>
+        <Pin className={cn(pin.value && "fill-current")} />
         Pin
       </Button>
       {item.fileUrl ? (

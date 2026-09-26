@@ -19,11 +19,11 @@ import { getAccentTileClass } from "@/lib/icons";
 import { getItemTypeFields } from "@/lib/item-fields";
 import { formatFileSize } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
-import type { ItemDetail } from "@/types";
+import type { ItemDetail, ItemDetailPatch } from "@/types";
 
 interface ItemDetailViewProps {
   item: ItemDetail;
-  onSaved: (item: ItemDetail) => void;
+  onSaved: (patch: ItemDetailPatch) => void;
   onDeleted: (id: string) => void;
 }
 
