@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { ChevronsUpDown, LogOut, User } from "lucide-react";
+import { ChevronsUpDown, LogOut, Settings, User } from "lucide-react";
 
 import { signOutAction } from "@/actions/auth";
 import { UserAvatar } from "@/components/auth/UserAvatar";
@@ -18,7 +18,7 @@ import type { CurrentUser } from "@/types";
 
 /**
  * The sidebar footer's account control: avatar, name and email, opening a menu
- * upward with the profile link and sign-out.
+ * upward with the profile and settings links and sign-out.
  */
 export function UserMenu({ user }: { user: CurrentUser }) {
   const [isSigningOut, startSignOut] = useTransition();
@@ -50,6 +50,12 @@ export function UserMenu({ user }: { user: CurrentUser }) {
           <Link href="/profile">
             <User />
             Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings />
+            Settings
           </Link>
         </DropdownMenuItem>
 
