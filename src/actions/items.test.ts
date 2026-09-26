@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   setItemFavorite: vi.fn(),
+  setItemPinned: vi.fn(),
   getOwnedUploadKey: vi.fn(),
   deleteUpload: vi.fn(),
 }));
@@ -22,13 +23,20 @@ vi.mock("@/lib/db/items", () => ({
   updateItem: mocks.updateItem,
   deleteItem: mocks.deleteItem,
   setItemFavorite: mocks.setItemFavorite,
+  setItemPinned: mocks.setItemPinned,
 }));
 vi.mock("@/lib/r2", () => ({
   getOwnedUploadKey: mocks.getOwnedUploadKey,
   deleteUpload: mocks.deleteUpload,
 }));
 
-import { createItem, deleteItem, setItemFavorite, updateItem } from "@/actions/items";
+import {
+  createItem,
+  deleteItem,
+  setItemFavorite,
+  setItemPinned,
+  updateItem,
+} from "@/actions/items";
 import { CollectionNotFoundError } from "@/lib/db/errors";
 
 const saved = { id: "item-1", title: "Renamed" };
@@ -368,6 +376,66 @@ describe("setItemFavorite", () => {
     mocks.setItemFavorite.mockRejectedValue(new Error("connection lost"));
 
     await expect(setItemFavorite("item-1", true)).resolves.toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
+  });
+});
+
+describe("setItemPinned", () => {
+  const updatedAt = new Date("2026-09-26T10:00:00Z");
+
+  it("refuses without a session", async () => {
+    signedInAs(null);
+
+    const result = await setItemPinned("item-1", true);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(mocks.setItemPinned).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing id or a non-boolean state without touching the database", async () => {
+    await expect(setItemPinned("", true)).resolves.toEqual({
+      success: false,
+      error: "This item could not be found.",
+    });
+    await expect(
+      setItemPinned("item-1", "true" as unknown as boolean),
+    ).resolves.toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
+    expect(mocks.setItemPinned).not.toHaveBeenCalled();
+  });
+
+  it("sets the requested state on the session user's item", async () => {
+    mocks.setItemPinned.mockResolvedValue({ isPinned: true, updatedAt });
+
+    const result = await setItemPinned("item-1", true);
+
+    expect(mocks.setItemPinned).toHaveBeenCalledWith("item-1", "user-1", true);
+    expect(result).toEqual({
+      success: true,
+      data: { id: "item-1", isPinned: true, updatedAt },
+    });
+  });
+
+  it("reports a missing or foreign item as not found", async () => {
+    mocks.setItemPinned.mockResolvedValue(null);
+
+    await expect(setItemPinned("item-2", false)).resolves.toEqual({
+      success: false,
+      error: "This item could not be found.",
+    });
+  });
+
+  it("reports a database error generically", async () => {
+    mocks.setItemPinned.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemPinned("item-1", true)).resolves.toEqual({
       success: false,
       error: "Something went wrong. Please try again.",
     });

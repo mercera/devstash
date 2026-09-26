@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Only `getItemById`, `getItemsByCollection`, `getSearchItems`,
- * `getFavoriteItems`, `createItem`, `updateItem`, `setItemFavorite` and
- * `deleteItem` are covered
- * for scoping: they are the queries in this module scoped to a caller-supplied
- * user, backing a public API route, server actions, the collection and
- * favorites pages and the command palette.
- * `getItemsByType` is covered for its pagination. The database is mocked, so
+ * `getFavoriteItems`, `createItem`, `updateItem`, `setItemFavorite`,
+ * `setItemPinned` and `deleteItem` are covered for scoping: they are the
+ * queries in this module scoped to a caller-supplied user, backing a public
+ * API route, server actions, the collection and favorites pages and the
+ * command palette.
+ * `getItemsByType` is covered for its pagination and pinned-first order. The database is mocked, so
  * these tests pin the queries' shape and the mapping, not Postgres behaviour.
  */
 
@@ -50,6 +50,7 @@ import {
   getItemsByType,
   getSearchItems,
   setItemFavorite,
+  setItemPinned,
   updateItem,
 } from "@/lib/db/items";
 import { ITEMS_PER_PAGE } from "@/lib/pagination";
@@ -471,7 +472,7 @@ describe("getItemsByCollection", () => {
     expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where,
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }, { id: "asc" }],
       }),
     );
     expect(mocks.prisma.item.count).toHaveBeenCalledWith({ where });
@@ -513,6 +514,7 @@ describe("getItemsByType", () => {
     expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ typeId: "type-command" }),
+        orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }, { id: "asc" }],
         skip: ITEMS_PER_PAGE,
         take: ITEMS_PER_PAGE,
       }),
@@ -660,6 +662,38 @@ describe("setItemFavorite", () => {
     mocks.prisma.item.update.mockRejectedValue(new Error("connection lost"));
 
     await expect(setItemFavorite("item-1", "user-1", true)).rejects.toThrow(
+      "connection lost",
+    );
+  });
+});
+
+describe("setItemPinned", () => {
+  it("writes only the owner's item and returns the stored state", async () => {
+    mocks.prisma.item.update.mockResolvedValue({ isPinned: true, updatedAt });
+
+    await expect(setItemPinned("item-1", "user-1", true)).resolves.toEqual({
+      isPinned: true,
+      updatedAt,
+    });
+    expect(mocks.prisma.item.update).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+      data: { isPinned: true },
+      select: { isPinned: true, updatedAt: true },
+    });
+  });
+
+  it("returns null for a missing or foreign item", async () => {
+    mocks.prisma.item.update.mockRejectedValue(
+      Object.assign(new Error("Record not found"), { code: "P2025" }),
+    );
+
+    await expect(setItemPinned("item-2", "user-1", false)).resolves.toBeNull();
+  });
+
+  it("rethrows any other database error", async () => {
+    mocks.prisma.item.update.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemPinned("item-1", "user-1", true)).rejects.toThrow(
       "connection lost",
     );
   });

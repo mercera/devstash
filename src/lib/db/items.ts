@@ -4,7 +4,8 @@
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
  * `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`, `createItem`,
- * `updateItem`, `setItemFavorite` and `deleteItem` are the exceptions: they take the caller's user
+ * `updateItem`, `setItemFavorite`, `setItemPinned` and `deleteItem` are the
+ * exceptions: they take the caller's user
  * id, because they back an API route, server actions, the collection and
  * favorites pages and the command palette, none of which may reach another
  * user's item.
@@ -297,6 +298,29 @@ export async function setItemFavorite(
 }
 
 /**
+ * Sets whether one of `userId`'s items is pinned, returning the stored state
+ * and the new `updatedAt`. Returns null when no item with that id belongs to
+ * `userId`.
+ */
+export async function setItemPinned(
+  id: string,
+  userId: string,
+  isPinned: boolean,
+): Promise<{ isPinned: boolean; updatedAt: Date } | null> {
+  try {
+    return await prisma.item.update({
+      where: { id, userId },
+      data: { isPinned },
+      select: { isPinned: true, updatedAt: true },
+    });
+  } catch (error) {
+    if (isRecordNotFoundError(error)) return null;
+
+    throw error;
+  }
+}
+
+/**
  * Whether any item stores this file URL. The upload route checks it before
  * discarding an upload, so an object already backing an item is never removed
  * out from under it.
@@ -331,7 +355,8 @@ export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
 }
 
 /**
- * One page of `where`'s items, most recently updated first, with the total.
+ * One page of `where`'s items, pinned first, then most recently updated, with
+ * the total.
  *
  * The page and the count run side by side, so a page costs one round trip.
  * `id` breaks ties on `updatedAt`, so rows with the same timestamp cannot
@@ -344,7 +369,7 @@ async function getItemsPage(
   const [items, total] = await Promise.all([
     prisma.item.findMany({
       where,
-      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }, { id: "asc" }],
       ...getPageRange(page, ITEMS_PER_PAGE),
       include: itemInclude,
     }),

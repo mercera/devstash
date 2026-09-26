@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { ItemDrawer } from "@/components/items/ItemDrawer";
-import type { ItemDetail } from "@/types";
+import type { ItemDetail, ItemDetailPatch } from "@/types";
 
 /** What the drawer is showing. Kept after close so the slide-out animates content. */
 export type ItemDrawerState =
@@ -97,10 +97,10 @@ export function ItemDrawerProvider({ children }: { children: ReactNode }) {
 
   // A save that lands after the drawer has moved on to another item (closed
   // and reopened mid-save) must not replace what is now showing.
-  const handleSaved = useCallback((item: ItemDetail) => {
+  const handleSaved = useCallback((patch: ItemDetailPatch) => {
     setState((current) =>
-      current.status === "loaded" && current.item.id === item.id
-        ? { status: "loaded", item }
+      current.status === "loaded" && current.item.id === patch.id
+        ? { status: "loaded", item: { ...current.item, ...patch } }
         : current,
     );
   }, []);

@@ -8,7 +8,7 @@ import { setCollectionFavorite } from "@/actions/collections";
 import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
 import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
 import { Button } from "@/components/ui/button";
-import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
+import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,8 +35,8 @@ export function CollectionCardMenu({ collection }: { collection: EditableCollect
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const favorite = useFavoriteToggle({
-    isFavorite: collection.isFavorite,
+  const favorite = useOptimisticToggle({
+    value: collection.isFavorite,
     save: (isFavorite) => setCollectionFavorite(collection.id, isFavorite),
   });
 
@@ -67,9 +67,9 @@ export function CollectionCardMenu({ collection }: { collection: EditableCollect
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={favorite.toggle}>
             <Star
-              className={cn(favorite.isFavorite && "fill-yellow-400 text-yellow-400")}
+              className={cn(favorite.value && "fill-yellow-400 text-yellow-400")}
             />
-            {favorite.isFavorite ? "Unfavorite" : "Favorite"}
+            {favorite.value ? "Unfavorite" : "Favorite"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>

@@ -6,12 +6,14 @@ import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   setItemFavorite as setItemFavoriteRecord,
+  setItemPinned as setItemPinnedRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
 import { deleteUpload, getOwnedUploadKey } from "@/lib/r2";
 import { isFavoriteSchema } from "@/lib/validations/favorites";
 import {
   createItemSchema,
+  isPinnedSchema,
   updateItemSchema,
   type CreateItemInput,
   type UpdateItemInput,
@@ -69,6 +71,10 @@ export type UpdateItemResult =
 
 export type SetItemFavoriteResult =
   | { success: true; data: { id: string; isFavorite: boolean; updatedAt: Date } }
+  | { success: false; error: string };
+
+export type SetItemPinnedResult =
+  | { success: true; data: { id: string; isPinned: boolean; updatedAt: Date } }
   | { success: false; error: string };
 
 export type DeleteItemResult =
@@ -253,6 +259,47 @@ export async function setItemFavorite(
     return { success: true, data: { id: itemId, ...result } };
   } catch (error) {
     console.error("Failed to update item favorite:", error);
+
+    return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+}
+
+/**
+ * Pins or unpins one of the signed-in user's items. Takes the state to set
+ * rather than flipping it, so a repeated request is harmless. Another user's
+ * item is "not found".
+ */
+export async function setItemPinned(
+  itemId: string,
+  isPinned: boolean,
+): Promise<SetItemPinnedResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: SESSION_EXPIRED };
+  }
+
+  if (typeof itemId !== "string" || itemId === "") {
+    return { success: false, error: NOT_FOUND };
+  }
+
+  const parsed = isPinnedSchema.safeParse(isPinned);
+
+  if (!parsed.success) {
+    return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+
+  try {
+    const result = await setItemPinnedRecord(itemId, userId, parsed.data);
+
+    if (result === null) {
+      return { success: false, error: NOT_FOUND };
+    }
+
+    return { success: true, data: { id: itemId, ...result } };
+  } catch (error) {
+    console.error("Failed to update item pin:", error);
 
     return { success: false, error: SOMETHING_WENT_WRONG };
   }
