@@ -1,41 +1,18 @@
-# Current Feature: Settings Page
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- New `/settings` page for account actions, following `/profile`'s pattern:
-  a server component with `force-dynamic` that redirects to sign-in when
-  there is no session or the `User` row is gone
-- `/settings` is protected: add it to the matcher in `src/proxy.ts`
-- Add a **Settings** item to the sidebar user dropdown (`UserMenu`), linking
-  to `/settings`, beside the existing Profile item
-- Move the account actions from `/profile` to `/settings`:
-  - **Change password** (`ChangePasswordForm`), still shown only when the
-    account has a password
-  - **Delete account** (`DeleteAccountDialog`), in its destructive card
-- `/profile` keeps the identity card, usage stats and per-type breakdown, and
-  no longer renders either account action
-- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
-  build registers `ƒ /settings`
+<!-- Goals & requirements -->
 
 ## Notes
 
-- **"Forgot password" is read as the profile's Change password form.**
-  `/profile` has no forgot-password control; the forgot-password flow lives on
-  `/sign-in` and stays there. Confirm if something else was meant
-- No new server actions: `changePassword` and `deleteAccount` in
-  `src/actions/profile.ts` move with their forms unchanged, so their tests
-  still apply. `deleteAccount` redirects to `/sign-in`, so its location
-  doesn't matter
-- Open question: whether `/settings` sits inside the `(app)` route group (with
-  the sidebar) or beside `/profile` outside it with a "Back to dashboard"
-  link. `/profile` is outside by an earlier decision; matching it keeps the two
-  account pages consistent
-- `getProfileUser()` already returns `email` and `hasPassword`, which is all the
-  settings page needs
+<!-- Any extra notes -->
 
 ## History
 
@@ -3085,3 +3062,40 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Settings Page — Completed (2026-09-26)
+
+The account actions moved from `/profile` to a new `/settings` page, linked
+from the sidebar's user menu. Branch `feature/settings-page`. One new source
+file, five existing files touched, no new dependencies, no migration. Loaded
+from an inline description rather than a spec file.
+
+- Added `src/app/settings/page.tsx`: a server component with
+  `force-dynamic` that redirects to sign-in when `getProfileUser()` returns
+  null. It renders the Change password card (only when the account has a
+  password) and the destructive Delete account card
+- `/profile` no longer renders either action. It keeps the identity card,
+  the usage stats and the per-type breakdown
+- `UserMenu` gained a **Settings** item (lucide `Settings` icon) under
+  Profile
+- `src/proxy.ts`'s matcher gained `/settings`
+- Doc comments in `src/actions/profile.ts` and `src/lib/db/user.ts` now name
+  `/settings`
+- `npm test` (365, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the build registers `ƒ /settings`
+
+Decisions worth carrying forward:
+
+- **"Forgot password" in the request was read as the Change password form.**
+  `/profile` had no forgot-password control; that flow lives on `/sign-in`
+  and stays there
+- **`/settings` sits outside the `(app)` route group, beside `/profile`**,
+  with a "Back to dashboard" link and no sidebar, so the two account pages
+  stay consistent
+- **No new server actions.** `changePassword` and `deleteAccount` stay in
+  `src/actions/profile.ts` unchanged, so their tests still apply.
+  `deleteAccount` redirects to `/sign-in`, so where it is called from does
+  not matter. The components stay in `src/components/profile/`
+- **Not verified in the browser during completion.** Tests, typecheck, lint
+  and build were run; the page itself reuses the forms that were verified
+  end to end under Profile Page
