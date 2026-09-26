@@ -344,6 +344,28 @@ export async function updateCollection(
 }
 
 /**
+ * Sets whether one of the user's collections is a favorite, returning the
+ * stored state, or null when no collection with that id belongs to the user.
+ */
+export async function setCollectionFavorite(
+  userId: string,
+  id: string,
+  isFavorite: boolean,
+): Promise<{ isFavorite: boolean } | null> {
+  try {
+    return await prisma.collection.update({
+      where: { id, userId },
+      data: { isFavorite },
+      select: { isFavorite: true },
+    });
+  } catch (error) {
+    if (isRecordNotFoundError(error)) return null;
+
+    throw error;
+  }
+}
+
+/**
  * Deletes one of the user's collections, returning whether a row went. Its
  * items are not touched: `ItemCollection` cascades from `Collection`, so only
  * the links go.

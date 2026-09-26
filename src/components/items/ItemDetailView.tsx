@@ -78,6 +78,7 @@ export function ItemDetailView({
           <ItemActions
             item={item}
             onEdit={() => setEditing(true)}
+            onSaved={onSaved}
             onDeleted={onDeleted}
           />
 

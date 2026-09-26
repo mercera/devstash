@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Only `getItemById`, `getItemsByCollection`, `getSearchItems`,
- * `getFavoriteItems`, `createItem`, `updateItem` and `deleteItem` are covered
+ * `getFavoriteItems`, `createItem`, `updateItem`, `setItemFavorite` and
+ * `deleteItem` are covered
  * for scoping: they are the queries in this module scoped to a caller-supplied
  * user, backing a public API route, server actions, the collection and
  * favorites pages and the command palette.
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => {
         findFirst: vi.fn(),
         findMany: vi.fn(),
         count: vi.fn(),
+        update: vi.fn(),
         deleteMany: vi.fn(),
       },
       itemType: { findFirst: vi.fn() },
@@ -47,6 +49,7 @@ import {
   getItemsByCollection,
   getItemsByType,
   getSearchItems,
+  setItemFavorite,
   updateItem,
 } from "@/lib/db/items";
 import { ITEMS_PER_PAGE } from "@/lib/pagination";
@@ -627,5 +630,37 @@ describe("deleteItem", () => {
     mocks.prisma.item.deleteMany.mockRejectedValue(new Error("connection reset"));
 
     await expect(deleteItem("item-1", "user-1")).rejects.toThrow("connection reset");
+  });
+});
+
+describe("setItemFavorite", () => {
+  it("writes only the owner's item and returns the stored state", async () => {
+    mocks.prisma.item.update.mockResolvedValue({ isFavorite: true, updatedAt });
+
+    await expect(setItemFavorite("item-1", "user-1", true)).resolves.toEqual({
+      isFavorite: true,
+      updatedAt,
+    });
+    expect(mocks.prisma.item.update).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+      data: { isFavorite: true },
+      select: { isFavorite: true, updatedAt: true },
+    });
+  });
+
+  it("returns null for a missing or foreign item", async () => {
+    mocks.prisma.item.update.mockRejectedValue(
+      Object.assign(new Error("Record not found"), { code: "P2025" }),
+    );
+
+    await expect(setItemFavorite("item-2", "user-1", false)).resolves.toBeNull();
+  });
+
+  it("rethrows any other database error", async () => {
+    mocks.prisma.item.update.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemFavorite("item-1", "user-1", true)).rejects.toThrow(
+      "connection lost",
+    );
   });
 });

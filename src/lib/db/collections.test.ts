@@ -30,6 +30,7 @@ import {
   getCollectionsPage,
   getFavoriteCollections,
   getRecentCollections,
+  setCollectionFavorite,
   updateCollection,
 } from "@/lib/db/collections";
 import { COLLECTIONS_PER_PAGE } from "@/lib/pagination";
@@ -394,5 +395,36 @@ describe("deleteCollection", () => {
     mocks.prisma.collection.deleteMany.mockResolvedValue({ count: 0 });
 
     await expect(deleteCollection("user-1", "col-2")).resolves.toBe(false);
+  });
+});
+
+describe("setCollectionFavorite", () => {
+  it("writes only the owner's collection and returns the stored state", async () => {
+    mocks.prisma.collection.update.mockResolvedValue({ isFavorite: true });
+
+    await expect(setCollectionFavorite("user-1", "col-1", true)).resolves.toEqual({
+      isFavorite: true,
+    });
+    expect(mocks.prisma.collection.update).toHaveBeenCalledWith({
+      where: { id: "col-1", userId: "user-1" },
+      data: { isFavorite: true },
+      select: { isFavorite: true },
+    });
+  });
+
+  it("returns null for a missing or foreign collection", async () => {
+    mocks.prisma.collection.update.mockRejectedValue(
+      Object.assign(new Error("Record not found"), { code: "P2025" }),
+    );
+
+    await expect(setCollectionFavorite("user-1", "col-2", false)).resolves.toBeNull();
+  });
+
+  it("rethrows any other database error", async () => {
+    mocks.prisma.collection.update.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setCollectionFavorite("user-1", "col-1", true)).rejects.toThrow(
+      "connection lost",
+    );
   });
 });

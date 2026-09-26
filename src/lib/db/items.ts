@@ -4,7 +4,7 @@
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
  * `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`, `createItem`,
- * `updateItem` and `deleteItem` are the exceptions: they take the caller's user
+ * `updateItem`, `setItemFavorite` and `deleteItem` are the exceptions: they take the caller's user
  * id, because they back an API route, server actions, the collection and
  * favorites pages and the command palette, none of which may reach another
  * user's item.
@@ -14,7 +14,7 @@ import { cache } from "react";
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { ItemGetPayload } from "@/generated/prisma/models";
-import { CollectionNotFoundError } from "@/lib/db/errors";
+import { CollectionNotFoundError, isRecordNotFoundError } from "@/lib/db/errors";
 import { ITEMS_PER_PAGE, getPageRange } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { toSearchPreview } from "@/lib/search";
@@ -271,6 +271,29 @@ export async function deleteItem(
   const { count } = await prisma.item.deleteMany({ where: { id, userId } });
 
   return count > 0 ? { deleted: true, fileUrl: item.fileUrl } : { deleted: false };
+}
+
+/**
+ * Sets whether one of `userId`'s items is a favorite, returning the stored
+ * state and the new `updatedAt` (which Prisma bumps, and which `/favorites`
+ * sorts by). Returns null when no item with that id belongs to `userId`.
+ */
+export async function setItemFavorite(
+  id: string,
+  userId: string,
+  isFavorite: boolean,
+): Promise<{ isFavorite: boolean; updatedAt: Date } | null> {
+  try {
+    return await prisma.item.update({
+      where: { id, userId },
+      data: { isFavorite },
+      select: { isFavorite: true, updatedAt: true },
+    });
+  } catch (error) {
+    if (isRecordNotFoundError(error)) return null;
+
+    throw error;
+  }
 }
 
 /**

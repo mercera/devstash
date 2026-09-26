@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
 
+import { setCollectionFavorite } from "@/actions/collections";
 import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
 import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
 import { Button } from "@/components/ui/button";
+import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,8 +20,7 @@ import { cn } from "@/lib/utils";
 import type { EditableCollection } from "@/types";
 
 /**
- * A collection card's three-dots menu: Edit, Favorite (display-only for now)
- * and Delete.
+ * A collection card's three-dots menu: Edit, Favorite / Unfavorite and Delete.
  *
  * The dialogs are siblings of the menu, not inside its content: Radix unmounts
  * the menu when an item is chosen, which would take a nested dialog with it.
@@ -34,6 +35,10 @@ export function CollectionCardMenu({ collection }: { collection: EditableCollect
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const favorite = useFavoriteToggle({
+    isFavorite: collection.isFavorite,
+    save: (isFavorite) => setCollectionFavorite(collection.id, isFavorite),
+  });
 
   function returnFocus(event: Event) {
     event.preventDefault();
@@ -60,11 +65,11 @@ export function CollectionCardMenu({ collection }: { collection: EditableCollect
             <Pencil />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onSelect={favorite.toggle}>
             <Star
-              className={cn(collection.isFavorite && "fill-yellow-400 text-yellow-400")}
+              className={cn(favorite.isFavorite && "fill-yellow-400 text-yellow-400")}
             />
-            {collection.isFavorite ? "Unfavorite" : "Favorite"}
+            {favorite.isFavorite ? "Unfavorite" : "Favorite"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
