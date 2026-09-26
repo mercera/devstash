@@ -1,55 +1,18 @@
-# Current Feature: Favorites Page
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Star icon button in the `TopBar` linking to `/favorites`
-- `/favorites` route inside the `(app)` shell, protected by the proxy matcher
-- Fetch the user's favorited items and favorited collections
-- Compact list view (VS Code / terminal style), not cards
-- Each row: type icon, title, type badge, date
-- Separate **Items** and **Collections** sections, each with a count
-- Clicking an item opens the `ItemDrawer`; clicking a collection navigates to
-  its collection page
-- Empty state when there are no favorites
-- Sorted by most recently favorited (`updatedAt` desc)
-- Unit tests for the new `src/lib/db` getters
-
-UI style:
-
-- Monospace or semi-monospace font
-- Minimal padding, high density
-- Subtle hover states
-- No cards or heavy borders, clean lines only
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/favorites-spec.md`
-- **Collection links use the slug** (`/collections/[slug]`), not the spec's
-  `/collections/[id]`. Every collection link in the app already routes on the
-  slug, the same call made for `/collections/[slug]` itself
-- `src/proxy.ts`'s matcher needs `/favorites` added, as each new signed-in
-  route has
-- **Scope:** collection reads are session-scoped, while item reads
-  (`getItemsByType`, pinned/recent) are still hardcoded to `seed-user-demo`.
-  The drawer's API is session-scoped, so favorites should read the
-  **signed-in user** for both items and collections (as search does), or
-  non-demo accounts would see items they cannot open
-- **Favoriting is not yet persisted anywhere in the UI** — the drawer's
-  Favorite and the collection Favorite buttons are display-only. The page will
-  only list what the seed flagged (5 items, 2 collections for the demo user)
-- "Sort by most recently favorited (updatedAt)": there is no `favoritedAt`
-  column, so `updatedAt` is a proxy; any edit bumps it. Tie-break on `id`, as
-  pagination does
-- Collection rows have no item type; they show a folder icon, and the badge
-  slot holds the item count (`3 items`). A "collection" badge would repeat the
-  section heading on every row
-- Clicking an item row can reuse `ItemCardButton` (stretched overlay), which
-  keeps rows server components and gives focus return for free
-- The spec asks for no pagination; the list is unbounded
+<!-- Any extra notes -->
 
 ## History
 
@@ -3255,3 +3218,84 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`.
   The token file was deleted afterwards. `.playwright-mcp/` holds the
   screenshots; it is gitignored
+
+### Favorites Page — Completed (2026-09-26)
+
+`/favorites` lists the signed-in user's favorited items and collections in a
+compact, monospace list. A star button in the top bar links to it. Branch
+`feature/favorites-page`. Three new source files, six existing files touched
+plus two test files, no new dependencies, no migration. Spec:
+`context/features/favorites-spec.md`.
+
+- Added `src/app/(app)/favorites/page.tsx`, a server component in the app
+  shell. It has a header counting items and collections, and an **Items** and
+  a **Collections** section, each with its own count. When there are no
+  favorites of either kind, one dashed empty state replaces both sections
+- Added `src/components/favorites/FavoriteRow.tsx`: one row showing the icon,
+  the truncated title, a small outlined badge and the date. The row is Geist
+  Mono and 35px tall, with `hover:bg-accent/40`. Its click target is passed in
+  as `children`, stretched over the row
+- Added `src/components/favorites/FavoritesSection.tsx`: an uppercase mono
+  heading with the count, over a `<ul>` with hairline dividers, or a one-line
+  empty message
+- Item rows show the type icon in its accent color and the type slug as the
+  badge, and open the drawer through `ItemCardButton`. Collection rows show a
+  folder icon and the item count as the badge, and link to
+  `/collections/[slug]`
+- Added `getFavoriteItems(userId)` to `src/lib/db/items.ts` and
+  `getFavoriteCollections(userId)` to `src/lib/db/collections.ts`, plus the
+  `FavoriteItem` / `FavoriteCollection` types
+- `TopBar` gained a ghost icon `Link` to `/favorites`, first in the right-hand
+  group
+- `src/proxy.ts`'s matcher gained `/favorites`
+- 4 unit tests across `db/items` and `db/collections`. Suite 394 → 398
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  build registers `ƒ /favorites`
+
+Verified in the browser as the demo user, with zero console errors or
+warnings:
+
+- Anonymous `/favorites` → `/sign-in?callbackUrl=%2Ffavorites`
+- The top bar star navigated from `/dashboard` to `/favorites`
+- The page listed 8 items and 2 collections, newest first
+- Rows computed Geist Mono at 35px tall, and hover changed the background
+  from transparent to `accent/40`
+- Clicking an item row opened the drawer on the right item. Escape returned
+  focus to the row's button
+- Clicking a collection row opened `/collections/ai-workflows`
+- At 390px the rows are 342px wide with no horizontal scroll
+- The empty state was checked with a session for a user id that has no rows.
+  The header read "0 items · 0 collections", neither section rendered, and
+  there was no database write
+
+Decisions worth carrying forward:
+
+- **Both getters read the signed-in user**, not the demo user, as search does.
+  The drawer's API is session-scoped, so a demo-scoped list would show other
+  accounts items they could not open. The sidebar counts and the type pages
+  are still demo-scoped
+- **"Most recently favorited" is `updatedAt`**, as the spec says. There is no
+  favorite timestamp, so any edit moves an item to the top. `id` breaks ties,
+  as on the paged lists
+- **The date column is `updatedAt` too**, not `createdAt`, so it matches the
+  sort
+- **Collection links use the slug**, not the spec's `/collections/[id]`, like
+  every other collection link
+- **The collection badge is the item count** (`3 items`). A "collection" badge
+  would repeat the section heading on every row
+- **Collection item counts use a filtered `_count`**
+  (`items: { where: { item: { userId } } }`), not the raw SQL that the cards'
+  per-type tallies need. This page only needs the total
+- **Rows stay server components.** An item row's click target is
+  `ItemCardButton`. A collection row's is an empty `Link` with an `aria-label`,
+  stretched over the row the same way
+- **Only selected fields cross to the client.** The item query selects the id,
+  title, `updatedAt` and the type's slug/icon/color, not the card include
+- **Favoriting still cannot be changed from the UI.** The drawer and
+  collection Favorite buttons are display-only, so the page shows what the
+  seed flagged plus later edits made directly in the data
+- The list is not paginated; the spec does not ask for it
+- The top bar star has no active state on `/favorites`
+- The browser session used session JWTs minted locally for `seed-user-demo`
+  and a user id with no rows. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
