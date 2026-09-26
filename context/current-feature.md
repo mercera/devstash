@@ -1,56 +1,18 @@
-# Current Feature: Editor Preferences Settings
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- An **Editor preferences** section on `/settings`
-- Font size dropdown
-- Tab size dropdown
-- Word wrap toggle (default: on)
-- Minimap toggle (default: off)
-- Theme dropdown: `vs-dark`, `monokai`, `github-dark` (default: `vs-dark`)
-- Preferences stored in a JSON column `editorPreferences` on `User`
-- Schema change made through a Prisma migration, applied to the Neon
-  **development** branch — never `db push`
-- A server action that updates the preferences (session first, then Zod,
-  `{ success, data, error }`)
-- Every change auto-saves; there is no save button
-- A success toast on each save
-- An `EditorPreferencesContext` for client components
-- The Monaco `CodeEditor` applies the preferences
-- Unit tests for the new action and any new `src/lib` utilities
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/editor-settings-spec.md`
-- The spec does not list the font size or tab size options. Proposed: font
-  sizes 12, 13, 14, 16, 18 (13 is today's hardcoded value, so it is the
-  default) and tab sizes 2, 4, 8 (default 2, today's value)
-- `CodeEditor` today hardcodes `fontSize: 13`, `tabSize: 2`, minimap off and
-  no `wordWrap`, which means word wrap is **off**. The spec's default of on
-  changes how every snippet and command renders
-- **Only `vs-dark` is built into Monaco.** `monokai` and `github-dark` have to
-  be defined with `defineTheme`, alongside the existing custom
-  `devstash-dark`. That theme makes the background transparent so the
-  editor's frame shows through; the new themes need the same treatment, or
-  their own background colours will fill the frame
-- **Line height is fixed at 20px** (`CODE_EDITOR_LINE_HEIGHT`), and
-  `estimateContentHeight` and the six-line minimum are built on it. A larger
-  font needs a matching line height, or the loading placeholder and the
-  editor will be different heights
-- Reading and parsing the JSON column needs a validator with defaults, since
-  the stored value can be null or out of date. A Zod schema in
-  `src/lib/validations/` can do both jobs
-- `/settings` sits **outside** the `(app)` route group, but `CodeEditor` is
-  used inside it (drawer, New Item dialog). The context provider needs to
-  wrap both, or each layout needs its own
-- Settings are per signed-in user, read through the session like the other
-  `/settings` data (`getProfileUser`), not through the demo user
-- Settings page: `src/app/settings/page.tsx`. Existing actions there live in
-  `src/actions/profile.ts`
+<!-- Any extra notes -->
 
 ## History
 
@@ -3137,3 +3099,122 @@ Decisions worth carrying forward:
 - **Not verified in the browser during completion.** Tests, typecheck, lint
   and build were run; the page itself reuses the forms that were verified
   end to end under Profile Page
+
+### Editor Preferences — Completed (2026-09-26)
+
+`/settings` gained an Editor preferences section, and the Monaco code editor
+follows it. Branch `feature/editor-preferences`. Eight new source files (three
+of them tests), a migration and two generated UI components, six existing
+files touched, no new dependencies. Spec:
+`context/features/editor-settings-spec.md`.
+
+- Added `editorPreferences Json?` to `User`. Migration
+  `20260926084153_editor_preferences` (one `ADD COLUMN`) was created with
+  `prisma migrate dev` and applied to the Neon **dev** branch
+- Added `src/lib/editor-preferences.ts` (client-safe):
+  - the options: font sizes 12/13/14/16/18, tab sizes 2/4/8, and themes
+    `vs-dark`/`monokai`/`github-dark` with their labels
+  - `DEFAULT_EDITOR_PREFERENCES`: 13px, tab size 2, wrap on, minimap off,
+    `vs-dark`
+  - `editorPreferencesSchema`, which is strict, for saves
+  - `parseEditorPreferences`, which is lenient, for reading the column
+- Added `getEditorPreferences(userId)` and `updateEditorPreferences(userId,
+  preferences)` to `src/lib/db/user.ts`
+- Added the `updateEditorPreferences(data)` server action in
+  `src/actions/editor-preferences.ts`: session first, then Zod, returning
+  `{ success, data, error }`
+- Added `src/components/editor/EditorPreferencesProvider.tsx`:
+  - `EditorPreferencesContext` and its provider
+  - `useEditorPreferences()`, which returns the defaults outside a provider
+  - `useEditorPreferencesState()`, used by the settings form
+- Mounted the provider in `(app)/layout.tsx` (its query joins the existing
+  `Promise.all`) and around the form on `/settings`
+- Added `src/components/settings/EditorPreferencesForm.tsx`: three selects
+  and two switches that auto-save, with one shared toast id
+- Added `src/lib/monaco-themes.ts`:
+  - `MONACO_THEMES` maps each preference to a Monaco theme name, its theme
+    data and a frame background class
+  - the `devstash-dark` definition moved here from `CodeEditor`
+- `CodeEditor` reads the preferences for theme, font size, line height,
+  tab size, word wrap and minimap. It sets `detectIndentation: false`, and
+  its loading placeholder matches the font size and wrapping
+- `src/lib/code-editor.ts` gained `getEditorLineHeight`, and
+  `estimateContentHeight` takes an optional line height
+- Added the ShadCN `select` and `switch` components
+- 29 unit tests across `editor-preferences`, `code-editor`, `db/user` and
+  `actions/editor-preferences`. Suite 365 → 394
+- `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` and
+  `prisma migrate status` pass; the route table is unchanged
+
+Verified in the browser as the demo user, measuring rather than judging by
+eye:
+
+- `/settings` showed the defaults for an account that has never saved any
+- Each setting saved and was still set after a reload. One toast replaced
+  itself rather than stacking
+- The drawer's editor picked up the saved values:
+  - Monokai: frame `#272822`, keywords pink
+  - GitHub Dark: frame `#0d1117`
+  - 16px on 24px lines and 14px on 21px lines
+  - tab size 4 and 8, wrap on and off, minimap on and off
+- Offline, a toggled switch flipped, then reverted when the save failed, with
+  "Could not save. Check your connection and try again."
+- At 390px nothing scrolls sideways
+- The demo account was set back to the defaults afterwards
+
+Decisions worth carrying forward:
+
+- **Font and tab size options were not in the spec.** 13 and 2 are the
+  defaults because they are what the editor had hardcoded
+- **Word wrap now defaults to on**, per the spec. Before this, every editor
+  scrolled sideways, so long snippets and commands now wrap for every account
+  that has not saved a preference
+- **The whole set is sent on every change**, not a patch. The stored JSON is
+  always complete, and the last save wins
+- **A failed save reverts only if it was the newest one**, to the last set the
+  server accepted. A slow failure therefore cannot undo a change made after
+  it. A network failure rejects rather than returning a result, so the form
+  catches it and treats it the same way
+- **Reads are lenient per field.** A missing or no-longer-offered value falls
+  back to its own default, and the other fields keep their saved values. A
+  null or non-object value reads as all defaults. So dropping an option later
+  needs no data migration
+- **The editor background stays transparent in every theme.** The frame
+  paints the theme's colour instead (`bg-[#272822]`, `bg-[#0d1117]`, or
+  `bg-muted/30` for VS Dark). A coloured editor would poke past the frame's
+  rounded corners, and clipping it with `overflow-hidden` would also clip
+  Monaco's suggest box. VS Dark keeps the app's own surface, so the default
+  looks as it did before
+- **`detectIndentation: false` is required.** Without it Monaco guesses the
+  tab size from the content, and the setting is ignored for any code that is
+  already indented. Tab size does not re-indent saved code; it sets the width
+  of tab characters and new indentation
+- **Line height is `round(fontSize × 1.5)`**, which gives the original 20px
+  at 13px. The placeholder uses a fixed class for each size
+  (`LOADING_TEXT_CLASS`), since inline styles are not allowed
+- **The provider is mounted twice**, in the `(app)` layout and on
+  `/settings`, because `/settings` sits outside the route group. A root-layout
+  provider would have made every page, including the auth pages, read the
+  session. Each mount reads the stored value on the server, so a change on
+  `/settings` shows in the editors on the next navigation
+- **`useEditorPreferences()` falls back to the defaults outside a provider**,
+  where `useCollectionOptions()` throws. An editor must never break because
+  no provider was mounted. The setter hook still throws
+- **The write is `updateMany` on `{ id }`**, so a session whose row has gone
+  gets "This account no longer exists." instead of a P2025
+- **Only the code editor reads the preferences.** The Markdown editor for
+  prompts and notes is a textarea, and the spec is about Monaco. There is no
+  live preview on `/settings`; the spec does not ask for one
+- **Highlighting takes about 3.6s after the editor text appears** in dev.
+  `main` measured the same (3.66s twice with this change stashed), so it is
+  not caused by this feature. It is likely Monaco fetching the language
+  module from the CDN
+- **The `shadcn` CLI reproduced the `import { cn } from "cn"` bug** and
+  installed the junk `cn` package, now in six of the last seven runs. The
+  scratch-folder route (`--path tmp-shadcn --yes`) worked again. Imports were
+  fixed and `cn` uninstalled; `package.json` and the lockfile are unchanged
+- **The commit carries no Claude attribution**, per `CLAUDE.md`. Earlier
+  commits did
+- The browser session used a session JWT minted locally for `seed-user-demo`.
+  The token file was deleted afterwards. `.playwright-mcp/` holds the
+  screenshots; it is gitignored
