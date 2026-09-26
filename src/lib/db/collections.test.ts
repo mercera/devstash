@@ -27,9 +27,11 @@ import {
   deleteCollection,
   getCollectionBySlug,
   getCollectionStats,
+  getCollectionsPage,
   getRecentCollections,
   updateCollection,
 } from "@/lib/db/collections";
+import { COLLECTIONS_PER_PAGE } from "@/lib/pagination";
 
 const created = {
   id: "col-1",
@@ -59,7 +61,11 @@ describe("getRecentCollections", () => {
     await getRecentCollections("user-1", 6);
 
     expect(mocks.prisma.collection.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: "user-1" }, take: 6 }),
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        take: 6,
+      }),
     );
     expect(mocks.prisma.itemType.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -103,6 +109,30 @@ describe("getRecentCollections", () => {
       { id: "col-2", itemCount: 1, accentColor: "orange", types: ["command"] },
       { id: "col-3", itemCount: 0, accentColor: "green", types: [] },
     ]);
+  });
+});
+
+describe("getCollectionsPage", () => {
+  it("fetches one page of the user's collections with the user's total", async () => {
+    mocks.prisma.collection.findMany.mockResolvedValue([created]);
+    mocks.prisma.collection.count.mockResolvedValue(43);
+    mocks.prisma.itemType.findMany.mockResolvedValue([]);
+    mocks.prisma.$queryRaw.mockResolvedValue([]);
+
+    const { rows, total } = await getCollectionsPage("user-1", 3);
+
+    expect(mocks.prisma.collection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        skip: 2 * COLLECTIONS_PER_PAGE,
+        take: COLLECTIONS_PER_PAGE,
+      }),
+    );
+    expect(mocks.prisma.collection.count).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+    });
+    expect(rows.map((row) => row.id)).toEqual(["col-1"]);
+    expect(total).toBe(43);
   });
 });
 

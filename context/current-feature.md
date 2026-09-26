@@ -1,18 +1,43 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Pagination
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/[type]` is paginated at `ITEMS_PER_PAGE = 21` items per page
+- `/collections/[slug]` (the spec's `/collections/[name]`) is paginated at
+  `ITEMS_PER_PAGE = 21` items per page
+- `/collections` is paginated at `COLLECTIONS_PER_PAGE = 21` collections per page
+- Pagination controls sit below the list: numbered page links plus Prev/Next
+- Prev and Next are disabled (greyed out) on the first and last page
+- Each page fetches only its own rows (`skip`/`take` plus a count), never the
+  whole list
+- The dashboard uses named constants: `DASHBOARD_COLLECTIONS_LIMIT = 6` and
+  `DASHBOARD_RECENT_ITEMS_LIMIT = 10`
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/pagination-spec.md`
+- The route is `/collections/[slug]`, not `[name]`. The slug has been the
+  route key since the Collections Pages feature
+- The spec names `COLLECTIONS_PER_PAGE` but no route for it; `/collections` is
+  the only page that lists collections, so it applies there
+- The dashboard already limits to 6 collections and 10 recent items through
+  local `COLLECTION_CARD_LIMIT` / `RECENT_ITEM_LIMIT` constants in
+  `dashboard/page.tsx`. This becomes a rename into shared constants
+- `getItemsByType`, `getItemsByCollection` and the `/collections` call to
+  `getRecentCollections(userId)` currently load every row
+- Out of scope: the sidebar's collection list, the collection picker and the
+  search palette also call `getRecentCollections` / `getSearchItems` with no
+  limit. They are not listings, so the spec does not cover them
+- `/items/[type]` is still demo-scoped; the collection pages are
+  session-scoped. Pagination does not change either
+- The Files list and Images gallery render on `/items/[type]`, so they get
+  pagination too
+- Page state goes in the URL (`?page=N`). An out-of-range or malformed page
+  needs a defined behaviour (clamp or 404)
 
 ## History
 
