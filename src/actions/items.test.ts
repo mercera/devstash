@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
+  setItemFavorite: vi.fn(),
   getOwnedUploadKey: vi.fn(),
   deleteUpload: vi.fn(),
 }));
@@ -20,13 +21,14 @@ vi.mock("@/lib/db/items", () => ({
   createItem: mocks.createItem,
   updateItem: mocks.updateItem,
   deleteItem: mocks.deleteItem,
+  setItemFavorite: mocks.setItemFavorite,
 }));
 vi.mock("@/lib/r2", () => ({
   getOwnedUploadKey: mocks.getOwnedUploadKey,
   deleteUpload: mocks.deleteUpload,
 }));
 
-import { createItem, deleteItem, updateItem } from "@/actions/items";
+import { createItem, deleteItem, setItemFavorite, updateItem } from "@/actions/items";
 import { CollectionNotFoundError } from "@/lib/db/errors";
 
 const saved = { id: "item-1", title: "Renamed" };
@@ -306,6 +308,66 @@ describe("deleteItem", () => {
     const result = await deleteItem("item-1");
 
     expect(result).toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
+  });
+});
+
+describe("setItemFavorite", () => {
+  const updatedAt = new Date("2026-09-26T10:00:00Z");
+
+  it("refuses without a session", async () => {
+    signedInAs(null);
+
+    const result = await setItemFavorite("item-1", true);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(mocks.setItemFavorite).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing id or a non-boolean state without touching the database", async () => {
+    await expect(setItemFavorite("", true)).resolves.toEqual({
+      success: false,
+      error: "This item could not be found.",
+    });
+    await expect(
+      setItemFavorite("item-1", "true" as unknown as boolean),
+    ).resolves.toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
+    expect(mocks.setItemFavorite).not.toHaveBeenCalled();
+  });
+
+  it("sets the requested state on the session user's item", async () => {
+    mocks.setItemFavorite.mockResolvedValue({ isFavorite: false, updatedAt });
+
+    const result = await setItemFavorite("item-1", false);
+
+    expect(mocks.setItemFavorite).toHaveBeenCalledWith("item-1", "user-1", false);
+    expect(result).toEqual({
+      success: true,
+      data: { id: "item-1", isFavorite: false, updatedAt },
+    });
+  });
+
+  it("reports a missing or foreign item as not found", async () => {
+    mocks.setItemFavorite.mockResolvedValue(null);
+
+    await expect(setItemFavorite("item-2", true)).resolves.toEqual({
+      success: false,
+      error: "This item could not be found.",
+    });
+  });
+
+  it("reports a database error generically", async () => {
+    mocks.setItemFavorite.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemFavorite("item-1", true)).resolves.toEqual({
       success: false,
       error: "Something went wrong. Please try again.",
     });

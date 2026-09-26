@@ -1,18 +1,52 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Favorite Toggle
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The drawer's **Favorite** button toggles `Item.isFavorite` for the open item
+- The collection page's **Favorite** button toggles `Collection.isFavorite`
+- The collection card's three-dots menu **Favorite / Unfavorite** item toggles
+  it too
+- Item cards get a star button that toggles the item's favorite without opening
+  the drawer
+- Each toggle updates the UI straight away (optimistic), reverts with an error
+  toast if the save fails, and `router.refresh()`es so the sidebar's Favorites
+  section, the dashboard stat cards and `/favorites` catch up
+- Server actions `setItemFavorite(itemId, isFavorite)` and
+  `setCollectionFavorite(collectionId, isFavorite)` — session first, then Zod, returning
+  `{ success, data, error }`; ownership is part of the write, so a missing or
+  foreign id is "not found"
+- Unit tests for the new db functions and actions; `npm test`,
+  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description: "add a favourite button to the drawer,
+  collection page and cards to toggle"
+- All four surfaces already **render** the favorite state but are display-only:
+  `src/components/items/ItemActions.tsx` (drawer),
+  `src/components/collections/CollectionActions.tsx` (collection page),
+  `src/components/collections/CollectionCardMenu.tsx` (collection cards) and
+  the static star in `src/components/items/ItemCard.tsx`
+- **"Cards" is ambiguous** — collection cards (the menu item already exists)
+  and/or item cards (currently only a static star). Goals assume both; confirm
+  before starting
+- Item cards are server components opened through the stretched
+  `ItemCardButton`. A star button must sit above that overlay as a sibling with
+  `relative z-10`, like `FileRow`'s download link, so the card stays a server
+  component and a star click does not open the drawer
+- The drawer keeps the loaded `ItemDetail` in `ItemDrawerProvider` state, so a
+  toggle there must update that state (as `onSaved` does for edits)
+- Send the target value (`isFavorite: boolean`) rather than a bare flip, so a
+  double click or a retry cannot land on the wrong state
+- `ImageCard` and `FileRow` show the same static star; decide whether they get
+  the toggle too
+- Pin stays display-only — not in scope
+- Mutations are session-scoped; item lists are still demo-scoped, so only the
+  demo account can toggle what it sees (same limit as edit/delete)
 
 ## History
 

@@ -1,7 +1,8 @@
-import { Pin, Star } from "lucide-react";
+import { Pin } from "lucide-react";
 
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { ItemCardButton } from "@/components/items/ItemCardButton";
+import { ItemFavoriteButton } from "@/components/items/ItemFavoriteButton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatShortDate } from "@/lib/format";
@@ -17,6 +18,9 @@ export function ItemCard({ item }: { item: ItemWithRelations }) {
         getAccentBorderClass(item.type.color),
       )}
     >
+      {/* First in the DOM so Tab reaches Open before the favorite star. */}
+      <ItemCardButton itemId={item.id} title={item.title} />
+
       <span
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-lg",
@@ -31,9 +35,6 @@ export function ItemCard({ item }: { item: ItemWithRelations }) {
           <h3 className="truncate font-medium">{item.title}</h3>
           {item.isPinned && (
             <Pin className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-          {item.isFavorite && (
-            <Star className="size-3.5 shrink-0 fill-yellow-400 text-yellow-400" />
           )}
         </div>
 
@@ -58,14 +59,19 @@ export function ItemCard({ item }: { item: ItemWithRelations }) {
         )}
       </div>
 
-      <time
-        dateTime={item.updatedAt.toISOString()}
-        className="shrink-0 text-xs text-muted-foreground"
-      >
-        {formatShortDate(item.updatedAt)}
-      </time>
-
-      <ItemCardButton itemId={item.id} title={item.title} />
+      <div className="flex shrink-0 items-center gap-1">
+        <ItemFavoriteButton
+          itemId={item.id}
+          title={item.title}
+          isFavorite={item.isFavorite}
+        />
+        <time
+          dateTime={item.updatedAt.toISOString()}
+          className="text-xs text-muted-foreground"
+        >
+          {formatShortDate(item.updatedAt)}
+        </time>
+      </div>
     </Card>
   );
 }

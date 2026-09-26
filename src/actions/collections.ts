@@ -4,8 +4,10 @@ import { auth } from "@/auth";
 import {
   createCollection as createCollectionRecord,
   deleteCollection as deleteCollectionRecord,
+  setCollectionFavorite as setCollectionFavoriteRecord,
   updateCollection as updateCollectionRecord,
 } from "@/lib/db/collections";
+import { isFavoriteSchema } from "@/lib/validations/favorites";
 import {
   createCollectionSchema,
   updateCollectionSchema,
@@ -15,8 +17,8 @@ import {
 import type { Collection } from "@/types";
 
 /**
- * Collection mutations for the New and Edit Collection dialogs and the delete
- * confirmation.
+ * Collection mutations for the New and Edit Collection dialogs, the delete
+ * confirmation and the Favorite toggles.
  *
  * Scoped to the **signed-in** user, resolved from the session on every call,
  * like the item actions in `src/actions/items.ts`.
@@ -48,6 +50,10 @@ export type UpdateCollectionResult =
       /** Per-field validation messages, keyed by payload field. */
       issues?: Partial<Record<UpdateCollectionField, string[]>>;
     };
+
+export type SetCollectionFavoriteResult =
+  | { success: true; data: { id: string; isFavorite: boolean } }
+  | { success: false; error: string };
 
 export type DeleteCollectionResult =
   | { success: true; data: { id: string } }
@@ -134,6 +140,46 @@ export async function updateCollection(
     return { success: true, data: collection };
   } catch (error) {
     console.error("Failed to update collection:", error);
+
+    return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+}
+
+/**
+ * Favorites or unfavorites one of the signed-in user's collections. Takes the
+ * state to set rather than flipping it, so a repeated request is harmless.
+ */
+export async function setCollectionFavorite(
+  collectionId: string,
+  isFavorite: boolean,
+): Promise<SetCollectionFavoriteResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: SESSION_EXPIRED };
+  }
+
+  if (!isId(collectionId)) {
+    return { success: false, error: NOT_FOUND };
+  }
+
+  const parsed = isFavoriteSchema.safeParse(isFavorite);
+
+  if (!parsed.success) {
+    return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+
+  try {
+    const result = await setCollectionFavoriteRecord(userId, collectionId, parsed.data);
+
+    if (result === null) {
+      return { success: false, error: NOT_FOUND };
+    }
+
+    return { success: true, data: { id: collectionId, ...result } };
+  } catch (error) {
+    console.error("Failed to update collection favorite:", error);
 
     return { success: false, error: SOMETHING_WENT_WRONG };
   }

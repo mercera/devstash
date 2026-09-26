@@ -2,8 +2,10 @@
 
 import { Copy, Download, Pencil, Pin, Star } from "lucide-react";
 
+import { setItemFavorite } from "@/actions/items";
 import { DeleteItemDialog } from "@/components/items/DeleteItemDialog";
 import { Button } from "@/components/ui/button";
+import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getCopyText } from "@/lib/item-copy";
 import { cn } from "@/lib/utils";
@@ -12,16 +14,25 @@ import type { ItemDetail } from "@/types";
 interface ItemActionsProps {
   item: ItemDetail;
   onEdit: () => void;
+  onSaved: (item: ItemDetail) => void;
   onDeleted: (id: string) => void;
 }
 
 /**
- * The drawer's action bar. Copy (Download for a file or image item), Edit and
- * Delete work; Favorite and Pin are display-only until their mutations land,
- * but already show the item's current state.
+ * The drawer's action bar. Favorite, Copy (Download for a file or image item),
+ * Edit and Delete work; Pin is display-only until its mutation lands, but
+ * already shows the item's current state.
+ *
+ * A favorite save is handed back through `onSaved`, since the drawer keeps its
+ * own copy of the item, which a page refresh does not reach.
  */
-export function ItemActions({ item, onEdit, onDeleted }: ItemActionsProps) {
+export function ItemActions({ item, onEdit, onSaved, onDeleted }: ItemActionsProps) {
   const copyText = getCopyText(item);
+  const favorite = useFavoriteToggle({
+    isFavorite: item.isFavorite,
+    save: (isFavorite) => setItemFavorite(item.id, isFavorite),
+    onSaved: ({ isFavorite, updatedAt }) => onSaved({ ...item, isFavorite, updatedAt }),
+  });
 
   function handleCopy() {
     if (copyText !== null) void copyToClipboard(copyText);
@@ -32,10 +43,11 @@ export function ItemActions({ item, onEdit, onDeleted }: ItemActionsProps) {
       <Button
         variant="ghost"
         size="sm"
-        aria-pressed={item.isFavorite}
-        className={cn(item.isFavorite && "text-yellow-400 hover:text-yellow-400")}
+        aria-pressed={favorite.isFavorite}
+        onClick={favorite.toggle}
+        className={cn(favorite.isFavorite && "text-yellow-400 hover:text-yellow-400")}
       >
-        <Star className={cn(item.isFavorite && "fill-yellow-400")} />
+        <Star className={cn(favorite.isFavorite && "fill-yellow-400")} />
         Favorite
       </Button>
       <Button variant="ghost" size="sm" aria-pressed={item.isPinned}>
