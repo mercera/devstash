@@ -1,42 +1,18 @@
-# Current Feature: Favorites Sorting
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/favorites` gains a sort control that switches between **Name**, **Date**
-  and **Type**
-- Sorting happens client-side, on the data already loaded: no new query, no
-  server round trip, no URL change
-- **Name**: alphabetical by item title / collection name, case-insensitive
-- **Date**: most recently updated first (the current default order)
-- **Type**: items grouped by item type, with a stable secondary sort within
-  each type
-- Each section has its own sort control: **Items** offers Name, Date and
-  Type; **Collections** offers Name and Date only (collections have no item
-  type)
-- Rows keep working as before: item rows open the drawer, collection rows link
-  to `/collections/[slug]`, and focus return still works
-- The sorting logic lives in a pure `src/lib/` utility with unit tests
-- Works at 390px with no horizontal scroll
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- Collections have no item type, so the user chose to **hide Type for
-  collections**. That means a separate control per section rather than one
-  shared control
-- The page and its rows are server components today. Client-side sorting
-  needs a small client wrapper that receives the already-fetched rows and
-  renders them sorted; the page keeps fetching on the server
-- Default sort stays **Date**, so the page looks unchanged until a sort is
-  picked. Persisting the choice is not specified; proposed: no persistence
-- Date is newest first. No ascending/descending toggle unless asked
-- Both getters (`getFavoriteItems`, `getFavoriteCollections`) are
-  session-scoped and unpaginated, so the whole list is in memory and sorting
-  it in the browser is correct
+<!-- Any extra notes -->
 
 ## History
 
@@ -3415,3 +3391,71 @@ Decisions worth carrying forward:
 - The browser session used a session JWT minted locally for `seed-user-demo`.
   The token file was deleted afterwards. `.playwright-mcp/` holds the console
   log; it is gitignored
+
+### Favorites Sorting — Completed (2026-09-26)
+
+Each section of `/favorites` can be sorted in the browser. Items sort by
+name, date or type; collections by name or date. Branch
+`feature/favorites-sorting`. Two new source files (one a test), two existing
+files touched, no new dependencies, no migration. Loaded from an inline
+description rather than a spec file.
+
+- Added `src/lib/favorites-sort.ts`: `sortFavorites(rows, sort)` returns a
+  sorted copy. The module also holds `FAVORITE_SORTS`,
+  `DEFAULT_FAVORITE_SORT` (`date`), `FAVORITE_SORT_LABELS` and the
+  `SortableFavorite` shape (`id`, `name`, `date`, optional `type`)
+  - **Name**: A–Z through `Intl.Collator` (base sensitivity, numeric), so
+    case and accents are ignored and "Step 2" sorts before "Step 10". Equal
+    names fall back to newest first, then `id`
+  - **Date**: most recently updated first, then `id`, matching the server's
+    order
+  - **Type**: A–Z by type slug, then by name, then `id`. Rows with no type
+    sort last
+- `FavoritesSection` became a client component:
+  - it takes `rows` (the sort fields plus a server-rendered `node`) and
+    `sorts`
+  - it holds the chosen sort in `useState`
+  - it renders a segmented button group (`role="group"`, `aria-pressed`)
+    beside the heading, hidden when a section has fewer than two rows
+- `/favorites` passes each row's `FavoriteRow` as `node`. Items get all three
+  sorts; collections get Name and Date
+- 8 unit tests in `src/lib/favorites-sort.test.ts`. Suite 414 → 422
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with zero console errors or
+warnings:
+
+- The default was Date for both sections, in the same order as before
+- Name, Type and the collections' Name each gave the expected order, and
+  sorting one section left the other alone
+- After sorting by Name, the first item row opened the right item in the
+  drawer, and Escape returned focus to it. The first collection row opened
+  `/collections/ai-workflows`
+- A reload went back to Date
+- At 390px the sort group is 119px wide, with no horizontal scroll
+
+Decisions worth carrying forward:
+
+- **Type is hidden for collections**, chosen by the user at load time. That
+  is why each section has its own control rather than one shared one
+- **Rows are rendered on the server and passed to the client as nodes.**
+  `FavoriteRow`, `TypeIcon` and the collection `Link` stay server components.
+  The client section only reorders them, keyed by id through `Fragment`. The
+  same pattern suits any list that needs client-side ordering over
+  server-rendered rows
+- **Type sorts by slug**, which is the badge on each row, so the groups read
+  in the order a reader scans them. This is not the sidebar's seeded order;
+  `FavoriteItem.type` would need another field to express that
+- **`id` breaks every tie**, so the order never depends on the input's
+- **The choice is not saved** and there is no direction toggle; neither was
+  asked for
+- Sorting in the browser over the full list is correct only while
+  `getFavoriteItems` and `getFavoriteCollections` are unpaginated. Paging them
+  would move sorting to the server
+- **The Playwright MCP echoes the code it runs**, even when the code is loaded
+  from a file, so a session JWT inlined in a script ends up in the transcript.
+  The token was minted locally for `seed-user-demo`, expires within the hour,
+  and the file was deleted afterwards
+- Python is not installed on this machine; use the Edit tool or Node for
+  scripted file edits
