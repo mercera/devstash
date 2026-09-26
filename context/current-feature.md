@@ -1,18 +1,55 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Favorites Page
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Star icon button in the `TopBar` linking to `/favorites`
+- `/favorites` route inside the `(app)` shell, protected by the proxy matcher
+- Fetch the user's favorited items and favorited collections
+- Compact list view (VS Code / terminal style), not cards
+- Each row: type icon, title, type badge, date
+- Separate **Items** and **Collections** sections, each with a count
+- Clicking an item opens the `ItemDrawer`; clicking a collection navigates to
+  its collection page
+- Empty state when there are no favorites
+- Sorted by most recently favorited (`updatedAt` desc)
+- Unit tests for the new `src/lib/db` getters
+
+UI style:
+
+- Monospace or semi-monospace font
+- Minimal padding, high density
+- Subtle hover states
+- No cards or heavy borders, clean lines only
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/favorites-spec.md`
+- **Collection links use the slug** (`/collections/[slug]`), not the spec's
+  `/collections/[id]`. Every collection link in the app already routes on the
+  slug, the same call made for `/collections/[slug]` itself
+- `src/proxy.ts`'s matcher needs `/favorites` added, as each new signed-in
+  route has
+- **Scope:** collection reads are session-scoped, while item reads
+  (`getItemsByType`, pinned/recent) are still hardcoded to `seed-user-demo`.
+  The drawer's API is session-scoped, so favorites should read the
+  **signed-in user** for both items and collections (as search does), or
+  non-demo accounts would see items they cannot open
+- **Favoriting is not yet persisted anywhere in the UI** — the drawer's
+  Favorite and the collection Favorite buttons are display-only. The page will
+  only list what the seed flagged (5 items, 2 collections for the demo user)
+- "Sort by most recently favorited (updatedAt)": there is no `favoritedAt`
+  column, so `updatedAt` is a proxy; any edit bumps it. Tie-break on `id`, as
+  pagination does
+- Collection rows have no item type; they show a folder icon, and the badge
+  slot holds the item count (`3 items`). A "collection" badge would repeat the
+  section heading on every row
+- Clicking an item row can reuse `ItemCardButton` (stretched overlay), which
+  keeps rows server components and gives focus return for free
+- The spec asks for no pagination; the list is unbounded
 
 ## History
 

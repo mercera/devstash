@@ -3,10 +3,11 @@
  *
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
- * `getItemsByCollection`, `getSearchItems`, `createItem`, `updateItem` and
- * `deleteItem` are the exceptions: they take the caller's user id, because they
- * back an API route, server actions, the collection pages and the command
- * palette, none of which may reach another user's item.
+ * `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`, `createItem`,
+ * `updateItem` and `deleteItem` are the exceptions: they take the caller's user
+ * id, because they back an API route, server actions, the collection and
+ * favorites pages and the command palette, none of which may reach another
+ * user's item.
  */
 
 import { cache } from "react";
@@ -19,6 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { toSearchPreview } from "@/lib/search";
 import type { CreateItemData, UpdateItemData } from "@/lib/validations/items";
 import type {
+  FavoriteItem,
   ItemDetail,
   ItemType,
   ItemTypeWithCount,
@@ -376,6 +378,24 @@ export async function getSearchItems(userId: string): Promise<SearchItem[]> {
     type: item.type,
     preview: toSearchPreview(item),
   }));
+}
+
+/**
+ * Every one of the user's favorited items, most recently updated first — the
+ * closest thing to "most recently favorited", since no favorite timestamp is
+ * stored. `id` breaks ties on `updatedAt`, as the paged lists do.
+ */
+export async function getFavoriteItems(userId: string): Promise<FavoriteItem[]> {
+  return prisma.item.findMany({
+    where: { userId, isFavorite: true },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      updatedAt: true,
+      type: { select: { slug: true, icon: true, color: true } },
+    },
+  });
 }
 
 /**

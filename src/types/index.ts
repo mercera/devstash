@@ -147,6 +147,23 @@ export interface SearchCollection {
   itemCount: number;
 }
 
+/** A favorited item as one row of `/favorites`. */
+export interface FavoriteItem {
+  id: string;
+  title: string;
+  type: Pick<ItemType, "slug" | "icon" | "color">;
+  updatedAt: Date;
+}
+
+/** A favorited collection as one row of `/favorites`. */
+export interface FavoriteCollection {
+  id: string;
+  name: string;
+  slug: string;
+  itemCount: number;
+  updatedAt: Date;
+}
+
 /** One page of a listing, with the size of the whole list for the controls. */
 export interface Paginated<T> {
   rows: T[];

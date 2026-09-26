@@ -1,6 +1,10 @@
+import { Star } from "lucide-react";
+import Link from "next/link";
+
 import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { GlobalSearch } from "@/components/search/GlobalSearch";
+import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getCreatableTypes } from "@/lib/item-fields";
 import type { ItemType, SearchCollection, SearchItem } from "@/types";
@@ -27,6 +31,11 @@ export function TopBar({
       <GlobalSearch items={searchItems} collections={searchCollections} />
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/favorites" aria-label="Favorites" title="Favorites">
+            <Star />
+          </Link>
+        </Button>
         <NewCollectionDialog />
         <NewItemDialog types={creatableTypes} />
       </div>
