@@ -17,6 +17,7 @@ import type {
 import type {
   Collection,
   CollectionCardData,
+  FavoriteCollection,
   ItemType,
   Paginated,
 } from "@/types";
@@ -205,6 +206,32 @@ export async function getCollectionBySlug(
     where: { userId, slug },
     select: collectionSelect,
   });
+}
+
+/**
+ * Every one of the user's favorited collections, most recently updated first,
+ * each with how many of the user's items it holds. `id` breaks ties on
+ * `updatedAt`, as the paged lists do.
+ */
+export async function getFavoriteCollections(
+  userId: string,
+): Promise<FavoriteCollection[]> {
+  const collections = await prisma.collection.findMany({
+    where: { userId, isFavorite: true },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      updatedAt: true,
+      _count: { select: { items: { where: { item: { userId } } } } },
+    },
+  });
+
+  return collections.map(({ _count, ...collection }) => ({
+    ...collection,
+    itemCount: _count.items,
+  }));
 }
 
 /** Collection counts for the dashboard stat cards. */

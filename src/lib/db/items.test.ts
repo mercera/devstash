@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById`, `getItemsByCollection`, `getSearchItems`, `createItem`,
- * `updateItem` and `deleteItem` are covered for scoping: they are the queries
- * in this module scoped to a caller-supplied user, backing a public API route,
- * server actions, the collection pages and the command palette.
+ * Only `getItemById`, `getItemsByCollection`, `getSearchItems`,
+ * `getFavoriteItems`, `createItem`, `updateItem` and `deleteItem` are covered
+ * for scoping: they are the queries in this module scoped to a caller-supplied
+ * user, backing a public API route, server actions, the collection and
+ * favorites pages and the command palette.
  * `getItemsByType` is covered for its pagination. The database is mocked, so
  * these tests pin the queries' shape and the mapping, not Postgres behaviour.
  */
@@ -41,6 +42,7 @@ import { CollectionNotFoundError } from "@/lib/db/errors";
 import {
   createItem,
   deleteItem,
+  getFavoriteItems,
   getItemById,
   getItemsByCollection,
   getItemsByType,
@@ -552,6 +554,35 @@ describe("getSearchItems", () => {
     expect(Object.keys(item).sort()).toEqual(["id", "preview", "title", "type"]);
     expect(item.type).toEqual({ name: "Snippets", icon: "Code", color: "blue" });
     expect(item.preview?.length).toBe(SEARCH_PREVIEW_LENGTH);
+  });
+});
+
+describe("getFavoriteItems", () => {
+  it("lists only the owner's favorites, newest first with an id tie-break", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([]);
+
+    await getFavoriteItems("user-1");
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1", isFavorite: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      }),
+    );
+  });
+
+  it("selects only the fields a row renders", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([]);
+
+    await getFavoriteItems("user-1");
+
+    const [{ select }] = mocks.prisma.item.findMany.mock.calls[0];
+    expect(select).toEqual({
+      id: true,
+      title: true,
+      updatedAt: true,
+      type: { select: { slug: true, icon: true, color: true } },
+    });
   });
 });
 

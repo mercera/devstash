@@ -28,6 +28,7 @@ import {
   getCollectionBySlug,
   getCollectionStats,
   getCollectionsPage,
+  getFavoriteCollections,
   getRecentCollections,
   updateCollection,
 } from "@/lib/db/collections";
@@ -154,6 +155,44 @@ describe("getCollectionBySlug", () => {
     mocks.prisma.collection.findFirst.mockResolvedValue(null);
 
     await expect(getCollectionBySlug("user-1", "missing")).resolves.toBeNull();
+  });
+});
+
+describe("getFavoriteCollections", () => {
+  it("lists only the owner's favorites, newest first, counting only their items", async () => {
+    mocks.prisma.collection.findMany.mockResolvedValue([]);
+
+    await getFavoriteCollections("user-1");
+
+    const [args] = mocks.prisma.collection.findMany.mock.calls[0];
+    expect(args.where).toEqual({ userId: "user-1", isFavorite: true });
+    expect(args.orderBy).toEqual([{ updatedAt: "desc" }, { id: "asc" }]);
+    expect(args.select._count).toEqual({
+      select: { items: { where: { item: { userId: "user-1" } } } },
+    });
+  });
+
+  it("flattens the relation count into itemCount", async () => {
+    const updatedAt = new Date("2026-09-25T10:00:00Z");
+    mocks.prisma.collection.findMany.mockResolvedValue([
+      {
+        id: "col-1",
+        name: "React Patterns",
+        slug: "react-patterns",
+        updatedAt,
+        _count: { items: 4 },
+      },
+    ]);
+
+    await expect(getFavoriteCollections("user-1")).resolves.toEqual([
+      {
+        id: "col-1",
+        name: "React Patterns",
+        slug: "react-patterns",
+        updatedAt,
+        itemCount: 4,
+      },
+    ]);
   });
 });
 
