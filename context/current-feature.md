@@ -1,18 +1,56 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Editor Preferences Settings
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- An **Editor preferences** section on `/settings`
+- Font size dropdown
+- Tab size dropdown
+- Word wrap toggle (default: on)
+- Minimap toggle (default: off)
+- Theme dropdown: `vs-dark`, `monokai`, `github-dark` (default: `vs-dark`)
+- Preferences stored in a JSON column `editorPreferences` on `User`
+- Schema change made through a Prisma migration, applied to the Neon
+  **development** branch — never `db push`
+- A server action that updates the preferences (session first, then Zod,
+  `{ success, data, error }`)
+- Every change auto-saves; there is no save button
+- A success toast on each save
+- An `EditorPreferencesContext` for client components
+- The Monaco `CodeEditor` applies the preferences
+- Unit tests for the new action and any new `src/lib` utilities
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/editor-settings-spec.md`
+- The spec does not list the font size or tab size options. Proposed: font
+  sizes 12, 13, 14, 16, 18 (13 is today's hardcoded value, so it is the
+  default) and tab sizes 2, 4, 8 (default 2, today's value)
+- `CodeEditor` today hardcodes `fontSize: 13`, `tabSize: 2`, minimap off and
+  no `wordWrap`, which means word wrap is **off**. The spec's default of on
+  changes how every snippet and command renders
+- **Only `vs-dark` is built into Monaco.** `monokai` and `github-dark` have to
+  be defined with `defineTheme`, alongside the existing custom
+  `devstash-dark`. That theme makes the background transparent so the
+  editor's frame shows through; the new themes need the same treatment, or
+  their own background colours will fill the frame
+- **Line height is fixed at 20px** (`CODE_EDITOR_LINE_HEIGHT`), and
+  `estimateContentHeight` and the six-line minimum are built on it. A larger
+  font needs a matching line height, or the loading placeholder and the
+  editor will be different heights
+- Reading and parsing the JSON column needs a validator with defaults, since
+  the stored value can be null or out of date. A Zod schema in
+  `src/lib/validations/` can do both jobs
+- `/settings` sits **outside** the `(app)` route group, but `CodeEditor` is
+  used inside it (drawer, New Item dialog). The context provider needs to
+  wrap both, or each layout needs its own
+- Settings are per signed-in user, read through the session like the other
+  `/settings` data (`getProfileUser`), not through the demo user
+- Settings page: `src/app/settings/page.tsx`. Existing actions there live in
+  `src/actions/profile.ts`
 
 ## History
 

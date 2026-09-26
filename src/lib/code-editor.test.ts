@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CODE_EDITOR_LINE_HEIGHT,
   CODE_EDITOR_MAX_HEIGHT,
   estimateContentHeight,
   getCodeEditorHeight,
+  getEditorLineHeight,
   resolveMonacoLanguage,
   type MonacoLanguageInfo,
 } from "@/lib/code-editor";
@@ -97,5 +99,24 @@ describe("estimateContentHeight", () => {
 
   it("counts every line, including a trailing empty one", () => {
     expect(estimateContentHeight("a\nb\nc\n")).toBe(4 * 20 + 24);
+  });
+
+  it("uses the line height it is given", () => {
+    expect(estimateContentHeight("a\nb", 27)).toBe(2 * 27 + 24);
+  });
+});
+
+describe("getEditorLineHeight", () => {
+  it("keeps the original 20px line for the default 13px font", () => {
+    expect(getEditorLineHeight(13)).toBe(CODE_EDITOR_LINE_HEIGHT);
+  });
+
+  it.each([
+    [12, 18],
+    [14, 21],
+    [16, 24],
+    [18, 27],
+  ])("gives a %ipx font a %ipx line", (fontSize, lineHeight) => {
+    expect(getEditorLineHeight(fontSize)).toBe(lineHeight);
   });
 });

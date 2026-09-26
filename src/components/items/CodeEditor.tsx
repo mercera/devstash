@@ -3,21 +3,23 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
 
+import { useEditorPreferences } from "@/components/editor/EditorPreferencesProvider";
 import {
   EditorCopyButton,
   EditorHeader,
   editorFrameClass,
 } from "@/components/items/EditorChrome";
 import {
-  CODE_EDITOR_LINE_HEIGHT,
   CODE_EDITOR_PADDING,
   estimateContentHeight,
   getCodeEditorHeight,
+  getEditorLineHeight,
   resolveMonacoLanguage,
   type MonacoLanguageInfo,
 } from "@/lib/code-editor";
-
-const THEME = "devstash-dark";
+import type { EditorFontSize } from "@/lib/editor-preferences";
+import { MONACO_THEMES } from "@/lib/monaco-themes";
+import { cn } from "@/lib/utils";
 
 /**
  * Monaco's languages, once any editor has loaded it. Later editors start from
@@ -26,7 +28,16 @@ const THEME = "devstash-dark";
 let knownLanguages: readonly MonacoLanguageInfo[] = [];
 
 /** An editable editor never shrinks below six lines, so there is room to click into. */
-const EDITABLE_MIN_HEIGHT = CODE_EDITOR_LINE_HEIGHT * 6 + CODE_EDITOR_PADDING * 2;
+const EDITABLE_MIN_LINES = 6;
+
+/** The placeholder's type, matched to each font size and its line height. */
+const LOADING_TEXT_CLASS: Record<EditorFontSize, string> = {
+  12: "text-[12px] leading-[18px]",
+  13: "text-[13px] leading-5",
+  14: "text-[14px] leading-[21px]",
+  16: "text-[16px] leading-6",
+  18: "text-[18px] leading-[27px]",
+};
 
 interface CodeEditorProps {
   value: string;
@@ -57,9 +68,14 @@ export function CodeEditor({
   invalid = false,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const minHeight = readOnly ? 0 : EDITABLE_MIN_HEIGHT;
+  const preferences = useEditorPreferences();
+  const theme = MONACO_THEMES[preferences.theme];
+  const lineHeight = getEditorLineHeight(preferences.fontSize);
+  const minHeight = readOnly
+    ? 0
+    : lineHeight * EDITABLE_MIN_LINES + CODE_EDITOR_PADDING * 2;
   const [height, setHeight] = useState(() =>
-    getCodeEditorHeight(estimateContentHeight(value), minHeight),
+    getCodeEditorHeight(estimateContentHeight(value, lineHeight), minHeight),
   );
   const [languages, setLanguages] = useState(() => knownLanguages);
 
@@ -71,7 +87,9 @@ export function CodeEditor({
   // Not `useMonaco()`: it leaves the loader's rejection unhandled when it
   // unmounts before Monaco arrives, which Strict Mode does on every mount.
   const handleBeforeMount: BeforeMount = (monaco) => {
-    defineTheme(monaco);
+    for (const { name, data } of Object.values(MONACO_THEMES)) {
+      monaco.editor.defineTheme(name, data);
+    }
     knownLanguages = monaco.languages.getLanguages();
     setLanguages(knownLanguages);
   };
@@ -87,7 +105,10 @@ export function CodeEditor({
   };
 
   return (
-    <div ref={containerRef} className={editorFrameClass({ readOnly, invalid })}>
+    <div
+      ref={containerRef}
+      className={cn(editorFrameClass({ readOnly, invalid }), theme.surfaceClass)}
+    >
       <EditorHeader>
         <span className="ml-auto font-mono text-xs text-muted-foreground">
           {languageLabel}
@@ -99,22 +120,31 @@ export function CodeEditor({
         height={height}
         value={value}
         language={monacoLanguage}
-        theme={THEME}
+        theme={theme.name}
         beforeMount={handleBeforeMount}
         onMount={handleMount}
         onChange={(next) => onChange?.(next ?? "")}
-        loading={<LoadingText value={value} />}
+        loading={
+          <LoadingText
+            value={value}
+            className={cn(
+              LOADING_TEXT_CLASS[preferences.fontSize],
+              preferences.wordWrap && "whitespace-pre-wrap wrap-break-word",
+            )}
+          />
+        }
         options={{
           readOnly,
           domReadOnly: readOnly,
           ariaLabel,
           fontFamily: "var(--font-mono), ui-monospace, monospace",
-          fontSize: 13,
-          lineHeight: CODE_EDITOR_LINE_HEIGHT,
+          fontSize: preferences.fontSize,
+          lineHeight,
           padding: { top: CODE_EDITOR_PADDING, bottom: CODE_EDITOR_PADDING },
           automaticLayout: true,
           scrollBeyondLastLine: false,
-          minimap: { enabled: false },
+          wordWrap: preferences.wordWrap ? "on" : "off",
+          minimap: { enabled: preferences.minimap },
           stickyScroll: { enabled: false },
           folding: false,
           glyphMargin: false,
@@ -127,7 +157,10 @@ export function CodeEditor({
           // Monaco's context menu renders outside the drawer/dialog, where a
           // click would count as outside and dismiss it.
           contextmenu: false,
-          tabSize: 2,
+          tabSize: preferences.tabSize,
+          // Otherwise Monaco guesses the tab size from the content and the
+          // setting is ignored for any code that is already indented.
+          detectIndentation: false,
           scrollbar: {
             verticalScrollbarSize: 8,
             horizontalScrollbarSize: 8,
@@ -141,34 +174,14 @@ export function CodeEditor({
   );
 }
 
-const defineTheme: BeforeMount = (monaco) => {
-  monaco.editor.defineTheme(THEME, {
-    base: "vs-dark",
-    inherit: true,
-    rules: [],
-    colors: {
-      // Transparent, so the wrapper's surface and rounded corners show through.
-      "editor.background": "#00000000",
-      "editorGutter.background": "#00000000",
-      "editor.lineHighlightBackground": "#ffffff08",
-      "editor.lineHighlightBorder": "#00000000",
-      "editorLineNumber.foreground": "#525252",
-      "editorLineNumber.activeForeground": "#a3a3a3",
-      "editorWidget.background": "#171717",
-      "editorWidget.border": "#ffffff1a",
-      "editorSuggestWidget.background": "#171717",
-      "editorSuggestWidget.border": "#ffffff1a",
-      "scrollbar.shadow": "#00000000",
-      "scrollbarSlider.background": "#ffffff1f",
-      "scrollbarSlider.hoverBackground": "#ffffff33",
-      "scrollbarSlider.activeBackground": "#ffffff47",
-    },
-  });
-};
-
-function LoadingText({ value }: { value: string }) {
+function LoadingText({ value, className }: { value: string; className: string }) {
   return (
-    <pre className="size-full overflow-hidden px-4 py-3 font-mono text-[13px] leading-5 text-muted-foreground">
+    <pre
+      className={cn(
+        "size-full overflow-hidden px-4 py-3 font-mono text-muted-foreground",
+        className,
+      )}
+    >
       {value}
     </pre>
   );

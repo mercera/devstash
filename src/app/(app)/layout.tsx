@@ -5,11 +5,12 @@ import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionOptionsProvider } from "@/components/collections/CollectionOptionsProvider";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { EditorPreferencesProvider } from "@/components/editor/EditorPreferencesProvider";
 import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getItemTypesWithCounts, getSearchItems } from "@/lib/db/items";
-import { getCurrentUser } from "@/lib/db/user";
+import { getCurrentUser, getEditorPreferences } from "@/lib/db/user";
 import { getSessionUserId } from "@/lib/session";
 
 /**
@@ -31,12 +32,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect(SIGN_IN_PATH);
   }
 
-  const [itemTypes, collections, user, searchItems] = await Promise.all([
-    getItemTypesWithCounts(),
-    getRecentCollections(userId),
-    getCurrentUser(),
-    getSearchItems(userId),
-  ]);
+  const [itemTypes, collections, user, searchItems, editorPreferences] =
+    await Promise.all([
+      getItemTypesWithCounts(),
+      getRecentCollections(userId),
+      getCurrentUser(),
+      getSearchItems(userId),
+      getEditorPreferences(userId),
+    ]);
 
   const collectionOptions = collections
     .map(({ id, name, slug }) => ({ id, name, slug }))
@@ -52,16 +55,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <SidebarProvider className="min-h-full flex-1">
       <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
       <SidebarInset>
-        <CollectionOptionsProvider collections={collectionOptions}>
-          <ItemDrawerProvider>
-            <TopBar
-              itemTypes={itemTypes}
-              searchItems={searchItems}
-              searchCollections={searchCollections}
-            />
-            <div className="min-w-0 flex-1 p-6">{children}</div>
-          </ItemDrawerProvider>
-        </CollectionOptionsProvider>
+        <EditorPreferencesProvider initialPreferences={editorPreferences}>
+          <CollectionOptionsProvider collections={collectionOptions}>
+            <ItemDrawerProvider>
+              <TopBar
+                itemTypes={itemTypes}
+                searchItems={searchItems}
+                searchCollections={searchCollections}
+              />
+              <div className="min-w-0 flex-1 p-6">{children}</div>
+            </ItemDrawerProvider>
+          </CollectionOptionsProvider>
+        </EditorPreferencesProvider>
       </SidebarInset>
     </SidebarProvider>
   );

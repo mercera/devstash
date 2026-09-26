@@ -3,6 +3,10 @@
  */
 
 import { auth } from "@/auth";
+import {
+  parseEditorPreferences,
+  type EditorPreferences,
+} from "@/lib/editor-preferences";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser, ProfileUser } from "@/types";
 
@@ -64,4 +68,35 @@ export async function getProfileUser(): Promise<ProfileUser | null> {
   const { password, ...rest } = user;
 
   return { ...rest, hasPassword: password !== null };
+}
+
+/**
+ * The user's editor settings, with defaults for any that were never saved.
+ * A missing row reads as defaults too; there is nothing to show otherwise.
+ */
+export async function getEditorPreferences(
+  userId: string,
+): Promise<EditorPreferences> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { editorPreferences: true },
+  });
+
+  return parseEditorPreferences(user?.editorPreferences);
+}
+
+/**
+ * Replaces the user's editor settings. Returns false when the row has gone —
+ * a session can outlive its `User` row.
+ */
+export async function updateEditorPreferences(
+  userId: string,
+  preferences: EditorPreferences,
+): Promise<boolean> {
+  const { count } = await prisma.user.updateMany({
+    where: { id: userId },
+    data: { editorPreferences: { ...preferences } },
+  });
+
+  return count > 0;
 }

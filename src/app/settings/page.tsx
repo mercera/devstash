@@ -4,10 +4,13 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
+import { EditorPreferencesProvider } from "@/components/editor/EditorPreferencesProvider";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
+import { EditorPreferencesForm } from "@/components/settings/EditorPreferencesForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getProfileUser } from "@/lib/db/user";
+import { getEditorPreferences, getProfileUser } from "@/lib/db/user";
+import { getSessionUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Settings · DevStash",
@@ -19,18 +22,23 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * The account settings page: change password and delete account.
+ * The account settings page: editor preferences, change password and delete
+ * account.
  *
  * Like `/profile`, it sits outside the `(app)` route group, so it has no
- * sidebar and the header carries a link back instead. Both actions are
+ * sidebar and the header carries a link back instead. Every action is
  * session-scoped.
  */
 export default async function SettingsPage() {
-  const user = await getProfileUser();
+  const userId = await getSessionUserId();
+  const [user, editorPreferences] = await Promise.all([
+    getProfileUser(),
+    userId ? getEditorPreferences(userId) : null,
+  ]);
 
   // The proxy already turns anonymous requests away; this catches a session
   // whose `User` row has since been deleted.
-  if (!user) {
+  if (!user || !editorPreferences) {
     redirect(SIGN_IN_PATH);
   }
 
@@ -49,6 +57,20 @@ export default async function SettingsPage() {
           <h1 className="text-xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">Manage your account.</p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Editor preferences</CardTitle>
+            <CardDescription>
+              Applies to snippet and command editors. Changes save automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EditorPreferencesProvider initialPreferences={editorPreferences}>
+              <EditorPreferencesForm />
+            </EditorPreferencesProvider>
+          </CardContent>
+        </Card>
 
         {/* Absent, not disabled, for a GitHub account — there is no password to
             change and the action refuses to set a first one. */}
