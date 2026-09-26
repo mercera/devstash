@@ -5,11 +5,9 @@ import { ArrowLeft, Boxes, FolderOpen, Folders, Star } from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
 import { UserAvatar } from "@/components/auth/UserAvatar";
-import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
-import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TypeIcon } from "@/components/items/TypeIcon";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { getCollectionStats } from "@/lib/db/collections";
 import { getItemStats, getItemTypesWithCounts } from "@/lib/db/items";
 import { getProfileUser } from "@/lib/db/user";
@@ -39,8 +37,8 @@ export const dynamic = "force-dynamic";
  * user's: `getItemStats` and `getItemTypesWithCounts` are still scoped to
  * `seed-user-demo`, while `getCollectionStats` reads the session user. That is
  * deliberate for now — moving the item getters onto the session is its own
- * change, and it would take the dashboard with it. The account **actions** are
- * session-scoped.
+ * change, and it would take the dashboard with it. The account actions live
+ * on `/settings`.
  */
 export default async function ProfilePage() {
   const [userId, user] = await Promise.all([getSessionUserId(), getProfileUser()]);
@@ -133,35 +131,6 @@ export default async function ProfilePage() {
             </CardContent>
           </Card>
         </section>
-
-        {/* Absent, not disabled, for a GitHub account — there is no password to
-            change and the action refuses to set a first one. */}
-        {user.hasPassword && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Change password</CardTitle>
-              <CardDescription>
-                You will stay signed in on this device.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChangePasswordForm />
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="border-destructive/30">
-          <CardHeader>
-            <CardTitle className="text-base">Delete account</CardTitle>
-            <CardDescription>
-              Permanently removes your account and everything in it. This cannot be
-              undone.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DeleteAccountDialog email={user.email} />
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

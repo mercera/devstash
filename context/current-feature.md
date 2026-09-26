@@ -1,18 +1,41 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Settings Page
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- New `/settings` page for account actions, following `/profile`'s pattern:
+  a server component with `force-dynamic` that redirects to sign-in when
+  there is no session or the `User` row is gone
+- `/settings` is protected: add it to the matcher in `src/proxy.ts`
+- Add a **Settings** item to the sidebar user dropdown (`UserMenu`), linking
+  to `/settings`, beside the existing Profile item
+- Move the account actions from `/profile` to `/settings`:
+  - **Change password** (`ChangePasswordForm`), still shown only when the
+    account has a password
+  - **Delete account** (`DeleteAccountDialog`), in its destructive card
+- `/profile` keeps the identity card, usage stats and per-type breakdown, and
+  no longer renders either account action
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  build registers `ƒ /settings`
 
 ## Notes
 
-<!-- Any extra notes -->
+- **"Forgot password" is read as the profile's Change password form.**
+  `/profile` has no forgot-password control; the forgot-password flow lives on
+  `/sign-in` and stays there. Confirm if something else was meant
+- No new server actions: `changePassword` and `deleteAccount` in
+  `src/actions/profile.ts` move with their forms unchanged, so their tests
+  still apply. `deleteAccount` redirects to `/sign-in`, so its location
+  doesn't matter
+- Open question: whether `/settings` sits inside the `(app)` route group (with
+  the sidebar) or beside `/profile` outside it with a "Back to dashboard"
+  link. `/profile` is outside by an earlier decision; matching it keeps the two
+  account pages consistent
+- `getProfileUser()` already returns `email` and `hasPassword`, which is all the
+  settings page needs
 
 ## History
 

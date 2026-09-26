@@ -14,7 +14,7 @@ import {
 } from "@/lib/validations/profile";
 
 /**
- * Account actions for `/profile`.
+ * Account actions for `/settings`.
  *
  * Both of these are mutations on the **signed-in** user, resolved from the
  * session every time. The read-side getters in `src/lib/db/` are still scoped

@@ -32,8 +32,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 }
 
 /**
- * The signed-in user as `/profile` renders them, or null when there is no
- * session or the row has gone.
+ * The signed-in user as `/profile` and `/settings` render them, or null when
+ * there is no session or the row has gone.
  *
  * The password hash is deliberately not selected. The page only needs to know
  * whether one exists, so the column is collapsed to a boolean here rather than
