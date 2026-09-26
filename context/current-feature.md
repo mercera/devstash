@@ -1,43 +1,18 @@
-# Current Feature: Pagination
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/items/[type]` is paginated at `ITEMS_PER_PAGE = 21` items per page
-- `/collections/[slug]` (the spec's `/collections/[name]`) is paginated at
-  `ITEMS_PER_PAGE = 21` items per page
-- `/collections` is paginated at `COLLECTIONS_PER_PAGE = 21` collections per page
-- Pagination controls sit below the list: numbered page links plus Prev/Next
-- Prev and Next are disabled (greyed out) on the first and last page
-- Each page fetches only its own rows (`skip`/`take` plus a count), never the
-  whole list
-- The dashboard uses named constants: `DASHBOARD_COLLECTIONS_LIMIT = 6` and
-  `DASHBOARD_RECENT_ITEMS_LIMIT = 10`
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/pagination-spec.md`
-- The route is `/collections/[slug]`, not `[name]`. The slug has been the
-  route key since the Collections Pages feature
-- The spec names `COLLECTIONS_PER_PAGE` but no route for it; `/collections` is
-  the only page that lists collections, so it applies there
-- The dashboard already limits to 6 collections and 10 recent items through
-  local `COLLECTION_CARD_LIMIT` / `RECENT_ITEM_LIMIT` constants in
-  `dashboard/page.tsx`. This becomes a rename into shared constants
-- `getItemsByType`, `getItemsByCollection` and the `/collections` call to
-  `getRecentCollections(userId)` currently load every row
-- Out of scope: the sidebar's collection list, the collection picker and the
-  search palette also call `getRecentCollections` / `getSearchItems` with no
-  limit. They are not listings, so the spec does not cover them
-- `/items/[type]` is still demo-scoped; the collection pages are
-  session-scoped. Pagination does not change either
-- The Files list and Images gallery render on `/items/[type]`, so they get
-  pagination too
-- Page state goes in the URL (`?page=N`). An out-of-range or malformed page
-  needs a defined behaviour (clamp or 404)
+<!-- Any extra notes -->
 
 ## History
 
@@ -2994,6 +2969,96 @@ Decisions worth carrying forward:
   to `SearchItem` would be a small change
 - The search payload is loaded on every `(app)` request and grows with the
   user's item count. Fine at this scale
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  with no database write. The token file was deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Pagination — Completed (2026-09-26)
+
+`/items/[type]`, `/collections` and `/collections/[slug]` are paginated, and
+each page loads only its own rows. Branch `feature/pagination`. Three new
+source files (one a test), five existing files touched plus two test files,
+no new dependencies, no migration. Spec: `context/features/pagination-spec.md`.
+
+- Added `src/lib/pagination.ts`:
+  - the constants `ITEMS_PER_PAGE = 21`, `COLLECTIONS_PER_PAGE = 21`,
+    `DASHBOARD_COLLECTIONS_LIMIT = 6` and `DASHBOARD_RECENT_ITEMS_LIMIT = 10`
+  - `parsePageParam`, `getPageRange` (`skip`/`take`), `getTotalPages`,
+    `getPageHref` and `getPageSlots`
+- Added `src/components/pagination/Pagination.tsx`:
+  - numbered page links plus Previous/Next, which are greyed out
+    (`aria-disabled` spans) at either end
+  - the current page carries `aria-current="page"`
+  - below `sm` the Previous/Next labels hide and only the arrows show
+  - renders nothing when everything fits on one page
+- `src/lib/db/items.ts`:
+  - `getItemsByType(typeId, page)` and
+    `getItemsByCollection(userId, collectionId, page)` return
+    `Paginated<ItemWithRelations>` (`{ rows, total }`) through a shared
+    `getItemsPage`
+  - the type lookup moved into its own `getItemTypeBySlug`
+- `src/lib/db/collections.ts` gained `getCollectionsPage(userId, page)`.
+  `getRecentCollections` and the new function share a `getCollectionCards`
+  helper
+- Added `Paginated<T>` to `src/types/index.ts`
+- The three pages read `?page=` and render the controls under the list. Their
+  header counts are now the whole list's total. The dashboard's local limits
+  became the shared constants
+- 24 unit tests: `src/lib/pagination.test.ts` (21), and paging in `db/items`
+  (2) and `db/collections` (1). Suite 341 → 365
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with both page sizes temporarily set
+to 2 (no list in the demo data exceeds 21) and then restored. Zero console
+errors or warnings:
+
+- `/items/link` showed 5 items over 3 pages. Page 1 had Previous disabled, and
+  the last page had Next disabled
+- `?page=99` redirected to `?page=3`, and `?page=abc` showed page 1
+- Clicking Next on `/collections/devops` went to `?page=2` with the current
+  page marked
+- `/collections` showed 5 collections over 3 pages
+- The Images gallery paged, and the Files list (2 items) showed no controls
+- The disabled Previous/Next computed `opacity: 0.5` and
+  `pointer-events: none`
+- At 390px the controls are 176px wide, with no horizontal scroll
+- The dashboard still shows 5 collections and 10 recent items
+
+Decisions worth carrying forward:
+
+- **The collection route is `/collections/[slug]`**, not the spec's
+  `[name]`. `COLLECTIONS_PER_PAGE` applies to `/collections`, the only page that
+  lists collections; the spec names no route for it
+- **The page lives in the URL** as `?page=N`, and page 1 is the bare path. The
+  controls are plain `Link`s, so they work without JavaScript and the pages stay
+  server components
+- **A page past the end redirects to the last page; a malformed one reads as
+  page 1.** The redirect happens after the page's own query, so an in-range
+  page costs no extra round trip. A malformed value keeps its bad URL rather
+  than being redirected. `MAX_PAGE = 100_000` caps the parsed value so an
+  absurd `?page=` cannot become an absurd `OFFSET`
+- **The page and its count run in parallel**, so a page is still one round
+  trip after the type or collection lookup
+- **Ties on `updatedAt` break on `id`.** Without a unique tie-break, rows with
+  the same timestamp can swap between two pages from one request to the next,
+  showing one row twice and skipping another. `getRecentCollections` picked up
+  the same ordering
+- **The controls hide when everything fits on one page**, so with the demo
+  data at 21 per page no list shows them yet
+- **Seven slots, fixed.** Once ellipses are needed the list is always first,
+  last, the current page, its neighbours and two gaps, so the controls do not
+  change width as you page. A gap never stands in for a single page
+- **Collection cards' counts are still aggregated over all the user's
+  collections**, not just the page's 21. Filtering the aggregate to the page's
+  ids would make it wait on the collections query, and its size is bounded by
+  collections × types either way
+- **Out of scope, still unbounded:** the sidebar's collection list, the
+  collection picker and the search palette. They are not paginated listings
+- `/items/[type]` is still demo-scoped, and the collection pages are
+  session-scoped. Pagination changed neither
+- **PowerShell's here-string did not reach `git commit -F -`**; the message
+  became a pathspec. Commit multi-line messages through the Bash tool
 - The browser session used a session JWT minted locally for `seed-user-demo`
   with no database write. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshots; it is gitignored
