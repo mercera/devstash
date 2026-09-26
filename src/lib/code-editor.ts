@@ -66,7 +66,19 @@ export function getCodeEditorHeight(contentHeight: number, minHeight = 0): numbe
  * The content height Monaco will report for `value`, used to size the editor
  * before Monaco has loaded so the page does not jump when it arrives.
  */
-export function estimateContentHeight(value: string): number {
+export function estimateContentHeight(
+  value: string,
+  lineHeight = CODE_EDITOR_LINE_HEIGHT,
+): number {
   const lines = value.split("\n").length;
-  return lines * CODE_EDITOR_LINE_HEIGHT + CODE_EDITOR_PADDING * 2;
+  return lines * lineHeight + CODE_EDITOR_PADDING * 2;
+}
+
+/**
+ * The line height for a font size, at 1.5×. The default 13px font gives
+ * `CODE_EDITOR_LINE_HEIGHT`, the height the editor used before font size was
+ * a setting.
+ */
+export function getEditorLineHeight(fontSize: number): number {
+  return Math.round(fontSize * 1.5);
 }

@@ -47,6 +47,10 @@ model User {
   stripeCustomerId     String? @unique
   stripeSubscriptionId String? @unique
 
+  /// Monaco settings. Null until first saved; read through
+  /// `parseEditorPreferences`, which fills in defaults.
+  editorPreferences Json?
+
   accounts    Account[]
   sessions    Session[]
   items       Item[]
