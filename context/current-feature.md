@@ -1,52 +1,18 @@
-# Current Feature: Favorite Toggle
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- The drawer's **Favorite** button toggles `Item.isFavorite` for the open item
-- The collection page's **Favorite** button toggles `Collection.isFavorite`
-- The collection card's three-dots menu **Favorite / Unfavorite** item toggles
-  it too
-- Item cards get a star button that toggles the item's favorite without opening
-  the drawer
-- Each toggle updates the UI straight away (optimistic), reverts with an error
-  toast if the save fails, and `router.refresh()`es so the sidebar's Favorites
-  section, the dashboard stat cards and `/favorites` catch up
-- Server actions `setItemFavorite(itemId, isFavorite)` and
-  `setCollectionFavorite(collectionId, isFavorite)` — session first, then Zod, returning
-  `{ success, data, error }`; ownership is part of the write, so a missing or
-  foreign id is "not found"
-- Unit tests for the new db functions and actions; `npm test`,
-  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description: "add a favourite button to the drawer,
-  collection page and cards to toggle"
-- All four surfaces already **render** the favorite state but are display-only:
-  `src/components/items/ItemActions.tsx` (drawer),
-  `src/components/collections/CollectionActions.tsx` (collection page),
-  `src/components/collections/CollectionCardMenu.tsx` (collection cards) and
-  the static star in `src/components/items/ItemCard.tsx`
-- **"Cards" is ambiguous** — collection cards (the menu item already exists)
-  and/or item cards (currently only a static star). Goals assume both; confirm
-  before starting
-- Item cards are server components opened through the stretched
-  `ItemCardButton`. A star button must sit above that overlay as a sibling with
-  `relative z-10`, like `FileRow`'s download link, so the card stays a server
-  component and a star click does not open the drawer
-- The drawer keeps the loaded `ItemDetail` in `ItemDrawerProvider` state, so a
-  toggle there must update that state (as `onSaved` does for edits)
-- Send the target value (`isFavorite: boolean`) rather than a bare flip, so a
-  double click or a retry cannot land on the wrong state
-- `ImageCard` and `FileRow` show the same static star; decide whether they get
-  the toggle too
-- Pin stays display-only — not in scope
-- Mutations are session-scoped; item lists are still demo-scoped, so only the
-  demo account can toggle what it sees (same limit as edit/delete)
+<!-- Any extra notes -->
 
 ## History
 
@@ -3333,3 +3299,95 @@ Decisions worth carrying forward:
 - The browser session used session JWTs minted locally for `seed-user-demo`
   and a user id with no rows. The token file was deleted afterwards.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Favorite Toggle — Completed (2026-09-26)
+
+Favorite now works from the item drawer, the collection page and the
+collection card menu, and item cards gained a star button. Branch
+`feature/favorite-toggle`. Three new source files, ten existing files touched
+plus four test files, no new dependencies, no migration. Loaded from an inline
+description rather than a spec file.
+
+- Added `setItemFavorite(id, userId, isFavorite)` to `src/lib/db/items.ts`
+  (returns `{ isFavorite, updatedAt }`) and
+  `setCollectionFavorite(userId, id, isFavorite)` to
+  `src/lib/db/collections.ts` (returns `{ isFavorite }`). Both return null for
+  a missing or foreign row
+- Added the `setItemFavorite(itemId, isFavorite)` and
+  `setCollectionFavorite(collectionId, isFavorite)` server actions: session
+  first, then Zod (`isFavoriteSchema` in `src/lib/validations/favorites.ts`),
+  returning `{ success, data, error }`
+- Added `src/hooks/use-favorite-toggle.ts`: an optimistic flip through
+  `useOptimistic`, an error toast and automatic revert on failure, then
+  `router.refresh()`
+- Added `src/components/items/ItemFavoriteButton.tsx`, the item card's star.
+  `ItemCard` renders it beside the date and dropped its static star
+- `ItemActions` (drawer), `CollectionActions` (collection page) and
+  `CollectionCardMenu` use the hook. The drawer hands the saved state back
+  through `onSaved`, now threaded from `ItemDetailView`
+- 16 unit tests across `db/items`, `db/collections`, `actions/items` and
+  `actions/collections`. Suite 398 → 414
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user:
+
+- Item card star:
+  - it flipped at once and held for 4s while the refresh landed
+  - the drawer stayed shut
+  - the item then appeared on `/favorites`
+- Card star visibility and keyboard:
+  - an unfavorited card's star showed on hover and on keyboard focus
+  - Tab went from Open to the star
+- Drawer:
+  - the Favorite button held its state across the refresh
+  - reopening the drawer showed the saved state
+  - the card behind it updated after ~2.8s
+- Collection card menu: the label switched to Unfavorite, and the collection
+  moved into the sidebar's Favorites
+- Collection page: Favorite unfavorited it, and it left the sidebar Favorites
+  after ~1.6s
+- Offline: the star reverted with "Could not save. Check your connection and
+  try again."
+- At 390px nothing scrolls sideways
+
+Decisions worth carrying forward:
+
+- **"Cards" was read as both collection cards and item cards.** The question was
+  raised at load time and not answered, so the goals as written were built.
+  `ImageCard` and `FileRow` still show a static star
+- **The actions take the state to set, not a flip**, so a double click or a
+  retried request cannot land on the opposite of what was asked
+- **Ownership is part of the write**: `update` with `where: { id, userId }`,
+  with P2025 mapped to null. As with the other mutations, another user's row is
+  "not found", never forbidden
+- **The post-save `onSaved` and `refresh` run in a nested `startTransition`.**
+  React only treats updates after an `await` as part of the transition when
+  they are wrapped again. Wrapped, they join the pending action, so the
+  optimistic value is held until the refreshed props arrive instead of
+  flickering back. Confirmed by sampling `aria-pressed` every 100ms for 4s
+- **The drawer's copy of the item is updated through `onSaved`**, because
+  `router.refresh()` re-renders server props but not the provider's client
+  state
+- **Favoriting bumps `updatedAt`** (Prisma's `@updatedAt`). That is what
+  `/favorites` sorts by as "most recently favorited", but it also moves the item
+  up in the dashboard's Recent list and on the type pages
+- **The item card's star shows only on hover or focus unless the item is a
+  favorite**, and always on `pointer-coarse` screens, where there is no hover.
+  Headless Chromium reports a fine pointer even at 390px, so the touch branch was
+  not exercised
+- **`ItemCardButton` moved first in the card's DOM**, so Tab reaches Open
+  before the star. It is absolutely positioned, so the layout is unchanged. The
+  same call as `FileRow`
+- **The collection card's own star next to the name is not optimistic**; it
+  updates when the refresh lands. Only the menu label flips at once
+- **Pin is still display-only.** The same hook would serve it once a
+  `setItemPinned` action exists
+- Only the demo account can toggle what it sees, the same limit as edit and
+  delete, since the item lists are still demo-scoped
+- The walkthrough favorited then unfavorited "list files" and the DevOps
+  collection, so both ended as they started, but their `updatedAt` is now
+  2026-09-26
+- The browser session used a session JWT minted locally for `seed-user-demo`.
+  The token file was deleted afterwards. `.playwright-mcp/` holds the console
+  log; it is gitignored
