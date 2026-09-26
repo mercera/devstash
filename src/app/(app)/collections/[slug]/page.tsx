@@ -6,8 +6,15 @@ import { FolderOpen } from "lucide-react";
 import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/items/ItemCard";
+import { Pagination } from "@/components/pagination/Pagination";
 import { getCollectionBySlug } from "@/lib/db/collections";
 import { getItemsByCollection } from "@/lib/db/items";
+import {
+  ITEMS_PER_PAGE,
+  getPageHref,
+  getTotalPages,
+  parsePageParam,
+} from "@/lib/pagination";
 import { getSessionUserId } from "@/lib/session";
 
 /**
@@ -31,8 +38,13 @@ export async function generateMetadata({
  */
 export default async function CollectionPage({
   params,
+  searchParams,
 }: PageProps<"/collections/[slug]">) {
-  const [{ slug }, userId] = await Promise.all([params, getSessionUserId()]);
+  const [{ slug }, query, userId] = await Promise.all([
+    params,
+    searchParams,
+    getSessionUserId(),
+  ]);
 
   if (!userId) {
     redirect(SIGN_IN_PATH);
@@ -42,7 +54,16 @@ export default async function CollectionPage({
 
   if (collection === null) notFound();
 
-  const items = await getItemsByCollection(userId, collection.id);
+  const page = parsePageParam(query.page);
+  const pathname = `/collections/${collection.slug}`;
+  const { rows: items, total } = await getItemsByCollection(
+    userId,
+    collection.id,
+    page,
+  );
+  const totalPages = getTotalPages(total, ITEMS_PER_PAGE);
+
+  if (page > totalPages) redirect(getPageHref(pathname, totalPages));
 
   return (
     <div className="flex flex-col gap-8">
@@ -60,7 +81,7 @@ export default async function CollectionPage({
             </p>
           )}
           <p className="mt-1 text-sm text-muted-foreground">
-            {items.length} {items.length === 1 ? "item" : "items"}
+            {total} {total === 1 ? "item" : "items"}
           </p>
         </div>
         <CollectionActions
@@ -85,6 +106,8 @@ export default async function CollectionPage({
           No items in this collection yet.
         </p>
       )}
+
+      <Pagination pathname={pathname} page={page} totalPages={totalPages} />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { cache } from "react";
 import type { Prisma } from "@/generated/prisma/client";
 import type { ItemGetPayload } from "@/generated/prisma/models";
 import { CollectionNotFoundError } from "@/lib/db/errors";
+import { ITEMS_PER_PAGE, getPageRange } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { toSearchPreview } from "@/lib/search";
 import type { CreateItemData, UpdateItemData } from "@/lib/validations/items";
@@ -22,6 +23,7 @@ import type {
   ItemType,
   ItemTypeWithCount,
   ItemWithRelations,
+  Paginated,
   SearchItem,
 } from "@/types";
 
@@ -304,7 +306,31 @@ export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
 }
 
 /**
- * The user's items in one collection, most recently updated first.
+ * One page of `where`'s items, most recently updated first, with the total.
+ *
+ * The page and the count run side by side, so a page costs one round trip.
+ * `id` breaks ties on `updatedAt`, so rows with the same timestamp cannot
+ * swap between pages from one request to the next.
+ */
+async function getItemsPage(
+  where: Prisma.ItemWhereInput,
+  page: number,
+): Promise<Paginated<ItemWithRelations>> {
+  const [items, total] = await Promise.all([
+    prisma.item.findMany({
+      where,
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      ...getPageRange(page, ITEMS_PER_PAGE),
+      include: itemInclude,
+    }),
+    prisma.item.count({ where }),
+  ]);
+
+  return { rows: items.map(toItemWithRelations), total };
+}
+
+/**
+ * One page of the user's items in one collection, most recently updated first.
  *
  * Scoped to `userId` on the item as well as through the caller's collection
  * lookup, so a link to another user's item can never surface here.
@@ -312,14 +338,12 @@ export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
 export async function getItemsByCollection(
   userId: string,
   collectionId: string,
-): Promise<ItemWithRelations[]> {
-  const items = await prisma.item.findMany({
-    where: { userId, collections: { some: { collectionId } } },
-    orderBy: { updatedAt: "desc" },
-    include: itemInclude,
-  });
-
-  return items.map(toItemWithRelations);
+  page: number,
+): Promise<Paginated<ItemWithRelations>> {
+  return getItemsPage(
+    { userId, collections: { some: { collectionId } } },
+    page,
+  );
 }
 
 /**
@@ -355,19 +379,15 @@ export async function getSearchItems(userId: string): Promise<SearchItem[]> {
 }
 
 /**
- * One item type, looked up by slug, with all of the user's items of that type,
- * most recently updated first. Returns null when no type the user can see has
- * that slug.
+ * The item type with this slug, or null when no type the user can see has it.
  *
- * The type is resolved first rather than filtering items through the relation
+ * Looked up on its own rather than by filtering items through the relation
  * (`type: { slug }`): a slug is unique only per owner, so a filter could match
  * a system type and a same-slug custom type at once, and an unknown slug must
  * be told apart from a known type with no items.
  */
-export async function getItemsByType(
-  slug: string,
-): Promise<{ type: ItemType; items: ItemWithRelations[] } | null> {
-  const type = await prisma.itemType.findFirst({
+export async function getItemTypeBySlug(slug: string): Promise<ItemType | null> {
+  return prisma.itemType.findFirst({
     where: { slug, OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
     orderBy: { createdAt: "asc" },
     select: {
@@ -379,16 +399,14 @@ export async function getItemsByType(
       isSystem: true,
     },
   });
+}
 
-  if (type === null) return null;
-
-  const items = await prisma.item.findMany({
-    where: { userId: DEMO_USER_ID, typeId: type.id },
-    orderBy: { updatedAt: "desc" },
-    include: itemInclude,
-  });
-
-  return { type, items: items.map(toItemWithRelations) };
+/** One page of the user's items of one type, most recently updated first. */
+export async function getItemsByType(
+  typeId: string,
+  page: number,
+): Promise<Paginated<ItemWithRelations>> {
+  return getItemsPage({ userId: DEMO_USER_ID, typeId }, page);
 }
 
 /**

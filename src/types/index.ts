@@ -147,6 +147,12 @@ export interface SearchCollection {
   itemCount: number;
 }
 
+/** One page of a listing, with the size of the whole list for the controls. */
+export interface Paginated<T> {
+  rows: T[];
+  total: number;
+}
+
 /**
  * The signed-in user as the profile page renders them.
  *

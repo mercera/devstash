@@ -10,6 +10,10 @@ import { ItemCard } from "@/components/items/ItemCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { getCollectionStats, getRecentCollections } from "@/lib/db/collections";
 import { getItemStats, getPinnedItems, getRecentItems } from "@/lib/db/items";
+import {
+  DASHBOARD_COLLECTIONS_LIMIT,
+  DASHBOARD_RECENT_ITEMS_LIMIT,
+} from "@/lib/pagination";
 import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -24,9 +28,6 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic";
 
-const RECENT_ITEM_LIMIT = 10;
-const COLLECTION_CARD_LIMIT = 6;
-
 export default async function DashboardPage() {
   const userId = await getSessionUserId();
 
@@ -36,10 +37,10 @@ export default async function DashboardPage() {
 
   const [collections, collectionStats, pinnedItems, recentItems, itemStats] =
     await Promise.all([
-      getRecentCollections(userId, COLLECTION_CARD_LIMIT),
+      getRecentCollections(userId, DASHBOARD_COLLECTIONS_LIMIT),
       getCollectionStats(userId),
       getPinnedItems(),
-      getRecentItems(RECENT_ITEM_LIMIT),
+      getRecentItems(DASHBOARD_RECENT_ITEMS_LIMIT),
       getItemStats(),
     ]);
 

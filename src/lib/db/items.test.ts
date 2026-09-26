@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Only `getItemById`, `getItemsByCollection`, `getSearchItems`, `createItem`,
- * `updateItem` and `deleteItem` are covered here: they are the queries in this
- * module scoped to a caller-supplied user, backing a public API route, server
- * actions, the collection pages and the command palette. The database is mocked, so these tests pin the
- * queries' shape and the mapping, not Postgres behaviour.
+ * `updateItem` and `deleteItem` are covered for scoping: they are the queries
+ * in this module scoped to a caller-supplied user, backing a public API route,
+ * server actions, the collection pages and the command palette.
+ * `getItemsByType` is covered for its pagination. The database is mocked, so
+ * these tests pin the queries' shape and the mapping, not Postgres behaviour.
  */
 
 const mocks = vi.hoisted(() => {
@@ -20,7 +21,12 @@ const mocks = vi.hoisted(() => {
   return {
     tx,
     prisma: {
-      item: { findFirst: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+      item: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+        count: vi.fn(),
+        deleteMany: vi.fn(),
+      },
       itemType: { findFirst: vi.fn() },
       $transaction: vi.fn(async (run: (client: typeof tx) => Promise<unknown>) =>
         run(tx),
@@ -37,9 +43,11 @@ import {
   deleteItem,
   getItemById,
   getItemsByCollection,
+  getItemsByType,
   getSearchItems,
   updateItem,
 } from "@/lib/db/items";
+import { ITEMS_PER_PAGE } from "@/lib/pagination";
 import { SEARCH_PREVIEW_LENGTH } from "@/lib/search";
 
 const createdAt = new Date("2026-08-26T10:00:00Z");
@@ -448,27 +456,67 @@ describe("updateItem", () => {
 });
 
 describe("getItemsByCollection", () => {
-  it("scopes the items to both the owner and the collection, newest first", async () => {
+  it("scopes the page and the count to both the owner and the collection", async () => {
     mocks.prisma.item.findMany.mockResolvedValue([]);
+    mocks.prisma.item.count.mockResolvedValue(0);
 
-    await getItemsByCollection("user-1", "col-1");
+    await getItemsByCollection("user-1", "col-1", 1);
 
+    const where = { userId: "user-1", collections: { some: { collectionId: "col-1" } } };
     expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user-1", collections: { some: { collectionId: "col-1" } } },
-        orderBy: { updatedAt: "desc" },
+        where,
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       }),
     );
+    expect(mocks.prisma.item.count).toHaveBeenCalledWith({ where });
+  });
+
+  it("fetches only the requested page", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([]);
+    mocks.prisma.item.count.mockResolvedValue(50);
+
+    const { total } = await getItemsByCollection("user-1", "col-1", 3);
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 2 * ITEMS_PER_PAGE, take: ITEMS_PER_PAGE }),
+    );
+    expect(total).toBe(50);
   });
 
   it("maps rows to the card shape, flattening tags and dropping the owner", async () => {
     mocks.prisma.item.findMany.mockResolvedValue([itemRow()]);
+    mocks.prisma.item.count.mockResolvedValue(1);
 
-    const [item] = await getItemsByCollection("user-1", "col-1");
+    const {
+      rows: [item],
+    } = await getItemsByCollection("user-1", "col-1", 1);
 
     expect(item.tags).toEqual(["process", "terminal"]);
     expect(item).not.toHaveProperty("userId");
     expect(item).not.toHaveProperty("collections");
+  });
+});
+
+describe("getItemsByType", () => {
+  it("fetches one page of the type's items with the type's total", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([itemRow()]);
+    mocks.prisma.item.count.mockResolvedValue(22);
+
+    const { rows, total } = await getItemsByType("type-command", 2);
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ typeId: "type-command" }),
+        skip: ITEMS_PER_PAGE,
+        take: ITEMS_PER_PAGE,
+      }),
+    );
+    expect(mocks.prisma.item.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({ typeId: "type-command" }),
+    });
+    expect(rows).toHaveLength(1);
+    expect(total).toBe(22);
   });
 });
 

@@ -7,13 +7,19 @@
  */
 
 import { isRecordNotFoundError, isUniqueConstraintError } from "@/lib/db/errors";
+import { COLLECTIONS_PER_PAGE, getPageRange } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { isSlugFor, slugify, uniqueSlug } from "@/lib/slug";
 import type {
   CreateCollectionData,
   UpdateCollectionData,
 } from "@/lib/validations/collections";
-import type { Collection, CollectionCardData, ItemType } from "@/types";
+import type {
+  Collection,
+  CollectionCardData,
+  ItemType,
+  Paginated,
+} from "@/types";
 
 /**
  * How many times a create re-picks its slug after losing a race to another
@@ -123,11 +129,43 @@ export async function getRecentCollections(
   userId: string,
   limit?: number,
 ): Promise<CollectionCardData[]> {
+  return getCollectionCards(userId, { take: limit });
+}
+
+/**
+ * One page of the user's collections for `/collections`, built the same way as
+ * `getRecentCollections`, with the total for the pagination controls.
+ */
+export async function getCollectionsPage(
+  userId: string,
+  page: number,
+): Promise<Paginated<CollectionCardData>> {
+  const [rows, total] = await Promise.all([
+    getCollectionCards(userId, getPageRange(page, COLLECTIONS_PER_PAGE)),
+    prisma.collection.count({ where: { userId } }),
+  ]);
+
+  return { rows, total };
+}
+
+/**
+ * A slice of the user's collections as cards, most recently updated first.
+ * `id` breaks ties on `updatedAt`, so a page boundary cannot fall differently
+ * between requests.
+ *
+ * The per-type counts cover every collection, not just the slice. Filtering
+ * them to the slice's ids would make the aggregate wait on the collections
+ * query, and its result is bounded by collections × types either way.
+ */
+async function getCollectionCards(
+  userId: string,
+  range: { skip?: number; take?: number },
+): Promise<CollectionCardData[]> {
   const [collections, types, typeCounts] = await Promise.all([
     prisma.collection.findMany({
       where: { userId },
-      orderBy: { updatedAt: "desc" },
-      take: limit,
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      ...range,
     }),
     prisma.itemType.findMany({
       where: { OR: [{ isSystem: true }, { userId }] },
