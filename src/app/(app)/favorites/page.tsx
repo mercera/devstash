@@ -10,6 +10,7 @@ import { ItemCardButton } from "@/components/items/ItemCardButton";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { getFavoriteCollections } from "@/lib/db/collections";
 import { getFavoriteItems } from "@/lib/db/items";
+import { FAVORITE_SORTS, type FavoriteSort } from "@/lib/favorites-sort";
 import { getAccentTextClass } from "@/lib/icons";
 import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -20,14 +21,20 @@ export const metadata: Metadata = {
 
 const ICON_CLASS = "size-4 shrink-0";
 
+const ITEM_SORTS: readonly FavoriteSort[] = FAVORITE_SORTS;
+
+/** Collections have no item type, so they cannot be sorted by one. */
+const COLLECTION_SORTS: readonly FavoriteSort[] = ["name", "date"];
+
 function plural(count: number, noun: string): string {
   return `${count} ${count === 1 ? noun : `${noun}s`}`;
 }
 
 /**
  * The signed-in user's favorited items and collections as a compact list,
- * most recently updated first. Scoped to the session user for both, so every
- * item listed is one the drawer's API will open.
+ * most recently updated first until a section is sorted otherwise. Scoped
+ * to the session user for both, so every item listed is one the drawer's API
+ * will open.
  */
 export default async function FavoritesPage() {
   const userId = await getSessionUserId();
@@ -60,54 +67,61 @@ export default async function FavoritesPage() {
           <FavoritesSection
             id="favorite-items"
             title="Items"
-            count={items.length}
             emptyText="No favorite items."
-          >
-            {items.map((item) => (
-              <FavoriteRow
-                key={item.id}
-                icon={
-                  <TypeIcon
-                    type={item.type}
-                    className={cn(ICON_CLASS, getAccentTextClass(item.type.color))}
-                  />
-                }
-                title={item.title}
-                badge={item.type.slug}
-                date={item.updatedAt}
-              >
-                <ItemCardButton itemId={item.id} title={item.title} />
-              </FavoriteRow>
-            ))}
-          </FavoritesSection>
+            sorts={ITEM_SORTS}
+            rows={items.map((item) => ({
+              id: item.id,
+              name: item.title,
+              date: item.updatedAt,
+              type: item.type.slug,
+              node: (
+                <FavoriteRow
+                  icon={
+                    <TypeIcon
+                      type={item.type}
+                      className={cn(ICON_CLASS, getAccentTextClass(item.type.color))}
+                    />
+                  }
+                  title={item.title}
+                  badge={item.type.slug}
+                  date={item.updatedAt}
+                >
+                  <ItemCardButton itemId={item.id} title={item.title} />
+                </FavoriteRow>
+              ),
+            }))}
+          />
 
           <FavoritesSection
             id="favorite-collections"
             title="Collections"
-            count={collections.length}
             emptyText="No favorite collections."
-          >
-            {collections.map((collection) => (
-              <FavoriteRow
-                key={collection.id}
-                icon={
-                  <Folder
-                    className={cn(ICON_CLASS, "text-muted-foreground")}
-                    aria-hidden
+            sorts={COLLECTION_SORTS}
+            rows={collections.map((collection) => ({
+              id: collection.id,
+              name: collection.name,
+              date: collection.updatedAt,
+              node: (
+                <FavoriteRow
+                  icon={
+                    <Folder
+                      className={cn(ICON_CLASS, "text-muted-foreground")}
+                      aria-hidden
+                    />
+                  }
+                  title={collection.name}
+                  badge={plural(collection.itemCount, "item")}
+                  date={collection.updatedAt}
+                >
+                  <Link
+                    href={`/collections/${collection.slug}`}
+                    aria-label={`Open ${collection.name}`}
+                    className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   />
-                }
-                title={collection.name}
-                badge={plural(collection.itemCount, "item")}
-                date={collection.updatedAt}
-              >
-                <Link
-                  href={`/collections/${collection.slug}`}
-                  aria-label={`Open ${collection.name}`}
-                  className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                />
-              </FavoriteRow>
-            ))}
-          </FavoritesSection>
+                </FavoriteRow>
+              ),
+            }))}
+          />
         </>
       )}
     </div>

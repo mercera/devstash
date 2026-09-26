@@ -1,18 +1,42 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Favorites Sorting
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/favorites` gains a sort control that switches between **Name**, **Date**
+  and **Type**
+- Sorting happens client-side, on the data already loaded: no new query, no
+  server round trip, no URL change
+- **Name**: alphabetical by item title / collection name, case-insensitive
+- **Date**: most recently updated first (the current default order)
+- **Type**: items grouped by item type, with a stable secondary sort within
+  each type
+- Each section has its own sort control: **Items** offers Name, Date and
+  Type; **Collections** offers Name and Date only (collections have no item
+  type)
+- Rows keep working as before: item rows open the drawer, collection rows link
+  to `/collections/[slug]`, and focus return still works
+- The sorting logic lives in a pure `src/lib/` utility with unit tests
+- Works at 390px with no horizontal scroll
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- Collections have no item type, so the user chose to **hide Type for
+  collections**. That means a separate control per section rather than one
+  shared control
+- The page and its rows are server components today. Client-side sorting
+  needs a small client wrapper that receives the already-fetched rows and
+  renders them sorted; the page keeps fetching on the server
+- Default sort stays **Date**, so the page looks unchanged until a sort is
+  picked. Persisting the choice is not specified; proposed: no persistence
+- Date is newest first. No ascending/descending toggle unless asked
+- Both getters (`getFavoriteItems`, `getFavoriteCollections`) are
+  session-scoped and unpaginated, so the whole list is in memory and sorting
+  it in the browser is correct
 
 ## History
 
