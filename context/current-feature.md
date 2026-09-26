@@ -1,56 +1,18 @@
-# Current Feature: Pinned Items
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- A server action that pins or unpins one of the signed-in user's items
-- The drawer's Pin button (in `ItemActions`, currently no `onClick`) toggles pin
-- The button updates optimistically and reverts on failure
-- A toast on success and on error
-- Pinned items sort to the top of item listings
-- Pinned items appear in the dashboard's Pinned section
-- Follows the Favorite toggle pattern (db function → server action →
-  `use-favorite-toggle`-style hook → `onSaved` back to the drawer)
-- Items only; collections cannot be pinned
-- The pin icon on `ItemCard` stays a static indicator (no card button)
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/pinned-spec.md`
-- **Name vs pattern:** the spec names the action `toggleItemPin`, but the
-  Favorite pattern it asks to follow takes the state to set
-  (`setItemFavorite(itemId, isFavorite)`), so a double click or retry can't
-  land on the opposite. Plan to follow the pattern (`setItemPinned(itemId,
-  isPinned)`) unless told otherwise
-- **Reuse:** `src/hooks/use-favorite-toggle.ts` could be generalised (the
-  Favorite Toggle write-up says "the same hook would serve it once a
-  `setItemPinned` action exists"), with the favorite-specific wording moved to
-  parameters
-- **Listings:** `/items/[type]` and `/collections/[slug]` both page through
-  `getItemsPage` in `src/lib/db/items.ts`, currently
-  `orderBy: [{ updatedAt: "desc" }, { id: "asc" }]`. Adding `isPinned: "desc"`
-  first sorts pinned to the top of page 1 and keeps paging stable
-- **Dashboard:** `getPinnedItems()` already reads `isPinned: true`, and the
-  Pinned section already hides when empty. `router.refresh()` after a save is
-  what surfaces a newly pinned item there. It is still demo-scoped
-- Unclear whether "listings" includes the dashboard's Recent list, the
-  Favorites page, search or the Images/Files views. Images and Files use the
-  same `getItemsPage`, so they get it for free; the rest keep their own order
-  unless told otherwise
-- Pinning bumps `updatedAt` (Prisma `@updatedAt`), as favoriting does, so it
-  also moves the item in Recent
-- Ownership goes in the write (`where: { id, userId }`, P2025 → null), like
-  `setItemFavorite`
-- **Implemented on `feature/pinned-items`:** `setItemPinned` (db + action);
-  `use-favorite-toggle` → `use-optimistic-toggle` (`value`, optional
-  `successMessage`), with its four favorite callers updated; the drawer's Pin
-  button wired; `getItemsPage` sorts `isPinned` first; the drawer's `onSaved`
-  now takes an `ItemDetailPatch` merged into its copy, so a quick pin then
-  favorite cannot overwrite each other. Suite 422 → 430. Tests, typecheck,
-  lint and build pass; verified in the browser
+<!-- Any extra notes -->
 
 ## History
 
@@ -3497,3 +3459,82 @@ Decisions worth carrying forward:
   and the file was deleted afterwards
 - Python is not installed on this machine; use the Edit tool or Node for
   scripted file edits
+
+### Pinned Items — Completed (2026-09-26)
+
+The item drawer's Pin button now pins and unpins, and pinned items sort to the
+top of item listings. Branch `feature/pinned-items`. No new source files (one
+hook renamed), thirteen existing files touched plus two test files, no new
+dependencies, no migration. Spec: `context/features/pinned-spec.md`.
+
+- Added `setItemPinned(id, userId, isPinned)` to `src/lib/db/items.ts`
+  (returns `{ isPinned, updatedAt }`, or null for a missing or foreign item)
+  and the `setItemPinned(itemId, isPinned)` server action to
+  `src/actions/items.ts`: session first, then Zod (`isPinnedSchema` in
+  `src/lib/validations/items.ts`), returning `{ success, data, error }`
+- Renamed `src/hooks/use-favorite-toggle.ts` to
+  `src/hooks/use-optimistic-toggle.ts` (`useOptimisticToggle`). It takes
+  `value` instead of `isFavorite`, returns `{ value, toggle }`, and gained an
+  optional `successMessage`. The four favorite callers (`ItemActions`,
+  `ItemFavoriteButton`, `CollectionActions`, `CollectionCardMenu`) moved onto it
+  unchanged in behaviour
+- The drawer's Pin button toggles through the hook, with an "Item pinned" /
+  "Item unpinned" toast on success and an error toast plus revert on failure
+- `getItemsPage` orders by `isPinned desc`, then `updatedAt desc`, then `id`,
+  so the type pages, collection pages, the Images gallery and the Files list
+  all show pinned items first
+- Added `ItemDetailPatch` to `src/types/index.ts`. The drawer's `onSaved`
+  (provider → `ItemDrawer` → `ItemDetailView` → `ItemActions`) now takes a
+  patch, which the provider merges into its copy of the item
+- 8 unit tests across `db/items` and `actions/items`, plus the pinned-first
+  `orderBy` asserted on both paged getters. Suite 422 → 430
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user:
+
+- Pinning "Deploy to Production" from the drawer flipped the button at once
+  and held with no flicker. "Item pinned" toasted after ~350ms, and the card
+  moved to the top of `/items/command` with its pin icon
+- Pinned-first sorting is visible independently of the `updatedAt` bump:
+  "Find and Kill a Process on a Port" (pinned, updated 2026-09-23) sits above
+  "list files" (unpinned, updated 2026-09-26)
+- The item appeared in the dashboard's Pinned section, and left it after
+  unpinning
+- Unpin then Favorite clicked back to back both held, in the drawer and after
+  a reload
+- Offline, the button stayed unpinned with "Could not save. Check your
+  connection and try again."
+- At 390px nothing scrolls sideways. The only console error was the
+  deliberate offline request
+
+Decisions worth carrying forward:
+
+- **`setItemPinned`, not the spec's `toggleItemPin`.** The Favorite pattern
+  the spec points to takes the state to set, so a double click or a retried
+  request cannot land on the opposite of what was asked
+- **Drawer saves are patches, not whole items.** With two toggles in one
+  action bar, each `onSaved` spread the `item` from its own render. Pinning
+  then favoriting quickly let the favorite's save write back the old
+  `isPinned`. Merging `{ id, …changed fields }` into the provider's current
+  copy fixes it. The edit form still passes a whole `ItemDetail`, which
+  satisfies the patch type
+- **Only `Pin` toasts on success.** `successMessage` is optional, so the
+  favorite toggles keep their error-only behaviour
+- **The card's pin icon stays display-only**, per the spec. A card button was
+  offered afterwards and declined. `ImageCard` and `FileRow` show static
+  icons too
+- **"Listings" means the paged lists.** The dashboard's Recent list,
+  `/favorites` and the search palette keep their own order
+- **Pinning bumps `updatedAt`** (Prisma's `@updatedAt`), as favoriting does,
+  so a pinned or unpinned item also moves to the top of Recent
+- Only the demo account can pin what it sees, the same limit as edit and
+  favorite, since the item lists are still demo-scoped
+- The walkthrough pinned and then unpinned "Deploy to Production", and
+  favorited then unfavorited it. It ends as it started, but its `updatedAt`
+  is now 2026-09-26
+- **The Playwright MCP sandbox cannot `import("node:fs")`**, so the session
+  token was read by navigating to it as a `file://` URL and taking the page
+  text. The token never appeared in the transcript. It was minted locally for
+  `seed-user-demo` and deleted afterwards. `.playwright-mcp/` holds the
+  console log; it is gitignored
