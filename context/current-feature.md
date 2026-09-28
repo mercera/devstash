@@ -1,42 +1,18 @@
-# Current Feature: Homepage Nav on Auth Pages
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- `/sign-in` and `/register` show the same top nav as the homepage: logo
-  linking to `/`, the Features and Pricing links, and the Sign In /
-  Get Started buttons
-- The Features and Pricing links go to the homepage sections (`/#features`,
-  `/#pricing`), not to anchors on the auth page
-- The nav is reused from `HomeNav`, not copied
-- The auth card is not hidden under the fixed nav, and the page does not
-  scroll only because the nav was added
-- The auth card no longer repeats the large logo above the form, since the nav
-  already shows it
-- At 390px the section links hide, as on the homepage, with no horizontal
-  scroll
-- The homepage nav looks and behaves as before
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- `HomeNav` (`src/components/home/HomeNav.tsx`) wraps a fixed, 64px-tall
-  `ScrollHeader` that grows more opaque on scroll. It takes `signedIn`
-- `SECTION_LINKS` in `src/components/home/links.ts` are bare hashes
-  (`#features`), which only work on `/`. They need a `/` prefix, or a prop, for
-  the auth pages
-- The nav would go in `src/app/(auth)/layout.tsx`, which also wraps
-  `/forgot-password`, `/reset-password` and `/verify-email`. Putting it in the
-  layout gives those three the nav as well; scoping it to only sign-in and
-  register means adding it to the two pages instead. Decide at start
-- `/sign-in` and `/register` already redirect a signed-in visitor to
-  `/dashboard`, so on those two the nav is always the signed-out version.
-  The other three auth pages do not redirect
-- Could highlight the current page's button (Sign In on `/sign-in`,
-  Get Started on `/register`); not asked for
+<!-- Any extra notes -->
 
 ## History
 
@@ -3798,3 +3774,49 @@ Decisions worth carrying forward:
   deleted. `.claude/agents/ui-reviewer.md` is still untracked
 - The browser session was the one the reviewer signed in with as
   `demo@devstash.io`
+
+### Homepage Nav on Auth Pages — Completed (2026-09-28)
+
+The homepage's top nav now sits above every auth page. Branch
+`feature/homepage-nav-auth-pages`. Two source files touched, no new files, no
+new dependencies, no migration. Loaded from an inline description rather than
+a spec file.
+
+- `src/app/(auth)/layout.tsx` became async. It renders `HomeNav` with
+  `signedIn` from `auth()`, and drops the large `Logo` that sat above the card,
+  since the nav already shows it. The content column's top padding went to
+  `pt-28` (the nav's 64px plus the old 48px) so the card clears the fixed nav
+- `SECTION_LINKS` in `src/components/home/links.ts` changed from `#features` /
+  `#pricing` to `/#features` / `/#pricing`, so they reach the homepage from any
+  page. The homepage nav and footer use the same constant
+- `npm test` (455, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the route table is unchanged
+
+Verified in the browser, signed out, measuring rather than judging by eye:
+
+- `/sign-in`, `/register` and `/forgot-password` at 1280px and 390px: the nav
+  is 64px, the card starts below it, and there is no vertical or horizontal
+  scroll
+- At 390px Features and Pricing are hidden, as on the homepage
+- Pricing from `/sign-in` landed on `/#pricing` with the section 64px down,
+  just under the nav. Features on the homepage still scrolls in place
+- Sign In and Get Started lead to `/sign-in` and `/register`
+- No console errors from the pages
+
+Decisions worth carrying forward:
+
+- **The nav is in the layout, so all five auth pages get it**:
+  `/forgot-password`, `/reset-password` and `/verify-email` as well as the two
+  asked for. Recommended at load time and not objected to
+- **The layout reads the session.** `/sign-in` and `/register` redirect a
+  signed-in visitor, so they always show the signed-out buttons, but the other
+  three do not, and there "Go to Dashboard" is the right button. It adds one
+  `auth()` call per auth page; every auth route was already dynamic
+- **The section links are rooted at `/` rather than taking a prop.** Next's
+  `Link` to `/#pricing` from `/` scrolls in place, so one constant serves both
+- **Not verified:** `/verify-email` itself, since the email-verification flag
+  is off in `.env` and it redirects to `/sign-in`; and the signed-in nav on the
+  three non-redirecting pages
+- The auth layout's logo link to `/` is now the nav's, so it is no longer
+  centred above the card
+- `.playwright-mcp/` holds the screenshot; it is gitignored
