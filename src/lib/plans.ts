@@ -1,0 +1,87 @@
+/**
+ * Subscription plans as marketed on the homepage. Display data only: nothing
+ * enforces these limits yet, and there is no billing.
+ */
+
+export type BillingPeriod = "monthly" | "yearly";
+
+export const FREE_ITEM_LIMIT = 50;
+export const FREE_COLLECTION_LIMIT = 3;
+
+/** Pro prices in whole US dollars. */
+export const PRO_PRICES: Record<BillingPeriod, number> = {
+  monthly: 8,
+  yearly: 72,
+};
+
+export interface Plan {
+  id: "free" | "pro";
+  name: string;
+  description: string;
+  features: string[];
+}
+
+export const FREE_PLAN: Plan = {
+  id: "free",
+  name: "Free",
+  description: "For getting your knowledge in one place.",
+  features: [
+    `${FREE_ITEM_LIMIT} items`,
+    `${FREE_COLLECTION_LIMIT} collections`,
+    "Basic search",
+    "Image uploads",
+  ],
+};
+
+export const PRO_PLAN: Plan = {
+  id: "pro",
+  name: "Pro",
+  description: "For developers who live in their stash.",
+  features: [
+    "Unlimited items and collections",
+    "File uploads",
+    "Custom item types",
+    "AI tagging, summaries and Explain Code",
+    "Export to JSON / ZIP",
+  ],
+};
+
+const usd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+/** `8` → `"$8"`, `6.5` → `"$6.5"`. Whole dollars carry no decimals. */
+export function formatPrice(dollars: number): string {
+  return usd.format(dollars);
+}
+
+/** How much cheaper a year is than twelve months, as a whole percentage. */
+export function getYearlySavingsPercent(): number {
+  const fullYear = PRO_PRICES.monthly * 12;
+  return Math.round(((fullYear - PRO_PRICES.yearly) / fullYear) * 100);
+}
+
+export interface PriceDisplay {
+  amount: string;
+  period: string;
+  note: string;
+}
+
+/** The Pro card's price line for a billing period. */
+export function getProPriceDisplay(period: BillingPeriod): PriceDisplay {
+  if (period === "yearly") {
+    return {
+      amount: formatPrice(PRO_PRICES.yearly),
+      period: "/year",
+      note: `Billed yearly — ${formatPrice(PRO_PRICES.yearly / 12)}/month`,
+    };
+  }
+  return {
+    amount: formatPrice(PRO_PRICES.monthly),
+    period: "/month",
+    note: "Billed monthly",
+  };
+}

@@ -76,6 +76,21 @@ export function getAccentBorderClass(color: AccentColor): string {
   return ACCENT_BORDER[color];
 }
 
+const ACCENT_TOP_BORDER: Record<AccentColor, string> = {
+  blue: "border-t-blue-500",
+  purple: "border-t-purple-500",
+  orange: "border-t-orange-500",
+  yellow: "border-t-yellow-500",
+  green: "border-t-green-500",
+  pink: "border-t-pink-500",
+  gray: "border-t-neutral-500",
+};
+
+/** Top edge accent used on the homepage's feature and preview cards. */
+export function getAccentTopBorderClass(color: AccentColor): string {
+  return ACCENT_TOP_BORDER[color];
+}
+
 const ACCENT_DOT: Record<AccentColor, string> = {
   blue: "bg-blue-500",
   purple: "bg-purple-500",
