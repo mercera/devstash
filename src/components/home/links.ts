@@ -5,10 +5,13 @@ export interface HomeLink {
   href: string;
 }
 
-/** In-page anchors shared by the nav and the footer. */
+/**
+ * Homepage sections, shared by the nav and the footer. Rooted at `/` so they
+ * also work from the auth pages, which reuse the nav.
+ */
 export const SECTION_LINKS: HomeLink[] = [
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Features", href: "/#features" },
+  { label: "Pricing", href: "/#pricing" },
 ];
 
 /** Placeholders point at `#` until their pages exist. */
