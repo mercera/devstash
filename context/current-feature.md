@@ -3538,3 +3538,62 @@ Decisions worth carrying forward:
   text. The token never appeared in the transcript. It was minted locally for
   `seed-user-demo` and deleted afterwards. `.playwright-mcp/` holds the
   console log; it is gitignored
+
+### Homepage Mockup — Completed (2026-09-28)
+
+A static marketing homepage prototype in `prototypes/homepage/`
+(`index.html`, `styles.css`, `script.js`), to be ported into the app later.
+Branch `feature/homepage-mockup`. Three new files, no app source touched, no
+dependencies. Spec: `context/features/homepage-mockup-spec.md`. The follow-up
+spec for the real homepage, `context/features/homepage-spec.md`, was written
+and committed on the same branch.
+
+- Every section in the spec: a fixed nav that turns more opaque on scroll, a
+  hero with gradient text and the chaos → arrow → dashboard preview visual,
+  6 feature cards, the AI section with an editor mockup and "AI Generated
+  Tags", Free/Pro pricing with a "Most Popular" badge and a monthly/yearly
+  toggle ($8/month ↔ $72/year), the CTA and a footer with the current year
+- `script.js` animates the 8 chaos icons with `requestAnimationFrame`: drift,
+  wall bounce, a rotation and scale pulse, and a push away from the cursor.
+  It also handles the navbar, scroll fade-in, the pricing toggle and the year
+- An inline SVG favicon, added after the only console message was a
+  `favicon.ico` 404
+- `npm test` (430, unchanged), `npm run lint` (which does cover
+  `prototypes/`) and `npm run build` pass; the route table is unchanged
+
+Verified in the browser at 1440px and 390px, measuring rather than judging by
+eye. Zero console errors or warnings:
+
+- All 8 icons moved, none left the box over 3s, and one parked under the
+  cursor was pushed ~140px away in 0.7s
+- The nav went from 40% to 92% opacity with a bottom border once scrolled
+- All 16 reveal targets became visible while scrolling
+- The toggle switched between "$72/year · Billed yearly — $6/month" and
+  "$8/month", with `aria-pressed` following
+- At 390px the hero stacked with the arrow rotated 90°, every grid was one
+  column and nothing scrolled sideways
+- With reduced motion emulated, the icons kept their static scatter, the
+  arrow did not pulse and all content showed at once
+
+Decisions worth carrying forward:
+
+- **The app's accent colors, not the spec's**, chosen by the user at load
+  time: Tailwind v4's 500 shades for borders and fills and 400 for text and
+  icons, matching `src/lib/icons.ts`. Instant Search and Collections are not
+  item types, so they took the brand indigo and green
+- **Brand marks are inline SVG.** GitHub is its real mark; Notion, Slack and
+  VS Code are simplified drawings, not official artwork
+- **Content is hidden for the fade-in only when JS runs.** A one-line `<head>`
+  script adds a `js` class, so the page never renders blank without the
+  script and does not flash on load
+- **The icons' scatter layout is CSS.** The script reads it as the starting
+  positions, then takes over with transforms. Reduced motion never starts the
+  loop, so it keeps that layout
+- **The animation pauses off screen** (`IntersectionObserver`) and caps its
+  time step at 3 frames, so returning to the tab does not teleport the icons
+- Reduced motion was an addition to the spec, raised at load time
+- The mini dashboard's card titles truncate heavily at 390px. Accepted for a
+  mockup
+- **The Playwright MCP refuses `file://` URLs**, so the checks ran against a
+  throwaway Node static server in the scratchpad on :4173, stopped
+  afterwards. `.playwright-mcp/` holds the screenshots; it is gitignored
