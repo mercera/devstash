@@ -3597,3 +3597,121 @@ Decisions worth carrying forward:
 - **The Playwright MCP refuses `file://` URLs**, so the checks ran against a
   throwaway Node static server in the scratchpad on :4173, stopped
   afterwards. `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Homepage — Completed (2026-09-28)
+
+The placeholder `/` is now the marketing homepage, ported from
+`prototypes/homepage/` to Tailwind v4 and ShadCN. Branch `feature/homepage`.
+Twenty new source files (two of them tests), eight existing files touched,
+no new dependencies, no migration. Spec: `context/features/homepage-spec.md`.
+
+- `src/app/page.tsx` composes the sections and reads the session with
+  `auth()`. Signed in, the nav shows one "Go to Dashboard" button, and the
+  hero and CTA buttons go to `/dashboard`. No database queries
+- Added `src/components/home/`:
+  - server components: `HomeNav`, `HeroSection`, `DashboardPreview`,
+    `TransformArrow`, `FeaturesSection`, `AiSection`, `PricingSection`,
+    `CtaSection`, `HomeFooter`, plus `Section` (container, `SectionHeader`,
+    `Eyebrow`) and `Checklist`
+  - the four client components: `ScrollHeader`, `ChaosField`, `Reveal` and
+    `PricingPlans`
+  - `links.ts`: the section anchors, the footer columns and
+    `getPrimaryCta(signedIn, label)`
+- Added `src/lib/plans.ts`:
+  - the Free limits (50 items, 3 collections) and Pro prices ($8 / $72) as
+    constants
+  - `FREE_PLAN` / `PRO_PLAN`, `formatPrice`, `getYearlySavingsPercent` and
+    `getProPriceDisplay`
+- Added `src/lib/chaos-physics.ts`: `frameStep`, `createBody`, `stepBody`
+  (repel, ease to cruise speed, move, bounce) and `bodyTransform`, all pure
+- Added `src/components/brand/Logo.tsx` (sizes `xs`/`sm`/`lg`, a link when
+  given `href`) and `src/components/brand/BrandIcons.tsx`. The sidebar header,
+  `(auth)/layout.tsx` and `GitHubSignInButton` now use them
+- Added `src/hooks/use-prefers-reduced-motion.ts`
+- `src/lib/icons.ts` gained `getAccentTopBorderClass`. `src/lib/routes.ts`
+  gained `DASHBOARD_PATH` and `REGISTER_PATH`
+- `src/app/globals.css` gained a `js` custom variant
+  (`@media (scripting: enabled)`) and the `arrow-pulse` keyframes under
+  `@theme`
+- 25 unit tests in `chaos-physics.test.ts` and `plans.test.ts`. Suite
+  430 → 455
+- `npx tsc --noEmit`, `npm run lint`, `npm test` and `npm run build` pass; `/`
+  builds as `ƒ (Dynamic)`
+
+Verified in the browser on a fresh `next dev` on :3001, with zero console
+errors or warnings:
+
+- Every link matched the spec's table, both signed out and signed in. Sign
+  In → `/sign-in`, Get Started → `/register`, and the Pricing anchor landed
+  64px down, just below the fixed nav
+- All 8 chaos icons moved and none left the field over 3s. The cursor pushed
+  one ~130px away in 0.7s. The arrow ran `arrow-pulse`
+- The nav went from 40% to 90% background with a bottom border once scrolled
+- All 14 `Reveal` wrappers became visible while scrolling, and the five AI
+  tags reached full opacity
+- The toggle showed "$72 /year · Billed yearly — $6/month", then "$8
+  /month", with `aria-pressed` following. The footer read "© 2026"
+- At 390px the hero stacked with the arrow rotated 90°, the feature and
+  pricing grids were one column, and the nav's section links were hidden
+- Reduced motion (emulated): no `data-animated`, no transforms, the Notion
+  tile still at its `-8deg` scatter, no pulse, and off-screen content already
+  at opacity 1
+- JavaScript disabled: all 14 reveal wrappers and all five tags at opacity 1
+- The sign-in page's logo tile is still 32px. The dashboard sidebar's is still
+  28px and still links to `/dashboard`
+
+One defect was found in the browser and fixed:
+
+- **At 390px the page scrolled sideways by 92px.** The AI section's grid
+  column sized itself to the code block's longest line. Both the AI and hero
+  grids now use `minmax(0, …)` tracks (`grid-cols-1` below `lg`). The code
+  scrolls inside its frame, and nothing overflows at 390, 1024 or 1280px. At
+  1024px the same overflow would have hit the two-column layout too
+
+Decisions worth carrying forward:
+
+- **The hero is not wrapped in `Reveal`.** It is the first thing on screen,
+  so it must not wait for hydration before it shows
+- **Reveal hides content only under `motion-safe:js:`.** The `js` variant is
+  `@media (scripting: enabled)`, so without JavaScript nothing starts hidden,
+  and with reduced motion nothing hides at all. Visible is
+  `data-visible:opacity-100`, which outranks the hidden classes on
+  specificity whatever order Tailwind emits them in. `Reveal` is also a
+  `group/reveal`, so the AI tags stagger off the same attribute with no
+  second observer
+- **`ChaosField` writes `element.style.transform` from its loop**, the one
+  exception to the no-inline-styles rule the spec allows. The scatter layout
+  is Tailwind classes. `data-animated` on the field switches every icon to
+  `left-0 top-0 rotate-none` so the transform alone positions it: Tailwind
+  v4's `rotate-*` sets the separate `rotate` property, which would otherwise
+  stack on top of the transform
+- **The start positions are read before `data-animated` is set**, from the
+  scatter layout's `offsetLeft`/`offsetTop`. Reduced motion never starts the
+  loop, so it keeps that layout
+- **`usePrefersReducedMotion` defaults to `true` on the server**, so nothing
+  can start animating before the real preference is known
+- **`ScrollHeader` is `useSyncExternalStore` over `scroll`**, so it reads
+  scroll position without an effect setting state
+- **Signed-in state reaches the nav, hero and CTA only.** The plan buttons
+  always go to `/register`, which already sends a signed-in visitor on to
+  `/dashboard`. Billing does not exist
+- **Instant Search uses Tailwind indigo classes directly.** `AccentColor` is a
+  Prisma enum with no indigo
+- **The auth layout's logo lost its `aria-label="DevStash home"`.** The link's
+  accessible name is now its visible text, "DevStash"
+- **No smooth scrolling on anchor jumps.** That needs `scroll-behavior` on the
+  app-wide `<html>`. Sections use `scroll-mt-16` to clear the fixed nav
+- **`EditorChrome`'s `EditorHeader` and `editorFrameClass` were reused
+  unchanged** for the editor mockup
+- `animateField` in `ChaosField.tsx` is ~65 lines, over the 50-line guideline.
+  The maths is already in `chaos-physics.ts`; what is left is setup and
+  cleanup
+- The existing `"/register"` and `"/dashboard"` literals elsewhere were not
+  moved onto the new route constants
+- **Playwright cookies are per host, not per port.** A session cookie left on
+  `localhost` from an earlier run signed the :3001 homepage in. Clear the
+  context's cookies before a signed-out check
+- The dashboard check used a session JWT minted locally for `seed-user-demo`.
+  It was served from a throwaway local endpoint so it never appeared in the
+  transcript, then the cookie, the endpoint and the script were removed.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
