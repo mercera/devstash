@@ -37,7 +37,7 @@ export function TopBar({
           </Link>
         </Button>
         <NewCollectionDialog />
-        <NewItemDialog types={creatableTypes} />
+        <NewItemDialog types={creatableTypes} labelFrom="lg" />
       </div>
     </header>
   );

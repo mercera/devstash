@@ -54,7 +54,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider className="min-h-full flex-1">
       <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
-      <SidebarInset>
+      {/* A flex item will not shrink below its content by default, and the
+          card grids size to their untruncated titles, so without min-w-0 the
+          column widened past the window beside the sidebar at md. */}
+      <SidebarInset className="min-w-0">
         <EditorPreferencesProvider initialPreferences={editorPreferences}>
           <CollectionOptionsProvider collections={collectionOptions}>
             <ItemDrawerProvider>

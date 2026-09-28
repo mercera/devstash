@@ -24,7 +24,15 @@ interface NewItemDialogProps {
   /** The trigger's text, hidden on narrow screens where only the icon shows. */
   label?: string;
   variant?: "default" | "outline";
+  /** The breakpoint the label appears from. The top bar uses `lg`: from `md`
+   *  the sidebar takes 256px of its row. */
+  labelFrom?: "sm" | "lg";
 }
+
+const LABEL_CLASS = {
+  sm: "hidden sm:inline",
+  lg: "hidden lg:inline",
+} as const;
 
 /**
  * A New Item button and the dialog it opens: in the top bar with no type
@@ -38,6 +46,7 @@ export function NewItemDialog({
   defaultTypeSlug,
   label = "New Item",
   variant = "default",
+  labelFrom = "sm",
 }: NewItemDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -54,7 +63,7 @@ export function NewItemDialog({
       <DialogTrigger asChild>
         <Button variant={variant} aria-label={label}>
           <Plus />
-          <span className="hidden sm:inline">{label}</span>
+          <span className={LABEL_CLASS[labelFrom]}>{label}</span>
         </Button>
       </DialogTrigger>
 
