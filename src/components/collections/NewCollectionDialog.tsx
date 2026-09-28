@@ -39,7 +39,9 @@ export function NewCollectionDialog() {
       <DialogTrigger asChild>
         <Button variant="outline" aria-label="New Collection">
           <FolderPlus />
-          <span className="hidden sm:inline">New Collection</span>
+          {/* From md the sidebar takes 256px of the top bar's row, so the
+              label waits for lg. */}
+          <span className="hidden lg:inline">New Collection</span>
         </Button>
       </DialogTrigger>
 

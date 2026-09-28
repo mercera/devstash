@@ -119,12 +119,12 @@ export function GlobalSearch({ items, collections }: GlobalSearchProps) {
         <button
           type="button"
           aria-label="Search items and collections"
-          className="relative flex h-8 w-full max-w-sm items-center rounded-lg border border-input bg-transparent pr-14 pl-8 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-input/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          className="relative flex h-8 w-full max-w-sm min-w-0 items-center rounded-lg border border-input bg-transparent pr-3 pl-8 text-left lg:pr-14 text-sm text-muted-foreground transition-colors outline-none hover:bg-input/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         >
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <span className="truncate">Search items...</span>
           {shortcut !== null && (
-            <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium select-none sm:flex">
+            <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium select-none lg:flex">
               {shortcut}
             </kbd>
           )}
