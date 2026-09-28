@@ -18,6 +18,12 @@ export const RESET_PASSWORD_PATH = "/reset-password";
 /** Where a successful sign-in lands when no usable callback URL was supplied. */
 export const DEFAULT_SIGN_IN_REDIRECT = "/dashboard";
 
+/** The signed-in home. */
+export const DASHBOARD_PATH = "/dashboard";
+
+/** Where the homepage's sign-up buttons point. */
+export const REGISTER_PATH = "/register";
+
 /** Stand-in origin for resolving a callback URL. Never contacted. */
 const PLACEHOLDER_ORIGIN = "http://devstash.invalid";
 

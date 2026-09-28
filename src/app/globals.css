@@ -4,6 +4,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Styles that only make sense once scripts run — e.g. hiding content that a
+   script will fade in, so it never stays hidden without JavaScript. */
+@custom-variant js (@media (scripting: enabled));
+
+@theme {
+    --animate-arrow-pulse: arrow-pulse 2s ease-in-out infinite;
+
+    @keyframes arrow-pulse {
+        0%,
+        100% {
+            scale: 1;
+            box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-indigo-500) 55%, transparent);
+        }
+        50% {
+            scale: 1.08;
+            box-shadow: 0 0 0 14px transparent;
+        }
+    }
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);

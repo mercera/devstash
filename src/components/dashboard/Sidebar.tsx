@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Folder, Layers, Star } from "lucide-react";
+import { ChevronDown, Folder, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,6 +26,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { Logo } from "@/components/brand/Logo";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { getAccentDotClass, getAccentTextClass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -59,14 +60,7 @@ export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
   return (
     <SidebarRoot>
       <SidebarHeader className="h-12 shrink-0 flex-row items-center border-b border-sidebar-border px-4 py-0">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-            <Layers className="size-4 text-white" />
-          </span>
-          <span className="text-base font-semibold tracking-tight">
-            DevStash
-          </span>
-        </Link>
+        <Logo href="/dashboard" />
       </SidebarHeader>
 
       <SidebarContent>
