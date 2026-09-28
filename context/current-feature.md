@@ -1,18 +1,42 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Homepage Nav on Auth Pages
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/sign-in` and `/register` show the same top nav as the homepage: logo
+  linking to `/`, the Features and Pricing links, and the Sign In /
+  Get Started buttons
+- The Features and Pricing links go to the homepage sections (`/#features`,
+  `/#pricing`), not to anchors on the auth page
+- The nav is reused from `HomeNav`, not copied
+- The auth card is not hidden under the fixed nav, and the page does not
+  scroll only because the nav was added
+- The auth card no longer repeats the large logo above the form, since the nav
+  already shows it
+- At 390px the section links hide, as on the homepage, with no horizontal
+  scroll
+- The homepage nav looks and behaves as before
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- `HomeNav` (`src/components/home/HomeNav.tsx`) wraps a fixed, 64px-tall
+  `ScrollHeader` that grows more opaque on scroll. It takes `signedIn`
+- `SECTION_LINKS` in `src/components/home/links.ts` are bare hashes
+  (`#features`), which only work on `/`. They need a `/` prefix, or a prop, for
+  the auth pages
+- The nav would go in `src/app/(auth)/layout.tsx`, which also wraps
+  `/forgot-password`, `/reset-password` and `/verify-email`. Putting it in the
+  layout gives those three the nav as well; scoping it to only sign-in and
+  register means adding it to the two pages instead. Decide at start
+- `/sign-in` and `/register` already redirect a signed-in visitor to
+  `/dashboard`, so on those two the nav is always the signed-out version.
+  The other three auth pages do not redirect
+- Could highlight the current page's button (Sign In on `/sign-in`,
+  Get Started on `/register`); not asked for
 
 ## History
 
