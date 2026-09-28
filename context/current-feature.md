@@ -3715,3 +3715,62 @@ Decisions worth carrying forward:
   It was served from a throwaway local endpoint so it never appeared in the
   transcript, then the cookie, the endpoint and the script were removed.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Top Bar Tablet Overflow Fix — Completed (2026-09-28)
+
+Every page in the `(app)` shell scrolled sideways at tablet widths. Found by a
+`ui-reviewer` agent pass over the homepage and dashboard. Branch
+`fix/topbar-tablet-overflow`. Five source files touched, no new files, no new
+dependencies, no migration. Loaded from the reviewer's report rather than a
+spec file.
+
+- At 768px `/dashboard` measured 854px wide and `/items/snippet` 804px
+- `src/app/(app)/layout.tsx`: `min-w-0` on `SidebarInset`, the root cause
+- `GlobalSearch`: the search button has `min-w-0`, and the Ctrl K hint (plus
+  the `pr-14` kept for it) appears only from `lg`
+- `NewCollectionDialog`'s label and the top bar's `NewItemDialog` label show
+  from `lg`; icons only below. `NewItemDialog` gained
+  `labelFrom?: "sm" | "lg"` (default `sm`), so the per-type pages keep
+  "New Snippet" etc. from `sm`
+- `npm test` (455, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the route table is unchanged
+
+Verified in the browser as the demo user, measuring rather than judging by
+eye. Zero console errors or warnings:
+
+- `scrollWidth − clientWidth` was 0 on `/dashboard`, `/items/snippet`,
+  `/items/image`, `/items/file`, `/collections`, `/collections/devops` and
+  `/favorites` at 375, 768, 900, 1024 and 1280px (35 page loads)
+- At 768px the search button is 305–320px and the three right-hand buttons
+  are icons only. The labels and the Ctrl K hint appear from 1024px
+- At 768px New Item, New Collection and the search palette each opened
+  from the top bar. The icon-only buttons keep their `aria-label`s, and
+  `/items/snippet` still shows "New Snippet"
+
+Decisions worth carrying forward:
+
+- **The top bar was the symptom, not the cause.** Hiding the labels alone
+  left `/dashboard` at 854px. `<main>` is a flex item with `min-width: auto`,
+  so it would not shrink below its content's min-content width. The card
+  grids size flexible tracks to their items' min-content under that
+  constraint, and truncated titles are `nowrap`, so the column held at 598px
+  beside a 256px sidebar in a 753px viewport. Found by forcing
+  `max-width: 512px` on `<main>` in the page: nothing spilled, which showed the
+  content could fit and something was only refusing to shrink
+- **The fix is in the layout's `className`**, not in
+  `src/components/ui/sidebar.tsx`, so a future `shadcn add sidebar` cannot
+  undo it
+- **The top-bar changes are still needed.** With `min-w-0` alone the bar needs
+  ~580px inside a 497px column at 768px
+- **Labels wait for `lg`, not `md`.** From `md` the sidebar takes 256px of the
+  row, the same reasoning as the three-column item grid
+- A `<header>` inside `<main>` has no `banner` role, so Playwright's
+  `getByRole("banner")` does not find the top bar. Use a CSS locator
+- The reviewer's other findings were left alone: 24–28px icon buttons (above
+  the WCAG 2.2 24px minimum) and ShadCN's 32–36px button heights. Its note
+  that full-page screenshots of `/` render the revealed sections blank is a
+  test artifact of `Reveal`, not a user-facing bug
+- **The `ui-reviewer` agent saved its screenshots in the repo root.** They were
+  deleted. `.claude/agents/ui-reviewer.md` is still untracked
+- The browser session was the one the reviewer signed in with as
+  `demo@devstash.io`
