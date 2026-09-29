@@ -1,75 +1,18 @@
-# Current Feature: Stripe Integration — Phase 1: Core Infrastructure
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Install `stripe` (22.x) with no `apiVersion`; read all Stripe config per
-  call, never at module load
-- `src/lib/usage-limits.ts` (pure, client-safe): `PRO_REQUIRED`,
-  `PRO_TYPE_SLUGS` (`file`, `image`), `LimitCheck`, `checkItemLimit`,
-  `checkCollectionLimit`, `canCreateTypeSlug`. Limits imported from
-  `src/lib/plans.ts`, never redeclared
-- `src/lib/stripe.ts`: `getStripe` (cached on key, `maxNetworkRetries: 2`),
-  `getWebhookSecret`, `getPriceId`, `getBillingPeriodForPrice`, `toStripeId`,
-  `isEntitlingStatus` (`active`/`trialing`/`past_due`),
-  `pickEntitlingSubscription`
-- `src/lib/validations/billing.ts`: `billingPeriodSchema`
-- `src/lib/db/billing.ts`: `getBillingUser`, user-scoped `getUsageCounts`,
-  `claimStripeCustomerId` (conditional `updateMany` + re-read),
-  `applySubscriptionState`
-- `src/lib/billing.ts`: `getOrCreateStripeCustomer` (idempotency key
-  `devstash-customer-${userId}`), `syncCustomerSubscription`,
-  `getSubscriptionSummary` (item-level `current_period_end`),
-  `cancelCustomerSubscriptions`
-- `src/actions/billing.ts`: `createCheckoutSession(period)` and
-  `createBillingPortalSession()` in the `{ success, data, error }` shape
-- `src/auth.ts`: `jwt` callback reads `isPro` by primary key into
-  `token.isPro` (try/catch keeps the previous value); `session` sets
-  `session.user.isPro = token.isPro === true`. `proxy.ts` and
-  `auth.config.ts` untouched
-- `src/types/next-auth.d.ts`: `isPro: boolean` on `Session["user"]`
-- `src/lib/session.ts`: cached `getSessionUser()`; `getSessionUserId()`
-  derives from it; `getCurrentUser()`/`getProfileUser()` route through it
-- `.env.example`: documented `STRIPE_*` block, `STRIPE_PUBLISHABLE_KEY`
-  marked unused
-- Unit tests for every new module (usage-limits, stripe, db/billing, billing,
-  actions/billing); removing `past_due` or changing `>=` to `>` in
-  `checkItemLimit` must fail a test
-- `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` pass with
-  the route table unchanged; a minted session shows `user.isPro: false`, the
-  `isPro` lookup in the Prisma log, no extra session reads on `/dashboard`,
-  and no database writes
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/stripe-phase-1-spec.md`. Full code per file in
-  `docs/stripe-integration-plan.md` (§4.1–4.7, §5.1–5.3, §5.12)
-- Nothing is visible in the UI and nothing needs the Stripe CLI. The actions
-  have no caller until Phase 2's Billing card
-- No schema change: `User.isPro`, `stripeCustomerId` and
-  `stripeSubscriptionId` (both `@unique`) already exist
-- Not in this phase: webhook route, `handleStripeEvent`,
-  `syncCheckoutSession`, gating in `createItem`/`createCollection`/
-  `/api/uploads`, the Billing card, `deleteAccount` changes, `plans.ts` /
-  pricing copy
-- Settled decisions (2026-09-29): file and image uploads are both Pro;
-  `past_due` keeps Pro; account deletion cancels the subscription
-  immediately; a downgrade keeps all data; no trial; no Pro badge in the
-  user menu
-- Stripe dashboard (test mode): product **DevStash Pro**, $8/month and
-  $72/year prices, ids in `.env`. Confirm the secret key is `sk_test_…`.
-  Never read or use `.env.production`
-- Load-time observations:
-  - The spec says `.env.example` has an uncommitted change; the working tree
-    is clean, so there is nothing to reconcile. The file has the bare
-    five-line `STRIPE_*` block (lines 124–128)
-  - `Sidebar.tsx` already declares a module-local `PRO_TYPE_SLUGS`. Phase 1
-    leaves it alone; Phase 2 should switch the sidebar to the one in
-    `usage-limits.ts`
-  - `stripe` is not yet in `package.json`
+<!-- Any extra notes -->
 
 ## History
 
@@ -3877,3 +3820,109 @@ Decisions worth carrying forward:
 - The auth layout's logo link to `/` is now the nav's, so it is no longer
   centred above the card
 - `.playwright-mcp/` holds the screenshot; it is gitignored
+
+### Stripe Integration — Phase 1: Core Infrastructure — Completed (2026-09-29)
+
+The server-side foundation for DevStash Pro subscriptions ($8/month,
+$72/year). Nothing is visible in the UI yet. Branch `feature/stripe-phase-1`.
+Ten new source files (five of them tests), five existing files touched, one new
+dependency, no migration. Spec: `context/features/stripe-phase-1-spec.md`;
+full plan in `docs/stripe-integration-plan.md`.
+
+- Installed `stripe@22.6.2`, with no `apiVersion` passed
+- Added `src/lib/usage-limits.ts`. It is pure and client-safe, and holds:
+  - `PRO_REQUIRED`
+  - `PRO_TYPE_SLUGS` (`file`, `image`)
+  - `LimitCheck`, `checkItemLimit`, `checkCollectionLimit` and
+    `canCreateTypeSlug`
+
+  The limits come from `src/lib/plans.ts`
+- Added `src/lib/stripe.ts`:
+  - `getStripe`, cached on its key, with `maxNetworkRetries: 2`
+  - `getWebhookSecret`, `getPriceId`, `getBillingPeriodForPrice` and
+    `toStripeId`
+  - `isEntitlingStatus` (`active`, `trialing`, `past_due`) and
+    `pickEntitlingSubscription`
+- Added `src/lib/validations/billing.ts` (`billingPeriodSchema`)
+- Added `src/lib/db/billing.ts`: `getBillingUser`, a user-scoped
+  `getUsageCounts`, `claimStripeCustomerId` and `applySubscriptionState`
+- Added `src/lib/billing.ts`: `getOrCreateStripeCustomer`,
+  `syncCustomerSubscription`, `getSubscriptionSummary` and
+  `cancelCustomerSubscriptions`
+- Added `src/actions/billing.ts`: `createCheckoutSession(period)` and
+  `createBillingPortalSession()`. They have no caller until Phase 2's Billing
+  card
+- `src/auth.ts` gained a `jwt` callback that reads `isPro` by primary key into
+  `token.isPro`, and the `session` callback sets
+  `session.user.isPro = token.isPro === true`. `src/types/next-auth.d.ts`
+  declares the field
+- `src/lib/session.ts` gained a cached `getSessionUser()`, and
+  `getSessionUserId()` now derives from it. `getCurrentUser()` and
+  `getProfileUser()` in `src/lib/db/user.ts` now go through it instead of
+  calling `auth()` themselves
+- `.env.example` documents the five `STRIPE_*` variables, with
+  `STRIPE_PUBLISHABLE_KEY` marked unused
+- 63 unit tests across `usage-limits`, `stripe`, `db/billing`, `billing` and
+  `actions/billing`. Suite 455 → 518
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Checked that the tests catch real bugs. Removing `past_due` from the entitling
+set failed 2 tests. Letting a Free user through at exactly 50 items (`<` →
+`<=`) failed 2 more. Both files were restored.
+
+Verified against a dev server on :3001, with a session JWT minted locally for
+`seed-user-demo`:
+
+- `/api/auth/session` returned `user.isPro: false`
+- The Prisma log showed exactly one
+  `SELECT "id", "isPro" FROM "User" WHERE "id" = $1` per request, both for the
+  session endpoint and for a full `/dashboard` render. The dashboard used to
+  read the session twice (`getSessionUserId` plus `getCurrentUser`), so there
+  are now fewer reads than before
+- No `INSERT`, `UPDATE` or `DELETE` appeared in the log
+- The `.env` secret key is `sk_test_…` and both price ids are set
+
+Decisions worth carrying forward:
+
+- **`isPro` is read on every `auth()` call, not only at sign-in.**
+  `@auth/core/lib/actions/session.js` runs `callbacks.jwt` each time it
+  decodes the cookie, so a webhook's database write shows on the next
+  request, with no `trigger === "update"`. Each call is one primary-key
+  lookup. The proxy's edge-safe instance has no `jwt` callback and passes the
+  claim through, so `src/proxy.ts` and `src/auth.config.ts` are untouched
+- **A failed lookup keeps the previous `isPro`.** A thrown `jwt` callback
+  fails `auth()` and would sign every page out during a database blip
+- **No JWT type augmentation.** `token.isPro` is `unknown`, and `=== true`
+  narrows it. `declare module "next-auth/jwt"` does not merge (Auth Phase 1)
+- **Read the session through `getSessionUser()`.** It is cached per request,
+  and every other path now costs a query. The auth layout, `/sign-in`,
+  `/register` and `/` still call `auth()` directly, so a sign-in render now
+  makes two `isPro` lookups. Worth routing through the helper in Phase 2
+- **The subscription status helpers live in `stripe.ts`**, not in
+  `usage-limits.ts` as in the plan (which named it `entitlements.ts`). They
+  concern Stripe, and keeping them out leaves `usage-limits.ts` free of
+  anything but plan rules
+- **The billing period end is read from the subscription item**
+  (`items.data[0].current_period_end`). Since API version 2025-03-31 (basil)
+  it is no longer on the subscription, and stripe 22's types confirm it
+- **`isPro` is checked against the row in `createCheckoutSession`**, not the
+  session, so a stale tab cannot start a second subscription. Two open
+  Checkout tabs can still both complete. The sync handles two subscriptions
+  (the newest entitling one wins), but the customer is charged twice; see the
+  plan's §10
+- **stripe 22's types live in `cjs/stripe.cjs.node.d.ts`** behind
+  `export = StripeConstructor`, not in a `types/` folder. `import Stripe from
+  "stripe"` and the `Stripe.Subscription.Status` namespace types resolve
+  through that file
+- `Sidebar.tsx` still declares its own `PRO_TYPE_SLUGS`. Phase 2 switches it
+  to the shared one in `usage-limits.ts`
+- **Not in this phase:** the webhook route, `handleStripeEvent`,
+  `syncCheckoutSession`, gating in `createItem`/`createCollection`/
+  `/api/uploads`, the Billing card, `deleteAccount` cancellation and the
+  plan/pricing copy. All of these are Phase 2
+- **The Node ESM loader rejects Windows drive paths** (`f:`). A scratch
+  script that imports a package by absolute path needs
+  `pathToFileURL(...).href`
+- The session token and the mint script were deleted afterwards. The dev
+  server was stopped by killing its process tree
