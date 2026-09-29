@@ -1,101 +1,18 @@
-# Current Feature: Stripe Integration — Phase 2: Webhooks, Gating & UI
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- **Webhook:** `handleStripeEvent` and `syncCheckoutSession` in
-  `src/lib/billing.ts`. `POST /api/webhooks/stripe` verifies the raw body
-  (`request.text()`) and answers: unset secret 500 + log, no signature 400,
-  bad signature 400, handler throw 500 + log (event id and type), otherwise
-  200 `{ received: true }`. Not in the proxy matcher
-- **Billing UI:**
-  - `BillingCard` (server) has Free, Pro, and Pro-without-subscription
-    states, plus the `?checkout=success` / `?checkout=cancelled` notices
-  - `BillingButtons` (client) has `UpgradeButton` and `ManageBillingButton`
-    over a `useStripeRedirect` hook that stays disabled until the browser
-    leaves
-- **`/settings`:** reads `checkout`/`session_id` and runs
-  `syncCheckoutSession` before the billing reads, in a try/catch. Adds
-  `getBillingUser`, `getUsageCounts` and `getSubscriptionSummary` to the
-  reads. The card goes at `id="billing"` between Editor preferences and
-  Change password
-- **Server gating:**
-  - add `countUserItems` / `countUserCollections`
-  - `createItem`: `canCreateTypeSlug`, then, for Free only, `checkItemLimit`
-  - `createCollection`: `checkCollectionLimit`
-  - both actions add `upgradeRequired?: true` to their results
-  - `POST /api/uploads` answers Free users with 403 before `content-length`
-    and `formData()`. `DELETE` is not gated
-- **UI gating:**
-  - `(app)/layout.tsx` uses `getSessionUser()` and passes `isPro` to
-    `TopBar` and `Sidebar`
-  - in the type picker, File and Image are disabled with a `PRO` badge and a
-    `title`
-  - `/items/file` and `/items/image` render `UpgradePrompt` for Free users
-    instead of the list (added on request, 2026-09-29; supersedes the
-    disabled New File / New Image buttons, so `ProLockedButton` is unused)
-  - failures with `upgradeRequired` get an "Upgrade" toast action to
-    `/settings#billing`
-  - the sidebar imports `PRO_TYPE_SLUGS` from `@/lib/usage-limits` and hides
-    the badges for Pro
-- **`deleteAccount`:** cancels subscriptions before the delete. If
-  cancelling fails, the account is kept. The dialog copy is updated.
-  `scripts/delete-users.ts` cancels too and lists these users in the dry run
-- **Homepage pricing:** a signed-in user's Pro CTA goes to
-  `/settings#billing`
-- **Plan copy:** in `plans.ts` and `project-overview.md`, Free has no
-  uploads and Pro has "File and image uploads"
-- **Unit tests:**
-  - extend `billing.test.ts` for `handleStripeEvent` and
-    `syncCheckoutSession`
-  - extend `items`, `collections` and `profile` action tests for the gating
-    and the cancel-before-delete order
-  - fix the existing `auth()` mocks, which have no `isPro`, first
-- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass.
-  The build registers `ƒ /api/webhooks/stripe`, and `/settings` stays `ƒ`.
-  The spec's Stripe CLI and browser checklist is walked, 24 checks
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/stripe-phase-2-spec.md`. Plan:
-  `docs/stripe-integration-plan.md` (§3, §4.5–4.9, §5.4–5.11)
-- Phase 1 is merged: `stripe.ts`, `usage-limits.ts`, `db/billing.ts`,
-  `billing.ts`, the actions, `isPro` on the session and `getSessionUser()`
-- Edit, favorite, pin, delete, download and opening an item are never gated.
-  A downgrade keeps all data. The Files and Images list pages are the one
-  exception: Free users get the upgrade page there, but those items stay
-  reachable from the dashboard, collections, favorites and search
-- Limits are soft (concurrent creates can overshoot). Two open Checkout tabs
-  can create two subscriptions. Expiring open sessions is a follow-up, not in
-  scope
-- Item lists and sidebar counts are still demo-scoped, while limits count the
-  signed-in user's own rows
-- `AUTH_URL` must be set in production. Vercel's 4.5 MB body cap now affects
-  Pro uploads only
-- Out of scope: AI, custom types and export (each needs the `isPro` guard
-  later), the production webhook endpoint and live mode
-- Load-time findings:
-  - **`STRIPE_WEBHOOK_SECRET` is empty in `.env`**, and **the Stripe CLI is
-    not installed**. Both are needed for the end-to-end checklist:
-    `stripe login` opens a browser, and `stripe listen` prints the `whsec_…`
-  - The Dashboard settings are manual steps: the Customer Portal (cancel at
-    period end, switch between the monthly and yearly prices) and failed
-    payments (cancel after the retries fail)
-  - `items.test.ts:45` and `collections.test.ts:36` mock sessions with no
-    `isPro`
-  - `seed-user-demo` is `isPro: false` (`prisma/seed.ts:452`) and holds image
-    items, so it cannot create files or images after this phase
-  - Carried over from Phase 1: the auth layout, `/sign-in`, `/register` and
-    `/` call `auth()` directly, so a sign-in render makes two `isPro` lookups
-- Decided at load time (2026-09-29):
-  - **The demo account stays Free.** No seed change. Pro is tested with a
-    separate non-demo account, as the spec asks
-  - **The auth pages move onto `getSessionUser()` in this phase**: the auth
-    layout, `/sign-in`, `/register` and `/`, so each render reads the
-    session once
+<!-- Any extra notes -->
 
 ## History
 
@@ -4009,3 +3926,129 @@ Decisions worth carrying forward:
   `pathToFileURL(...).href`
 - The session token and the mint script were deleted afterwards. The dev
   server was stopped by killing its process tree
+
+### Stripe Integration — Phase 2: Webhooks, Gating & UI — Completed (2026-09-29)
+
+Stripe webhooks, the Billing card, and Free plan gating on the server and in
+the UI. Branch `feature/stripe-phase-2`. Six new source files, thirty-five
+existing files touched, no new dependencies, no migration. Spec:
+`context/features/stripe-phase-2-spec.md`; plan in
+`docs/stripe-integration-plan.md`.
+
+- Added `POST /api/webhooks/stripe`. It reads the raw body with
+  `request.text()` and verifies the signature. It answers 500 with a log when
+  the secret is unset, 400 for a missing or bad signature, 500 with the event
+  id and type logged when the handler throws, and otherwise 200
+  `{ received: true }`. It is outside the proxy matcher
+- `src/lib/billing.ts` gained:
+  - `handleStripeEvent`: `checkout.session.completed` (subscription mode)
+    and the five `customer.subscription.*` events all run
+    `syncCustomerSubscription`. Other events are acknowledged and ignored
+  - `syncCheckoutSession(sessionId, userId)`, which syncs only when the
+    session's `client_reference_id` is the caller
+- `/settings`:
+  - reads `?checkout=` and `?session_id=`, and syncs a returning Checkout
+    session before the billing reads, inside a try/catch
+  - the new `BillingCard` sits at `id="billing"` between Editor preferences
+    and Change password
+- Added `BillingCard` (server) and `BillingButtons` (client, `UpgradeButton`
+  and `ManageBillingButton` over `useStripeRedirect`):
+  - Free shows usage against the limits and monthly/yearly upgrade buttons
+  - Pro shows "Renews on" or "Cancels on" and Manage billing
+  - Pro with no subscription shows only the label
+  - The success and cancelled notices come from `?checkout=`
+- Server gating:
+  - `createItem` checks `canCreateTypeSlug`, then, for Free only,
+    `checkItemLimit` over the new `countUserItems`
+  - `createCollection` checks `checkCollectionLimit` over
+    `countUserCollections`
+  - both return `upgradeRequired: true` when refused
+  - `POST /api/uploads` answers a Free user with 403 before reading
+    `content-length` or the form data. `DELETE` is not gated
+- UI gating:
+  - `(app)/layout.tsx` reads `getSessionUser()` and passes `isPro` down
+  - the type picker shows File and Image disabled with a `PRO` badge and a
+    `title`
+  - the sidebar uses the shared `PRO_TYPE_SLUGS` and hides its badges for Pro
+  - `useActionErrorToast` adds an "Upgrade" action to `/settings#billing`
+    on refused creates
+- **Added late, on request:** Free users who open `/items/file` or
+  `/items/image` get an `UpgradePrompt` page instead of the list, and the item
+  query is skipped. This uses the new `canViewTypeSlug` and replaced the
+  disabled New File / New Image buttons on those pages
+- `deleteAccount` cancels the user's subscriptions before deleting. If
+  cancelling fails, the account is kept, and the dialog copy says so.
+  `scripts/delete-users.ts` cancels too, and its dry run lists the users that
+  have a Stripe customer
+- The auth layout, `/sign-in`, `/register` and `/` now read the session
+  through `getSessionUser()`, so each render does one `isPro` lookup
+- Homepage pricing: a signed-in user's Pro button goes to
+  `/settings#billing`. `plans.ts` and `project-overview.md` now list "File
+  and image uploads" as Pro only
+- **Demo seed:** trimmed to 3 collections (React Patterns, AI Workflows,
+  DevOps) to fit the Free limit. The terminal commands moved into DevOps, the
+  design links are uncollected, and the seed now deletes any other collection
+  the demo user owns
+- Tests went from 518 to 551 across `billing`, `usage-limits` and the
+  `items`, `collections` and `profile` actions. The existing `auth()` mocks
+  gained `isPro`
+- `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run build` and
+  `prisma migrate status` pass. The build registers `ƒ /api/webhooks/stripe`,
+  and `/settings` stays `ƒ`
+
+Verification:
+
+- The upgrade page was checked in the browser as the demo user (Free) at
+  1280px and 390px:
+  - both pages rendered the prompt with no horizontal scroll
+  - "Upgrade to Pro" landed on `/settings#billing`
+  - `/items/snippet` was unchanged
+- `STRIPE_WEBHOOK_SECRET` is now set in `.env`, and a test-mode Checkout
+  with a 3-D Secure challenge was run in an earlier session. The full
+  24-check Stripe CLI and browser checklist was **not confirmed** in the
+  completing session
+- After the seed change, `db:delete-users -- --confirm` and `db:seed` ran
+  against the Neon **dev** branch. The demo account is now the only user,
+  with 3 collections and 26 items (18 seeded plus 8 made in the UI), and it
+  is still `isPro: false`
+
+Decisions worth carrying forward:
+
+- **The webhook reads only the customer id from an event.** The sync then
+  re-reads the subscription from Stripe. That makes events order-independent
+  and safe to replay, which is why a failed sync answers 500 and lets
+  Stripe retry
+- **A scheduled cancellation can appear in either of two fields.** The
+  Customer Portal sets `cancel_at` to the period end and leaves
+  `cancel_at_period_end` false. `SubscriptionSummary.willCancel` checks both,
+  and `periodEnd` prefers `cancel_at`. Reading only the flag showed
+  "Renews on" for a subscription that was ending
+- **The Toaster is `pointer-events-auto`.** Radix sets
+  `pointer-events: none` on `<body>` while a modal is open. The toaster
+  inherited it, so the "Upgrade" action on a refused create could not be
+  clicked from inside the New Item or New Collection dialog
+- **The success URL's `session_id` is not trusted.** The `/settings` sync
+  checks `client_reference_id` against the session user, so passing someone
+  else's session id does nothing
+- **Browsing is now gated in one place.** Free users cannot open the Files
+  and Images list pages. Opening, editing, downloading and deleting a single
+  item stay open from the dashboard, collections, favorites and search, so
+  a downgrade still keeps every item reachable
+- **`ProLockedButton.tsx` is committed but unused.** Its only use was the
+  disabled New File / New Image buttons on those pages, which a Free user can
+  no longer reach. It was kept, not deleted, pending a decision
+- **Limits are soft.** Two concurrent creates at 49 items can both pass. Two
+  open Checkout tabs can create two subscriptions. Expiring open Checkout
+  sessions is a follow-up
+- **The delete-users run cancelled a real test-mode subscription**, on
+  `mercera36@gmail.com`, and deleted that account. Pro now has to be tested
+  from a newly registered account
+- The demo password was regenerated by the seed, since `SEED_DEMO_PASSWORD`
+  is unset
+- The browser check used a session JWT minted locally for `seed-user-demo`
+  and served from a throwaway local endpoint, so the token never appeared in
+  the transcript. The token and the scripts were deleted afterwards.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
+- Still out of scope: AI features, custom types and export (each needs the
+  `isPro` guard), the production webhook endpoint and live mode.
+  `.env.production` has none of the `STRIPE_*` variables
