@@ -24,6 +24,9 @@ export const DASHBOARD_PATH = "/dashboard";
 /** Where the homepage's sign-up buttons point. */
 export const REGISTER_PATH = "/register";
 
+/** The Billing card on `/settings`, where every "Upgrade" prompt leads. */
+export const BILLING_PATH = "/settings#billing";
+
 /** Stand-in origin for resolving a callback URL. Never contacted. */
 const PLACEHOLDER_ORIGIN = "http://devstash.invalid";
 

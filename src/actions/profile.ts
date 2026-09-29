@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 
 import { auth, signOut } from "@/auth";
 import { SIGN_IN_PATH } from "@/auth.config";
+import { cancelCustomerSubscriptions } from "@/lib/billing";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { linkTokenIdentifiersFor } from "@/lib/tokens";
@@ -117,6 +118,10 @@ export interface DeleteAccountState {
  *
  * The ordering matters and mirrors `scripts/delete-users.ts`:
  *
+ * - **Stripe before anything.** Any running subscription is cancelled
+ *   immediately, or a deleted user would go on being charged. If that fails
+ *   the account is kept: an orphaned subscription billing nobody is worse
+ *   than a retry. The Stripe customer itself is kept for invoices.
  * - **Items first.** `Item.type` is `onDelete: Restrict`, so a user's own
  *   custom `ItemType` cannot be cascaded away while their items still point at
  *   it. Clearing the items removes that dependency; `ItemTag` rows cascade with
@@ -155,12 +160,25 @@ export async function deleteAccount(
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, stripeCustomerId: true },
     });
 
     if (!user) {
       // The row is already gone; the session just outlived it.
       return { error: "This account no longer exists." };
+    }
+
+    if (user.stripeCustomerId) {
+      try {
+        await cancelCustomerSubscriptions(user.stripeCustomerId);
+      } catch (error) {
+        console.error("Failed to cancel subscriptions before account deletion:", error);
+
+        return {
+          error:
+            "We couldn't cancel your subscription, so your account was not deleted. Please try again.",
+        };
+      }
     }
 
     await prisma.$transaction(async (tx) => {

@@ -100,22 +100,6 @@ const COLLECTIONS = [
     color: "orange",
     isFavorite: false,
   },
-  {
-    id: "seed-col-terminal-commands",
-    name: "Terminal Commands",
-    slug: "terminal-commands",
-    description: "Useful shell commands for everyday development",
-    color: "gray",
-    isFavorite: false,
-  },
-  {
-    id: "seed-col-design-resources",
-    name: "Design Resources",
-    slug: "design-resources",
-    description: "UI/UX resources and references",
-    color: "pink",
-    isFavorite: false,
-  },
 ] satisfies {
   id: string;
   name: string;
@@ -130,7 +114,8 @@ type SeedItem = {
   title: string;
   description: string;
   typeSlug: (typeof ITEM_TYPES)[number]["slug"];
-  collectionSlug: (typeof COLLECTIONS)[number]["slug"];
+  /** Omitted for items that sit outside any collection. */
+  collectionSlug?: (typeof COLLECTIONS)[number]["slug"];
   content?: string;
   url?: string;
   language?: string;
@@ -344,7 +329,7 @@ kubectl rollout status deployment/devstash`,
     title: "Interactive Rebase onto Main",
     description: "Clean up local commits before opening a PR",
     typeSlug: "command",
-    collectionSlug: "terminal-commands",
+    collectionSlug: "devops",
     language: "bash",
     content: "git rebase -i main",
     tags: ["git"],
@@ -355,7 +340,7 @@ kubectl rollout status deployment/devstash`,
     title: "Tail Compose Logs",
     description: "Follow the last 100 lines from every service",
     typeSlug: "command",
-    collectionSlug: "terminal-commands",
+    collectionSlug: "devops",
     language: "bash",
     content: "docker compose logs -f --tail=100",
     tags: ["docker"],
@@ -365,7 +350,7 @@ kubectl rollout status deployment/devstash`,
     title: "Find and Kill a Process on a Port",
     description: "Locate whatever is bound to a port, then stop it",
     typeSlug: "command",
-    collectionSlug: "terminal-commands",
+    collectionSlug: "devops",
     language: "bash",
     content: "lsof -i :3000 -t | xargs kill -9",
     tags: ["process", "terminal"],
@@ -376,7 +361,7 @@ kubectl rollout status deployment/devstash`,
     title: "List and Update Outdated Packages",
     description: "Check what's behind, then bump to the latest allowed by semver",
     typeSlug: "command",
-    collectionSlug: "terminal-commands",
+    collectionSlug: "devops",
     language: "bash",
     content: "npm outdated && npm update",
     tags: ["npm", "dependencies"],
@@ -388,7 +373,6 @@ kubectl rollout status deployment/devstash`,
     title: "Tailwind CSS Documentation",
     description: "Utility classes, theming and the v4 @theme directive",
     typeSlug: "link",
-    collectionSlug: "design-resources",
     url: "https://tailwindcss.com/docs",
     tags: ["css", "tailwind"],
     isFavorite: true,
@@ -398,7 +382,6 @@ kubectl rollout status deployment/devstash`,
     title: "shadcn/ui Components",
     description: "Copy-paste component library built on Radix primitives",
     typeSlug: "link",
-    collectionSlug: "design-resources",
     url: "https://ui.shadcn.com",
     tags: ["components", "ui"],
   },
@@ -407,7 +390,6 @@ kubectl rollout status deployment/devstash`,
     title: "Material Design 3",
     description: "Google's design system: foundations, components and tokens",
     typeSlug: "link",
-    collectionSlug: "design-resources",
     url: "https://m3.material.io",
     tags: ["design-system"],
   },
@@ -416,7 +398,6 @@ kubectl rollout status deployment/devstash`,
     title: "Lucide Icons",
     description: "The open-source icon set the app's type icons come from",
     typeSlug: "link",
-    collectionSlug: "design-resources",
     url: "https://lucide.dev",
     tags: ["icons"],
   },
@@ -484,7 +465,16 @@ async function seedItemTypes() {
   console.log(`✓ ${ITEM_TYPES.length} system item types`);
 }
 
+/**
+ * The demo account is on the Free plan, so it may hold no more collections than
+ * the Free limit. Any collection it owns beyond the seeded set is removed; its
+ * items stay, and only their `ItemCollection` links cascade away.
+ */
 async function seedCollections(userId: string) {
+  const pruned = await prisma.collection.deleteMany({
+    where: { userId, id: { notIn: COLLECTIONS.map((c) => c.id) } },
+  });
+
   for (const collection of COLLECTIONS) {
     await prisma.collection.upsert({
       where: { id: collection.id },
@@ -493,7 +483,7 @@ async function seedCollections(userId: string) {
     });
   }
 
-  console.log(`✓ ${COLLECTIONS.length} collections`);
+  console.log(`✓ ${COLLECTIONS.length} collections (${pruned.count} extra removed)`);
 }
 
 async function seedTag(userId: string, name: string) {
@@ -510,8 +500,10 @@ async function seedItems(userId: string) {
 
   for (const item of ITEMS) {
     const typeId = typeIdBySlug.get(item.typeSlug);
-    const collectionId = collectionIdBySlug.get(item.collectionSlug);
-    if (!typeId || !collectionId) {
+    const collectionId = item.collectionSlug
+      ? collectionIdBySlug.get(item.collectionSlug)
+      : undefined;
+    if (!typeId || (item.collectionSlug && !collectionId)) {
       throw new Error(`Unknown type/collection slug for item "${item.title}"`);
     }
 
@@ -534,11 +526,13 @@ async function seedItems(userId: string) {
       create: { id: item.id, ...data },
     });
 
-    await prisma.itemCollection.upsert({
-      where: { itemId_collectionId: { itemId: item.id, collectionId } },
-      update: {},
-      create: { itemId: item.id, collectionId },
-    });
+    if (collectionId) {
+      await prisma.itemCollection.upsert({
+        where: { itemId_collectionId: { itemId: item.id, collectionId } },
+        update: {},
+        create: { itemId: item.id, collectionId },
+      });
+    }
 
     for (const tagName of item.tags) {
       const tag = await seedTag(userId, tagName);

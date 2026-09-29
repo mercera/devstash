@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Server actions are tested with every I/O boundary mocked: the session
- * (`@/auth`), the database (`@/lib/prisma`) and bcrypt. Nothing here reaches
+ * (`@/auth`), the database (`@/lib/prisma`), Stripe (`@/lib/billing`) and bcrypt. Nothing here reaches
  * Neon, and the 12-round hash cost is never paid.
  */
 
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
   return {
     auth: vi.fn(),
     signOut: vi.fn(),
+    cancelCustomerSubscriptions: vi.fn(),
     compare: vi.fn(),
     hashPassword: vi.fn(),
     tx,
@@ -29,6 +30,9 @@ const mocks = vi.hoisted(() => {
 vi.mock("@/auth", () => ({ auth: mocks.auth, signOut: mocks.signOut }));
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 vi.mock("@/lib/password", () => ({ hashPassword: mocks.hashPassword }));
+vi.mock("@/lib/billing", () => ({
+  cancelCustomerSubscriptions: mocks.cancelCustomerSubscriptions,
+}));
 vi.mock("bcryptjs", () => ({ default: { compare: mocks.compare } }));
 
 import { changePassword, deleteAccount } from "@/actions/profile";
@@ -183,6 +187,51 @@ describe("deleteAccount", () => {
     const result = await deleteAccount({}, confirmed);
 
     expect(result.error).toBe("Something went wrong. Please try again.");
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteAccount with a Stripe customer", () => {
+  const confirmed = formData({ confirmation: "DELETE" });
+
+  it("cancels the subscriptions before deleting anything", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      email: "a@b.io",
+      stripeCustomerId: "cus_1",
+    });
+
+    await deleteAccount({}, confirmed);
+
+    expect(mocks.cancelCustomerSubscriptions).toHaveBeenCalledWith("cus_1");
+    expect(mocks.cancelCustomerSubscriptions.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.prisma.$transaction.mock.invocationCallOrder[0],
+    );
+    expect(mocks.tx.user.delete).toHaveBeenCalled();
+  });
+
+  it("skips Stripe for an account with no customer", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      email: "a@b.io",
+      stripeCustomerId: null,
+    });
+
+    await deleteAccount({}, confirmed);
+
+    expect(mocks.cancelCustomerSubscriptions).not.toHaveBeenCalled();
+    expect(mocks.tx.user.delete).toHaveBeenCalled();
+  });
+
+  it("keeps the account when cancelling fails", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      email: "a@b.io",
+      stripeCustomerId: "cus_1",
+    });
+    mocks.cancelCustomerSubscriptions.mockRejectedValue(new Error("Stripe is down"));
+
+    const result = await deleteAccount({}, confirmed);
+
+    expect(result.error).toMatch(/couldn't cancel your subscription/);
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
   });
 });

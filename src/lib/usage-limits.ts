@@ -45,3 +45,12 @@ export function checkCollectionLimit(
 export function canCreateTypeSlug(slug: string, isPro: boolean): boolean {
   return isPro || !PRO_TYPE_SLUGS.has(slug);
 }
+
+/**
+ * Whether the type's list page (`/items/[slug]`) is open to this plan. A Free
+ * user gets the upgrade page instead. Single items stay reachable elsewhere
+ * (dashboard, collections, search), so a downgrade does not lock data away.
+ */
+export function canViewTypeSlug(slug: string, isPro: boolean): boolean {
+  return isPro || !PRO_TYPE_SLUGS.has(slug);
+}

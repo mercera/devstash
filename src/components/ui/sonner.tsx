@@ -17,12 +17,17 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
  * generated component called `useTheme()` from `next-themes`, which this app
  * does not use — with no provider it falls back to `"system"`, which would have
  * painted a light toast over the dark UI on a light-mode machine.
+ *
+ * `pointer-events-auto` keeps toast buttons clickable while a modal dialog is
+ * open. Radix sets `pointer-events: none` on `<body>` for a modal, and the
+ * toaster inherits it, so a refused create's "Upgrade" action could not be
+ * clicked from the still-open New Item or New Collection dialog.
  */
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="dark"
-      className="toaster group"
+      className="toaster group pointer-events-auto"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

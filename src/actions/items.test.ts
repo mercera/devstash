@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
+  countUserItems: vi.fn(),
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/db/items", () => ({
+  countUserItems: mocks.countUserItems,
   createItem: mocks.createItem,
   updateItem: mocks.updateItem,
   deleteItem: mocks.deleteItem,
@@ -41,8 +43,9 @@ import { CollectionNotFoundError } from "@/lib/db/errors";
 
 const saved = { id: "item-1", title: "Renamed" };
 
-function signedInAs(id: string | null) {
-  mocks.auth.mockResolvedValue(id ? { user: { id } } : null);
+/** Pro by default, so the plan limits stay out of the way of other tests. */
+function signedInAs(id: string | null, isPro = true) {
+  mocks.auth.mockResolvedValue(id ? { user: { id, isPro } } : null);
 }
 
 beforeEach(() => {
@@ -439,5 +442,82 @@ describe("setItemPinned", () => {
       success: false,
       error: "Something went wrong. Please try again.",
     });
+  });
+});
+
+describe("createItem plan limits", () => {
+  const snippet = {
+    typeSlug: "snippet" as const,
+    title: "useDebounce",
+    tags: [],
+    collectionIds: [],
+  };
+
+  it("allows a Free user at 49 items", async () => {
+    signedInAs("user-1", false);
+    mocks.countUserItems.mockResolvedValue(49);
+    mocks.createItem.mockResolvedValue(saved);
+
+    const result = await createItem(snippet);
+
+    expect(result).toEqual({ success: true, data: saved });
+    expect(mocks.countUserItems).toHaveBeenCalledWith("user-1");
+  });
+
+  it("refuses a Free user at 50 items with upgradeRequired", async () => {
+    signedInAs("user-1", false);
+    mocks.countUserItems.mockResolvedValue(50);
+
+    const result = await createItem(snippet);
+
+    expect(result).toEqual({
+      success: false,
+      error: expect.stringContaining("50 items"),
+      upgradeRequired: true,
+    });
+    expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it("lets Pro through at 500 items without counting", async () => {
+    signedInAs("user-1", true);
+    mocks.createItem.mockResolvedValue(saved);
+
+    const result = await createItem(snippet);
+
+    expect(result.success).toBe(true);
+    expect(mocks.countUserItems).not.toHaveBeenCalled();
+  });
+
+  it.each(["file", "image"] as const)("refuses a Free user a %s item", async (typeSlug) => {
+    signedInAs("user-1", false);
+    mocks.countUserItems.mockResolvedValue(0);
+
+    const result = await createItem({
+      typeSlug,
+      title: "Upload",
+      tags: [],
+      collectionIds: [],
+      file: {
+        fileUrl: "https://r2.test/uploads/user-1/a.png",
+        fileName: "a.png",
+        fileSize: 10,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: expect.stringMatching(/Pro feature/),
+      upgradeRequired: true,
+    });
+    expect(mocks.createItem).not.toHaveBeenCalled();
+    expect(mocks.countUserItems).not.toHaveBeenCalled();
+  });
+
+  it("allows a Free user a snippet", async () => {
+    signedInAs("user-1", false);
+    mocks.countUserItems.mockResolvedValue(0);
+    mocks.createItem.mockResolvedValue(saved);
+
+    expect((await createItem(snippet)).success).toBe(true);
   });
 });

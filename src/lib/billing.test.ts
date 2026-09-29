@@ -1,3 +1,4 @@
+import type Stripe from "stripe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const stripe = {
     customers: { create: vi.fn() },
+    checkout: { sessions: { retrieve: vi.fn() } },
     subscriptions: { list: vi.fn(), retrieve: vi.fn(), cancel: vi.fn() },
   };
 
@@ -34,8 +36,21 @@ import {
   cancelCustomerSubscriptions,
   getOrCreateStripeCustomer,
   getSubscriptionSummary,
+  handleStripeEvent,
+  syncCheckoutSession,
   syncCustomerSubscription,
 } from "@/lib/billing";
+
+/** A minimal event: the handler reads only `type` and the customer / mode. */
+function stripeEvent(type: string, object: Record<string, unknown>): Stripe.Event {
+  return { id: "evt_1", type, data: { object } } as unknown as Stripe.Event;
+}
+
+/** Lets a sync run to completion: no subscriptions, and a user owns the customer. */
+function syncSucceeds() {
+  mocks.stripe.subscriptions.list.mockResolvedValue({ data: [] });
+  mocks.applySubscriptionState.mockResolvedValue(true);
+}
 
 const user = { email: "ada@devstash.io", name: "Ada", stripeCustomerId: null };
 
@@ -136,11 +151,12 @@ describe("syncCustomerSubscription", () => {
 });
 
 describe("getSubscriptionSummary", () => {
-  it("reads the period end from the subscription item", async () => {
+  it("reads the renewal date from the subscription item", async () => {
     vi.stubEnv("STRIPE_PRICE_ID_YEARLY", "price_year");
     mocks.stripe.subscriptions.retrieve.mockResolvedValue({
       status: "active",
-      cancel_at_period_end: true,
+      cancel_at_period_end: false,
+      cancel_at: null,
       items: {
         data: [{ price: { id: "price_year" }, current_period_end: 1_800_000_000 }],
       },
@@ -151,8 +167,40 @@ describe("getSubscriptionSummary", () => {
     expect(summary).toEqual({
       period: "yearly",
       periodEnd: new Date(1_800_000_000 * 1000),
-      cancelAtPeriodEnd: true,
+      willCancel: false,
       status: "active",
+    });
+  });
+
+  it("treats the cancel_at_period_end flag as cancelling", async () => {
+    mocks.stripe.subscriptions.retrieve.mockResolvedValue({
+      status: "active",
+      cancel_at_period_end: true,
+      cancel_at: null,
+      items: { data: [{ price: { id: "price_x" }, current_period_end: 1_800_000_000 }] },
+    });
+
+    const summary = await getSubscriptionSummary("sub_1");
+
+    expect(summary).toMatchObject({
+      willCancel: true,
+      periodEnd: new Date(1_800_000_000 * 1000),
+    });
+  });
+
+  it("treats a Portal cancellation (cancel_at, flag false) as cancelling on that date", async () => {
+    mocks.stripe.subscriptions.retrieve.mockResolvedValue({
+      status: "active",
+      cancel_at_period_end: false,
+      cancel_at: 1_790_000_000,
+      items: { data: [{ price: { id: "price_x" }, current_period_end: 1_800_000_000 }] },
+    });
+
+    const summary = await getSubscriptionSummary("sub_1");
+
+    expect(summary).toMatchObject({
+      willCancel: true,
+      periodEnd: new Date(1_790_000_000 * 1000),
     });
   });
 
@@ -179,5 +227,97 @@ describe("cancelCustomerSubscriptions", () => {
 
     const cancelled = mocks.stripe.subscriptions.cancel.mock.calls.map(([id]) => id);
     expect(cancelled.sort()).toEqual(["sub_active", "sub_past_due"]);
+  });
+});
+
+describe("handleStripeEvent", () => {
+  it.each([
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
+    "customer.subscription.paused",
+    "customer.subscription.resumed",
+  ])("syncs the customer of %s", async (type) => {
+    syncSucceeds();
+
+    await handleStripeEvent(stripeEvent(type, { customer: "cus_1" }));
+
+    expect(mocks.stripe.subscriptions.list).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: "cus_1" }),
+    );
+    expect(mocks.applySubscriptionState).toHaveBeenCalledWith("cus_1", expect.any(Object));
+  });
+
+  it("syncs a completed subscription checkout, expanded customer included", async () => {
+    syncSucceeds();
+
+    await handleStripeEvent(
+      stripeEvent("checkout.session.completed", {
+        mode: "subscription",
+        customer: { id: "cus_2" },
+      }),
+    );
+
+    expect(mocks.applySubscriptionState).toHaveBeenCalledWith("cus_2", expect.any(Object));
+  });
+
+  it("ignores a checkout in payment mode", async () => {
+    await handleStripeEvent(
+      stripeEvent("checkout.session.completed", { mode: "payment", customer: "cus_1" }),
+    );
+
+    expect(mocks.stripe.subscriptions.list).not.toHaveBeenCalled();
+  });
+
+  it("ignores event types it does not handle", async () => {
+    await handleStripeEvent(stripeEvent("invoice.paid", { customer: "cus_1" }));
+
+    expect(mocks.stripe.subscriptions.list).not.toHaveBeenCalled();
+    expect(mocks.applySubscriptionState).not.toHaveBeenCalled();
+  });
+
+  it("lets a sync error propagate so the route answers 500", async () => {
+    mocks.stripe.subscriptions.list.mockRejectedValue(new Error("offline"));
+
+    await expect(
+      handleStripeEvent(stripeEvent("customer.subscription.updated", { customer: "cus_1" })),
+    ).rejects.toThrow("offline");
+  });
+});
+
+describe("syncCheckoutSession", () => {
+  it("syncs the user's own session", async () => {
+    syncSucceeds();
+    mocks.stripe.checkout.sessions.retrieve.mockResolvedValue({
+      client_reference_id: "user-1",
+      customer: "cus_1",
+    });
+
+    await syncCheckoutSession("cs_1", "user-1");
+
+    expect(mocks.stripe.checkout.sessions.retrieve).toHaveBeenCalledWith("cs_1");
+    expect(mocks.applySubscriptionState).toHaveBeenCalledWith("cus_1", expect.any(Object));
+  });
+
+  it("ignores another user's session", async () => {
+    mocks.stripe.checkout.sessions.retrieve.mockResolvedValue({
+      client_reference_id: "user-2",
+      customer: "cus_2",
+    });
+
+    await syncCheckoutSession("cs_1", "user-1");
+
+    expect(mocks.stripe.subscriptions.list).not.toHaveBeenCalled();
+  });
+
+  it("ignores a session with no customer", async () => {
+    mocks.stripe.checkout.sessions.retrieve.mockResolvedValue({
+      client_reference_id: "user-1",
+      customer: null,
+    });
+
+    await syncCheckoutSession("cs_1", "user-1");
+
+    expect(mocks.stripe.subscriptions.list).not.toHaveBeenCalled();
   });
 });

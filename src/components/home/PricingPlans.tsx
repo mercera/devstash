@@ -18,7 +18,7 @@ import {
   type Plan,
   type PriceDisplay,
 } from "@/lib/plans";
-import { REGISTER_PATH } from "@/lib/routes";
+import { BILLING_PATH, REGISTER_PATH } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const PERIODS: { value: BillingPeriod; label: string }[] = [
@@ -28,8 +28,15 @@ const PERIODS: { value: BillingPeriod; label: string }[] = [
 
 const FREE_PRICE: PriceDisplay = { amount: formatPrice(0), period: "/forever", note: "" };
 
-/** The billing toggle and both plan cards; the toggle sets the Pro price. */
-export function PricingPlans() {
+/**
+ * The billing toggle and both plan cards; the toggle sets the Pro price.
+ *
+ * Both plans start at registration for a visitor. A signed-in user's Pro
+ * button goes to the Billing card instead, where Checkout starts. The Free
+ * button can stay on `/register`, which sends a signed-in user on to the
+ * dashboard.
+ */
+export function PricingPlans({ signedIn }: { signedIn: boolean }) {
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
 
   return (
@@ -61,10 +68,16 @@ export function PricingPlans() {
 
       <div className="mx-auto grid max-w-3xl gap-8 sm:grid-cols-2 sm:gap-5">
         <Reveal>
-          <PlanCard plan={FREE_PLAN} price={FREE_PRICE} cta="Get started" />
+          <PlanCard plan={FREE_PLAN} price={FREE_PRICE} cta="Get started" href={REGISTER_PATH} />
         </Reveal>
         <Reveal className="delay-100">
-          <PlanCard plan={PRO_PLAN} price={getProPriceDisplay(period)} cta="Upgrade to Pro" featured />
+          <PlanCard
+            plan={PRO_PLAN}
+            price={getProPriceDisplay(period)}
+            cta="Upgrade to Pro"
+            href={signedIn ? BILLING_PATH : REGISTER_PATH}
+            featured
+          />
         </Reveal>
       </div>
     </>
@@ -75,11 +88,11 @@ interface PlanCardProps {
   plan: Plan;
   price: PriceDisplay;
   cta: string;
+  href: string;
   featured?: boolean;
 }
 
-/** Billing does not exist yet, so both plans start at registration. */
-function PlanCard({ plan, price, cta, featured = false }: PlanCardProps) {
+function PlanCard({ plan, price, cta, href, featured = false }: PlanCardProps) {
   return (
     <div className="relative h-full">
       {featured && (
@@ -102,7 +115,7 @@ function PlanCard({ plan, price, cta, featured = false }: PlanCardProps) {
         {price.note && <p className="mt-0.5 text-sm text-muted-foreground">{price.note}</p>}
         <Checklist items={plan.features} className="mt-6 mb-7 flex-1 gap-2.5" />
         <Button asChild size="lg" variant={featured ? "default" : "outline"} className="w-full">
-          <Link href={REGISTER_PATH}>{cta}</Link>
+          <Link href={href}>{cta}</Link>
         </Button>
       </Card>
     </div>

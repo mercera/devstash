@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
+  countUserCollections: vi.fn(),
   createCollection: vi.fn(),
   updateCollection: vi.fn(),
   deleteCollection: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/db/collections", () => ({
+  countUserCollections: mocks.countUserCollections,
   createCollection: mocks.createCollection,
   updateCollection: mocks.updateCollection,
   deleteCollection: mocks.deleteCollection,
@@ -32,8 +34,9 @@ import {
 
 const saved = { id: "col-1", name: "React Patterns", slug: "react-patterns" };
 
-function signedInAs(id: string | null) {
-  mocks.auth.mockResolvedValue(id ? { user: { id } } : null);
+/** Pro by default, so the plan limits stay out of the way of other tests. */
+function signedInAs(id: string | null, isPro = true) {
+  mocks.auth.mockResolvedValue(id ? { user: { id, isPro } } : null);
 }
 
 beforeEach(() => {
@@ -272,5 +275,40 @@ describe("setCollectionFavorite", () => {
       success: false,
       error: "Something went wrong. Please try again.",
     });
+  });
+});
+
+describe("createCollection plan limits", () => {
+  it("allows a Free user at 2 collections", async () => {
+    signedInAs("user-1", false);
+    mocks.countUserCollections.mockResolvedValue(2);
+    mocks.createCollection.mockResolvedValue(saved);
+
+    const result = await createCollection({ name: "React Patterns" });
+
+    expect(result).toEqual({ success: true, data: saved });
+    expect(mocks.countUserCollections).toHaveBeenCalledWith("user-1");
+  });
+
+  it("refuses a Free user at 3 collections with upgradeRequired", async () => {
+    signedInAs("user-1", false);
+    mocks.countUserCollections.mockResolvedValue(3);
+
+    const result = await createCollection({ name: "React Patterns" });
+
+    expect(result).toEqual({
+      success: false,
+      error: expect.stringContaining("3 collections"),
+      upgradeRequired: true,
+    });
+    expect(mocks.createCollection).not.toHaveBeenCalled();
+  });
+
+  it("lets Pro through without counting", async () => {
+    signedInAs("user-1", true);
+    mocks.createCollection.mockResolvedValue(saved);
+
+    expect((await createCollection({ name: "React Patterns" })).success).toBe(true);
+    expect(mocks.countUserCollections).not.toHaveBeenCalled();
   });
 });

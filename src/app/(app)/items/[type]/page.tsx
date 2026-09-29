@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
+import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
 import { ItemCard } from "@/components/items/ItemCard";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { FileRow } from "@/components/items/FileRow";
@@ -25,6 +26,8 @@ import {
   getTotalPages,
   parsePageParam,
 } from "@/lib/pagination";
+import { getSessionUser } from "@/lib/session";
+import { canViewTypeSlug } from "@/lib/usage-limits";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,12 +51,24 @@ export default async function ItemsByTypePage({
 }: PageProps<"/items/[type]">) {
   const [{ type: slug }, query] = await Promise.all([params, searchParams]);
   const page = parsePageParam(query.page);
-  const [type, itemTypes] = await Promise.all([
+  const [type, itemTypes, sessionUser] = await Promise.all([
     loadItemType(slug),
     getItemTypesWithCounts(),
+    getSessionUser(),
   ]);
 
   if (type === null) notFound();
+
+  const isPro = sessionUser?.isPro ?? false;
+
+  if (type.isSystem && !canViewTypeSlug(type.slug, isPro)) {
+    return (
+      <div className="flex flex-col gap-8">
+        <h1 className="text-3xl font-semibold tracking-tight">{type.name}</h1>
+        <UpgradePrompt type={type} />
+      </div>
+    );
+  }
 
   const pathname = `/items/${type.slug}`;
   const { rows: items, total } = await getItemsByType(type.id, page);
@@ -89,6 +104,7 @@ export default async function ItemsByTypePage({
             <NewItemDialog
               types={getCreatableTypes(itemTypes)}
               defaultTypeSlug={createSlug}
+              isPro={isPro}
               label={`New ${singularTypeName(createSlug)}`}
               variant="outline"
             />

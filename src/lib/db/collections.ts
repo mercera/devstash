@@ -247,6 +247,11 @@ export async function getCollectionStats(userId: string): Promise<{
   return { collectionCount, favoriteCollectionCount };
 }
 
+/** How many collections `userId` owns, for the Free plan's collection limit. */
+export async function countUserCollections(userId: string): Promise<number> {
+  return prisma.collection.count({ where: { userId } });
+}
+
 /**
  * Creates a collection for `userId`, with a slug built from its name that is
  * unique among that user's collections (`react-patterns`, then

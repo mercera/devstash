@@ -331,6 +331,14 @@ export async function isFileUrlInUse(fileUrl: string): Promise<boolean> {
   return count > 0;
 }
 
+/**
+ * How many items `userId` owns, for the Free plan's item limit. Scoped to the
+ * given user; `getItemStats()` below is demo-scoped and must not gate anyone.
+ */
+export async function countUserItems(userId: string): Promise<number> {
+  return prisma.item.count({ where: { userId } });
+}
+
 /** Pinned items for the dashboard's "Pinned" section, most recently updated first. */
 export async function getPinnedItems(): Promise<ItemWithRelations[]> {
   const items = await prisma.item.findMany({

@@ -1,6 +1,10 @@
 /**
- * Subscription plans as marketed on the homepage. Display data only: nothing
- * enforces these limits yet, and there is no billing.
+ * Subscription plans as marketed on the homepage and the Billing card.
+ *
+ * The limits are enforced: `src/lib/usage-limits.ts` reads them for the
+ * `createItem` / `createCollection` guards, so what is advertised is what is
+ * checked. The prices are display only — Stripe charges its own price objects
+ * (`STRIPE_PRICE_ID_*`), so change them together.
  */
 
 export type BillingPeriod = "monthly" | "yearly";
@@ -29,7 +33,6 @@ export const FREE_PLAN: Plan = {
     `${FREE_ITEM_LIMIT} items`,
     `${FREE_COLLECTION_LIMIT} collections`,
     "Basic search",
-    "Image uploads",
   ],
 };
 
@@ -39,7 +42,7 @@ export const PRO_PLAN: Plan = {
   description: "For developers who live in their stash.",
   features: [
     "Unlimited items and collections",
-    "File uploads",
+    "File and image uploads",
     "Custom item types",
     "AI tagging, summaries and Explain Code",
     "Export to JSON / ZIP",

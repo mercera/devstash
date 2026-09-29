@@ -29,6 +29,7 @@ import { UserMenu } from "@/components/auth/UserMenu";
 import { Logo } from "@/components/brand/Logo";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { getAccentDotClass, getAccentTextClass } from "@/lib/icons";
+import { PRO_TYPE_SLUGS } from "@/lib/usage-limits";
 import { cn } from "@/lib/utils";
 import type {
   CollectionCardData,
@@ -36,17 +37,16 @@ import type {
   ItemTypeWithCount,
 } from "@/types";
 
-/** Item types reserved for the Pro plan — their rows are marked with a badge. */
-const PRO_TYPE_SLUGS = new Set(["file", "image"]);
-
 interface SidebarProps {
   itemTypes: ItemTypeWithCount[];
   /** All of the user's collections; the two sections are split from this. */
   collections: CollectionCardData[];
   user: CurrentUser | null;
+  /** Pro users already have the Pro-only types, so their rows are not badged. */
+  isPro: boolean;
 }
 
-export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
+export function Sidebar({ itemTypes, collections, user, isPro }: SidebarProps) {
   const pathname = usePathname();
 
   const favoriteCollections = collections.filter(
@@ -85,7 +85,7 @@ export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
                             name asks for it directly — a trailing badge would
                             otherwise take it. */}
                         <span className="truncate">{type.name}</span>
-                        {PRO_TYPE_SLUGS.has(type.slug) && (
+                        {!isPro && PRO_TYPE_SLUGS.has(type.slug) && (
                           <Badge
                             variant="outline"
                             className="h-4 border-sidebar-border px-1 text-[10px] font-medium tracking-wider text-sidebar-foreground/50"

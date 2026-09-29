@@ -2,11 +2,13 @@
 
 import { auth } from "@/auth";
 import {
+  countUserCollections,
   createCollection as createCollectionRecord,
   deleteCollection as deleteCollectionRecord,
   setCollectionFavorite as setCollectionFavoriteRecord,
   updateCollection as updateCollectionRecord,
 } from "@/lib/db/collections";
+import { checkCollectionLimit } from "@/lib/usage-limits";
 import { isFavoriteSchema } from "@/lib/validations/favorites";
 import {
   createCollectionSchema,
@@ -38,6 +40,8 @@ export type CreateCollectionResult =
       error: string;
       /** Per-field validation messages, keyed by payload field. */
       issues?: Partial<Record<CreateCollectionField, string[]>>;
+      /** Set when the Free plan refused it, so the UI can offer an upgrade. */
+      upgradeRequired?: true;
     };
 
 export type UpdateCollectionField = keyof UpdateCollectionInput;
@@ -90,6 +94,17 @@ export async function createCollection(
   }
 
   try {
+    // Pro skips the count. Soft limit: concurrent creates can overshoot it.
+    const isPro = session.user.isPro;
+
+    if (!isPro) {
+      const limit = checkCollectionLimit(await countUserCollections(userId), isPro);
+
+      if (!limit.allowed) {
+        return { success: false, error: limit.error, upgradeRequired: true };
+      }
+    }
+
     const collection = await createCollectionRecord(userId, parsed.data);
 
     return { success: true, data: collection };

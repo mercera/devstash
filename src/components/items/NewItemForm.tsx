@@ -11,10 +11,12 @@ import { FileUpload } from "@/components/items/FileUpload";
 import { ItemContentFields } from "@/components/items/ItemContentFields";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { TypeIcon } from "@/components/items/TypeIcon";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useActionErrorToast } from "@/hooks/use-action-error-toast";
 import { useItemForm } from "@/hooks/use-item-form";
 import { useUnsavedUpload } from "@/hooks/use-unsaved-upload";
 import { getAccentTextClass } from "@/lib/icons";
@@ -26,6 +28,7 @@ import {
   type CreatableTypeSlug,
 } from "@/lib/item-fields";
 import { discardUpload } from "@/lib/upload-client";
+import { canCreateTypeSlug } from "@/lib/usage-limits";
 import type { UploadedFile } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import type { ItemType } from "@/types";
@@ -35,6 +38,8 @@ const CREATE_FAILED = "Something went wrong. Please try again.";
 interface NewItemFormProps {
   types: ItemType[];
   defaultTypeSlug?: CreatableTypeSlug;
+  /** Free users see File and Image locked. The server refuses them regardless. */
+  isPro: boolean;
   onPendingChange: (pending: boolean) => void;
   onCancel: () => void;
   onCreated: () => void;
@@ -44,11 +49,13 @@ interface NewItemFormProps {
 export function NewItemForm({
   types,
   defaultTypeSlug,
+  isPro,
   onPendingChange,
   onCancel,
   onCreated,
 }: NewItemFormProps) {
   const router = useRouter();
+  const showError = useActionErrorToast();
   const [typeSlug, setTypeSlug] = useState<CreatableTypeSlug>(
     () =>
       defaultTypeSlug ??
@@ -98,7 +105,7 @@ export function NewItemForm({
 
         if (!result.success) {
           setIssues(result.issues ?? {});
-          toast.error(result.error);
+          showError(result);
           return;
         }
 
@@ -125,6 +132,7 @@ export function NewItemForm({
         <TypePicker
           types={types}
           selected={typeSlug}
+          isPro={isPro}
           onSelect={selectType}
           disabled={isPending || uploading}
           issues={issues.typeSlug}
@@ -188,13 +196,18 @@ export function NewItemForm({
 interface TypePickerProps {
   types: ItemType[];
   selected: CreatableTypeSlug;
+  isPro: boolean;
   onSelect: (slug: CreatableTypeSlug) => void;
   disabled: boolean;
   issues?: string[];
 }
 
-/** One toggle button per creatable type, each icon in the type's accent color. */
-function TypePicker({ types, selected, onSelect, disabled, issues }: TypePickerProps) {
+/**
+ * One toggle button per creatable type, each icon in the type's accent color.
+ * Pro-only types are shown to Free users, disabled and badged, so the upgrade
+ * is discoverable rather than the types silently missing.
+ */
+function TypePicker({ types, selected, isPro, onSelect, disabled, issues }: TypePickerProps) {
   return (
     <div className="flex flex-col gap-2">
       <span id="item-new-type" className="text-sm font-medium text-muted-foreground">
@@ -207,18 +220,20 @@ function TypePicker({ types, selected, onSelect, disabled, issues }: TypePickerP
       >
         {types.map((type) => {
           const isSelected = type.slug === selected;
+          const locked = !canCreateTypeSlug(type.slug, isPro);
 
           return (
             <button
               key={type.id}
               type="button"
               aria-pressed={isSelected}
-              disabled={disabled}
+              disabled={disabled || locked}
+              title={locked ? `Upgrade to Pro to create ${type.name.toLowerCase()}` : undefined}
               onClick={() => {
                 if (isCreatableTypeSlug(type.slug)) onSelect(type.slug);
               }}
               className={cn(
-                "flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
+                "relative flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
                 isSelected
                   ? "border-foreground/30 bg-accent text-foreground"
                   : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -226,6 +241,14 @@ function TypePicker({ types, selected, onSelect, disabled, issues }: TypePickerP
             >
               <TypeIcon type={type} className={cn("size-4", getAccentTextClass(type.color))} />
               {singularTypeName(type.slug)}
+              {locked && (
+                <Badge
+                  variant="outline"
+                  className="absolute -top-1.5 right-1 h-3.5 bg-background px-1 text-[9px] font-medium tracking-wider text-muted-foreground"
+                >
+                  PRO
+                </Badge>
+              )}
             </button>
           );
         })}

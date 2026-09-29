@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
 import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toSafeRedirect } from "@/lib/routes";
+import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Sign in · DevStash",
@@ -63,9 +63,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
   const callbackUrl = toSafeRedirect(firstParam(params.callbackUrl));
 
   // Nothing to sign in to if there is already a session.
-  const session = await auth();
-
-  if (session?.user) {
+  if (await getSessionUser()) {
     redirect(callbackUrl);
   }
 
