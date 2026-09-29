@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { BILLING_PATH } from "@/lib/routes";
+import { UPGRADE_PATH } from "@/lib/routes";
 
 interface ActionFailure {
   error: string;
@@ -13,7 +13,7 @@ interface ActionFailure {
 
 /**
  * Shows a failed action's message. When the Free plan was the reason, the
- * toast carries an "Upgrade" action to the Billing card.
+ * toast carries an "Upgrade" action to the upgrade page.
  */
 export function useActionErrorToast(): (failure: ActionFailure) => void {
   const router = useRouter();
@@ -25,7 +25,7 @@ export function useActionErrorToast(): (failure: ActionFailure) => void {
     }
 
     toast.error(error, {
-      action: { label: "Upgrade", onClick: () => router.push(BILLING_PATH) },
+      action: { label: "Upgrade", onClick: () => router.push(UPGRADE_PATH) },
     });
   };
 }

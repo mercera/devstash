@@ -5,7 +5,7 @@ import { TypeIcon } from "@/components/items/TypeIcon";
 import { Button } from "@/components/ui/button";
 import { getAccentTileClass } from "@/lib/icons";
 import { PRO_PLAN, PRO_PRICES, formatPrice } from "@/lib/plans";
-import { BILLING_PATH, DASHBOARD_PATH } from "@/lib/routes";
+import { UPGRADE_PATH, DASHBOARD_PATH } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { ItemType } from "@/types";
 
@@ -54,7 +54,7 @@ export function UpgradePrompt({ type }: UpgradePromptProps) {
 
       <div className="flex w-full flex-col gap-2 sm:flex-row-reverse">
         <Button asChild className="flex-1">
-          <Link href={BILLING_PATH}>Upgrade to Pro</Link>
+          <Link href={UPGRADE_PATH}>Upgrade to Pro</Link>
         </Button>
         <Button asChild variant="outline" className="flex-1">
           <Link href={DASHBOARD_PATH}>Back to dashboard</Link>

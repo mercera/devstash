@@ -1,18 +1,29 @@
 # Current Feature
 
-<!-- Feature Name -->
+Upgrade Page
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Free users see a subtle ghost "Upgrade" button in the app top bar; Pro users
+  do not
+- The button links to a new `/upgrade` page, not straight to Stripe Checkout
+- `/upgrade` shows the Free and Pro plans the way the homepage pricing section
+  does, with a Monthly ($8) / Yearly ($72) toggle
+- The Pro card's button starts Checkout for the selected period
+- `/upgrade` is behind the proxy; a Pro user is redirected to the Billing card
 
 ## Notes
 
-<!-- Any extra notes -->
+- Loaded from an inline description rather than a spec file
+- The page sits in the `(app)` route group, so it keeps the sidebar and top bar
+- The plan card and period toggle are shared with the homepage's
+  `PricingPlans` rather than copied
+- The other "Upgrade" prompts (Pro-only type pages, the refused-create toast,
+  the homepage's signed-in Pro button) now lead to `/upgrade` too
 
 ## History
 
