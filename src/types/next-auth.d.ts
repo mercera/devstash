@@ -10,6 +10,8 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
+      /** From the database on every session read. See the `jwt` callback. */
+      isPro: boolean;
     } & DefaultSession["user"];
   }
 }

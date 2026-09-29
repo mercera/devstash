@@ -121,13 +121,40 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   callbacks: {
+    // Runs on every session read (every `auth()` call), not only at sign-in —
+    // `@auth/core/lib/actions/session.js` calls it each time it decodes the
+    // cookie — so a webhook's change to `isPro` shows on the next request.
+    // Auth.js already stores the user id as `sub` when it mints the token, so
+    // this only adds the plan. The proxy's own instance has no `jwt` callback
+    // and passes the claim through untouched.
+    async jwt({ token }) {
+      if (!token.sub) {
+        return token;
+      }
+
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { isPro: true },
+        });
+
+        token.isPro = user?.isPro ?? false;
+      } catch (error) {
+        // Keep the last known value rather than failing every page on a
+        // database blip.
+        console.error("Failed to refresh isPro on the session:", error);
+      }
+
+      return token;
+    },
     session({ session, token }) {
-      // Auth.js already stores the user id as the `sub` claim when it mints the
-      // token, so there is no `jwt` callback to add one — this just surfaces it
-      // on the session where the app reads it.
       if (token.sub) {
         session.user.id = token.sub;
       }
+
+      // `token.isPro` is `unknown`: `declare module "next-auth/jwt"` does not
+      // merge, so the claim is narrowed here instead.
+      session.user.isPro = token.isPro === true;
 
       return session;
     },
