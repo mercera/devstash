@@ -2,12 +2,12 @@
  * Prisma-backed user queries.
  */
 
-import { auth } from "@/auth";
 import {
   parseEditorPreferences,
   type EditorPreferences,
 } from "@/lib/editor-preferences";
 import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/session";
 import type { CurrentUser, ProfileUser } from "@/types";
 
 /**
@@ -23,14 +23,14 @@ import type { CurrentUser, ProfileUser } from "@/types";
  * rather than being assumed to succeed.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const session = await auth();
+  const userId = await getSessionUserId();
 
-  if (!session?.user?.id) {
+  if (!userId) {
     return null;
   }
 
   return prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: userId },
     select: { name: true, email: true, image: true },
   });
 }
@@ -44,14 +44,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
  * being carried any further than it has to be.
  */
 export async function getProfileUser(): Promise<ProfileUser | null> {
-  const session = await auth();
+  const userId = await getSessionUserId();
 
-  if (!session?.user?.id) {
+  if (!userId) {
     return null;
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: userId },
     select: {
       name: true,
       email: true,
