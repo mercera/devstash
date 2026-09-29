@@ -1,29 +1,18 @@
 # Current Feature
 
-Upgrade Page
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Free users see a subtle ghost "Upgrade" button in the app top bar; Pro users
-  do not
-- The button links to a new `/upgrade` page, not straight to Stripe Checkout
-- `/upgrade` shows the Free and Pro plans the way the homepage pricing section
-  does, with a Monthly ($8) / Yearly ($72) toggle
-- The Pro card's button starts Checkout for the selected period
-- `/upgrade` is behind the proxy; a Pro user is redirected to the Billing card
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Loaded from an inline description rather than a spec file
-- The page sits in the `(app)` route group, so it keeps the sidebar and top bar
-- The plan card and period toggle are shared with the homepage's
-  `PricingPlans` rather than copied
-- The other "Upgrade" prompts (Pro-only type pages, the refused-create toast,
-  the homepage's signed-in Pro button) now lead to `/upgrade` too
+<!-- Any extra notes -->
 
 ## History
 
@@ -4063,3 +4052,75 @@ Decisions worth carrying forward:
 - Still out of scope: AI features, custom types and export (each needs the
   `isPro` guard), the production webhook endpoint and live mode.
   `.env.production` has none of the `STRIPE_*` variables
+
+### Upgrade Page — Completed (2026-09-29)
+
+Free users now have one clear way to upgrade: a ghost "Upgrade" button in the
+app top bar leads to a new `/upgrade` plan picker, which starts Stripe
+Checkout. Branch `feature/upgrade-page`. Four new source files, nine existing
+files touched, no new dependencies, no migration. Loaded from an inline
+description rather than a spec file.
+
+- `TopBar` renders a ghost `Upgrade` link (lucide `Sparkles`) for Free users
+  only, first in the right-hand group. It uses `text-muted-foreground`, so it
+  reads quieter than New Collection (outline) and New Item (default). The label
+  shows from `lg`; below that it is icon only with `aria-label="Upgrade"`
+- Added `src/app/(app)/upgrade/page.tsx`: "Upgrade to Pro" over the plan
+  picker, inside the `(app)` shell. It redirects to sign-in with no session and
+  to `/settings#billing` for a Pro user. Tab title "Upgrade | DevStash"
+- Added `src/components/billing/`:
+  - `BillingPeriodToggle`: the Monthly / Yearly pill with "Save 25%"
+  - `PlanCard`: the name, price, features and a button slot
+  - `UpgradePlans`: the Free card with a disabled "Current plan" button, and
+    the Pro card with an `UpgradeButton` for the selected period
+- `PricingPlans` on the homepage now uses `BillingPeriodToggle` and
+  `PlanCard`, with no visible change
+- `src/lib/plans.ts` gained `FREE_PRICE_DISPLAY`, and `src/lib/routes.ts`
+  gained `UPGRADE_PATH`. `BILLING_PATH` stays for Pro users
+- `UpgradeButton` gained `size` and `className` props
+- `UpgradePrompt`, `ProLockedButton`, `useActionErrorToast` and the homepage's
+  signed-in Pro button now lead to `/upgrade` instead of `/settings#billing`
+- `src/proxy.ts`'s matcher gained `/upgrade`
+- `npm test` (551, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the build registers `ƒ /upgrade`
+
+Verified in the browser with a session minted locally for a user id with no
+database row, so nothing was written. Zero console errors or warnings:
+
+- Anonymous `/upgrade` → `/sign-in?callbackUrl=%2Fupgrade`
+- The header's Upgrade link had a transparent background and border and muted
+  text, against New Collection's filled background and border. Both are 32px
+  tall. Clicking it opened `/upgrade`
+- The Pro price read `$8/month`, then `$72/year` after Yearly, with
+  `aria-pressed` following. The button label went from "Upgrade monthly" to
+  "Upgrade yearly". "Current plan" is disabled
+- Clicking "Upgrade yearly" called `createCheckoutSession`, which returned
+  "Your session has expired" because the test user has no row. It stopped
+  before Stripe
+- No horizontal scroll at 390, 768 or 1280px. At 390px the label is hidden
+- The demo account (now Pro) has no Upgrade button, and its `/upgrade`
+  redirects to `/settings#billing`
+
+Decisions worth carrying forward:
+
+- **Every upgrade prompt now leads to `/upgrade`.** A Free user always lands on
+  the same plan picker. The Billing card still has its own upgrade buttons, and
+  Pro users manage their plan there
+- **The page is in the `(app)` route group**, unlike `/settings`, so the Upgrade
+  button's destination keeps the shell it was clicked from
+- **Stripe still returns to `/settings`** on both success and cancel. That is
+  where a returning Checkout session is synced and the notice is shown, so
+  `createCheckoutSession` is unchanged
+- **The card and toggle are shared, not copied.** `PlanCard` takes its button as
+  a node, so the homepage passes `Link`s and `/upgrade` passes
+  `UpgradeButton`, which calls a server action
+- **The real Checkout was not run from `/upgrade`.** The only account in the dev
+  database, `demo@devstash.io`, is now Pro with a Stripe customer, so there is
+  no Free account to test with. Register a new one to walk the full path
+- **`ProLockedButton` is still unused**, as after Stripe Phase 2. It was
+  repointed so that it stays consistent if it comes back into use
+- **During the check, a `taskkill /IM node.exe` stopped the user's `next dev`
+  and the MCP servers.** It was meant to stop the throwaway token server. Stop
+  a helper by the PID listening on its port, never by image name
+- The session token and the mint script were deleted afterwards.
+  `.playwright-mcp/` holds the screenshot; it is gitignored
