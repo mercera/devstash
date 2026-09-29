@@ -40,14 +40,24 @@ interface UpgradeButtonProps {
   period: BillingPeriod;
   label: string;
   variant?: "default" | "outline";
+  size?: "default" | "lg";
+  className?: string;
 }
 
-export function UpgradeButton({ period, label, variant = "default" }: UpgradeButtonProps) {
+export function UpgradeButton({
+  period,
+  label,
+  variant = "default",
+  size = "default",
+  className,
+}: UpgradeButtonProps) {
   const { busy, go } = useStripeRedirect();
 
   return (
     <Button
       variant={variant}
+      size={size}
+      className={className}
       disabled={busy}
       onClick={() => go(() => createCheckoutSession(period))}
     >

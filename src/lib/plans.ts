@@ -73,6 +73,13 @@ export interface PriceDisplay {
   note: string;
 }
 
+/** The Free card's price line. */
+export const FREE_PRICE_DISPLAY: PriceDisplay = {
+  amount: formatPrice(0),
+  period: "/forever",
+  note: "",
+};
+
 /** The Pro card's price line for a billing period. */
 export function getProPriceDisplay(period: BillingPeriod): PriceDisplay {
   if (period === "yearly") {
