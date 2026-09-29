@@ -7,8 +7,11 @@ import { SIGN_IN_PATH } from "@/auth.config";
 import { EditorPreferencesProvider } from "@/components/editor/EditorPreferencesProvider";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
+import { BillingCard, type CheckoutNotice } from "@/components/settings/BillingCard";
 import { EditorPreferencesForm } from "@/components/settings/EditorPreferencesForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getSubscriptionSummary, syncCheckoutSession } from "@/lib/billing";
+import { getBillingUser, getUsageCounts } from "@/lib/db/billing";
 import { getEditorPreferences, getProfileUser } from "@/lib/db/user";
 import { getSessionUserId } from "@/lib/session";
 
@@ -22,25 +25,50 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * The account settings page: editor preferences, change password and delete
- * account.
+ * The account settings page: editor preferences, billing, change password and
+ * delete account.
  *
  * Like `/profile`, it sits outside the `(app)` route group, so it has no
  * sidebar and the header carries a link back instead. Every action is
  * session-scoped.
  */
-export default async function SettingsPage() {
-  const userId = await getSessionUserId();
-  const [user, editorPreferences] = await Promise.all([
-    getProfileUser(),
-    userId ? getEditorPreferences(userId) : null,
-  ]);
+export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
+  const [userId, query] = await Promise.all([getSessionUserId(), searchParams]);
 
-  // The proxy already turns anonymous requests away; this catches a session
-  // whose `User` row has since been deleted.
-  if (!user || !editorPreferences) {
+  // The proxy already turns anonymous requests away.
+  if (!userId) {
     redirect(SIGN_IN_PATH);
   }
+
+  const notice = toCheckoutNotice(query.checkout);
+
+  // Stripe's return from Checkout. Syncing here, before the billing reads,
+  // shows Pro on the first render even if the webhook has not arrived. The
+  // sync is idempotent, so a refresh of this URL is harmless.
+  if (notice === "success" && typeof query.session_id === "string") {
+    try {
+      await syncCheckoutSession(query.session_id, userId);
+    } catch (error) {
+      console.error("Failed to sync the returning Checkout session:", error);
+    }
+  }
+
+  const [user, editorPreferences, billingUser, usage] = await Promise.all([
+    getProfileUser(),
+    getEditorPreferences(userId),
+    getBillingUser(userId),
+    getUsageCounts(userId),
+  ]);
+
+  // A session whose `User` row has since been deleted.
+  if (!user || !billingUser) {
+    redirect(SIGN_IN_PATH);
+  }
+
+  const subscription =
+    billingUser.isPro && billingUser.stripeSubscriptionId
+      ? await getSubscriptionSummary(billingUser.stripeSubscriptionId)
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
@@ -71,6 +99,13 @@ export default async function SettingsPage() {
             </EditorPreferencesProvider>
           </CardContent>
         </Card>
+
+        <BillingCard
+          user={billingUser}
+          usage={usage}
+          subscription={subscription}
+          notice={notice}
+        />
 
         {/* Absent, not disabled, for a GitHub account — there is no password to
             change and the action refuses to set a first one. */}
@@ -103,4 +138,8 @@ export default async function SettingsPage() {
       </div>
     </div>
   );
+}
+
+function toCheckoutNotice(value: string | string[] | undefined): CheckoutNotice {
+  return value === "success" || value === "cancelled" ? value : null;
 }

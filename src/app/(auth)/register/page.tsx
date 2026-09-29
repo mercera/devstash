@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Create an account · DevStash",
@@ -12,9 +12,7 @@ export const metadata: Metadata = {
 
 export default async function RegisterPage() {
   // Someone already signed in has no use for a sign-up form.
-  const session = await auth();
-
-  if (session?.user) {
+  if (await getSessionUser()) {
     redirect("/dashboard");
   }
 

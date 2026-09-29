@@ -19,6 +19,7 @@ import {
   getBillingPeriodForPrice,
   getStripe,
   pickEntitlingSubscription,
+  toStripeId,
 } from "@/lib/stripe";
 
 /** Statuses that have already ended and cannot be cancelled again. */
@@ -75,11 +76,59 @@ export async function syncCustomerSubscription(customerId: string): Promise<void
   }
 }
 
+/**
+ * Syncs the Checkout Session the success URL names, but only if it is this
+ * user's own. The `session_id` comes from the query string, so anyone could
+ * pass another user's.
+ */
+export async function syncCheckoutSession(
+  sessionId: string,
+  userId: string,
+): Promise<void> {
+  const session = await getStripe().checkout.sessions.retrieve(sessionId);
+
+  if (session.client_reference_id !== userId || !session.customer) {
+    return;
+  }
+
+  await syncCustomerSubscription(toStripeId(session.customer));
+}
+
+/**
+ * Everything the webhook route does once the signature has been verified.
+ * Only the customer is read from the event; the sync re-reads the rest from
+ * Stripe. Errors propagate so the route can answer 500 and Stripe retries.
+ */
+export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object;
+
+      if (session.mode === "subscription" && session.customer) {
+        await syncCustomerSubscription(toStripeId(session.customer));
+      }
+
+      return;
+    }
+    case "customer.subscription.created":
+    case "customer.subscription.updated":
+    case "customer.subscription.deleted":
+    case "customer.subscription.paused":
+    case "customer.subscription.resumed":
+      await syncCustomerSubscription(toStripeId(event.data.object.customer));
+      return;
+    default:
+      // Acknowledged and ignored.
+      return;
+  }
+}
+
 export interface SubscriptionSummary {
   period: BillingPeriod | null;
   /** When the current period ends: the renewal date, or the end date if cancelling. */
   periodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
+  /** Whether the subscription ends at `periodEnd` rather than renewing. */
+  willCancel: boolean;
   status: Stripe.Subscription.Status;
 }
 
@@ -90,13 +139,19 @@ export async function getSubscriptionSummary(
   try {
     const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
     const item = subscription.items.data[0];
+    // A scheduled cancellation shows up in either field. The Customer Portal
+    // sets `cancel_at` to the period end and leaves `cancel_at_period_end`
+    // false, so reading only the flag would say "Renews on" for a
+    // subscription that is ending.
+    const cancelAt = subscription.cancel_at;
+    // Item-level since API version 2025-03-31 (basil); the subscription no
+    // longer carries it.
+    const periodEndSeconds = cancelAt ?? item?.current_period_end ?? null;
 
     return {
       period: item ? getBillingPeriodForPrice(item.price.id) : null,
-      // Item-level since API version 2025-03-31 (basil); the subscription no
-      // longer carries it.
-      periodEnd: item ? new Date(item.current_period_end * 1000) : null,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      periodEnd: periodEndSeconds === null ? null : new Date(periodEndSeconds * 1000),
+      willCancel: subscription.cancel_at_period_end || cancelAt !== null,
       status: subscription.status,
     };
   } catch (error) {

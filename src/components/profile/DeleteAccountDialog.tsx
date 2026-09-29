@@ -50,7 +50,9 @@ export function DeleteAccountDialog({ email }: DeleteAccountDialogProps) {
           <AlertDialogTitle>Delete your account?</AlertDialogTitle>
           <AlertDialogDescription>
             This permanently deletes <span className="text-foreground">{email}</span>{" "}
-            along with every item, collection and tag it owns. This cannot be undone.
+            along with every item, collection and tag it owns. Any Pro
+            subscription is cancelled immediately, without a refund for the
+            remaining period. This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

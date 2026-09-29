@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useActionErrorToast } from "@/hooks/use-action-error-toast";
 import type { Collection } from "@/types";
 
 const SAVE_FAILED = "Something went wrong. Please try again.";
@@ -53,6 +54,8 @@ export function CollectionForm({
   const [description, setDescription] = useState(initialDescription ?? "");
   const [issues, setIssues] = useState<Issues>({});
   const [isPending, startTransition] = useTransition();
+  // A create refused by the Free plan's limit gets an "Upgrade" action.
+  const showError = useActionErrorToast();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,7 +67,7 @@ export function CollectionForm({
 
         if (!result.success) {
           setIssues(result.issues ?? {});
-          toast.error(result.error);
+          showError(result);
           return;
         }
 

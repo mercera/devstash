@@ -11,7 +11,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getItemTypesWithCounts, getSearchItems } from "@/lib/db/items";
 import { getCurrentUser, getEditorPreferences } from "@/lib/db/user";
-import { getSessionUserId } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
 
 /**
  * The signed-in app shell — sidebar, top bar and main area — shared by
@@ -25,12 +25,14 @@ import { getSessionUserId } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const userId = await getSessionUserId();
+  const sessionUser = await getSessionUser();
 
   // The proxy already turns anonymous requests away; this covers the types.
-  if (!userId) {
+  if (!sessionUser) {
     redirect(SIGN_IN_PATH);
   }
+
+  const { id: userId, isPro } = sessionUser;
 
   const [itemTypes, collections, user, searchItems, editorPreferences] =
     await Promise.all([
@@ -53,7 +55,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // can open an item in the drawer.
   return (
     <SidebarProvider className="min-h-full flex-1">
-      <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
+      <Sidebar
+        itemTypes={itemTypes}
+        collections={collections}
+        user={user}
+        isPro={isPro}
+      />
       {/* A flex item will not shrink below its content by default, and the
           card grids size to their untruncated titles, so without min-w-0 the
           column widened past the window beside the sidebar at md. */}
@@ -65,6 +72,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                 itemTypes={itemTypes}
                 searchItems={searchItems}
                 searchCollections={searchCollections}
+                isPro={isPro}
               />
               <div className="min-w-0 flex-1 p-6">{children}</div>
             </ItemDrawerProvider>

@@ -4,6 +4,7 @@ import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT } from "@/lib/plans";
 import {
   PRO_TYPE_SLUGS,
   canCreateTypeSlug,
+  canViewTypeSlug,
   checkCollectionLimit,
   checkItemLimit,
 } from "@/lib/usage-limits";
@@ -65,6 +66,21 @@ describe("canCreateTypeSlug", () => {
     (slug) => {
       expect(canCreateTypeSlug(slug, false)).toBe(true);
       expect(canCreateTypeSlug(slug, true)).toBe(true);
+    },
+  );
+});
+
+describe("canViewTypeSlug", () => {
+  it.each(["file", "image"])("hides %s from Free and shows it to Pro", (slug) => {
+    expect(canViewTypeSlug(slug, false)).toBe(false);
+    expect(canViewTypeSlug(slug, true)).toBe(true);
+  });
+
+  it.each(["snippet", "prompt", "command", "note", "link"])(
+    "shows %s to both plans",
+    (slug) => {
+      expect(canViewTypeSlug(slug, false)).toBe(true);
+      expect(canViewTypeSlug(slug, true)).toBe(true);
     },
   );
 });

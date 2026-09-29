@@ -21,6 +21,8 @@ interface NewItemDialogProps {
   types: ItemType[];
   /** The type selected on opening. Defaults to the first of `types`. */
   defaultTypeSlug?: CreatableTypeSlug;
+  /** Free users see the Pro-only types locked in the picker. */
+  isPro: boolean;
   /** The trigger's text, hidden on narrow screens where only the icon shows. */
   label?: string;
   variant?: "default" | "outline";
@@ -44,6 +46,7 @@ const LABEL_CLASS = {
 export function NewItemDialog({
   types,
   defaultTypeSlug,
+  isPro,
   label = "New Item",
   variant = "default",
   labelFrom = "sm",
@@ -78,6 +81,7 @@ export function NewItemDialog({
         <NewItemForm
           types={types}
           defaultTypeSlug={defaultTypeSlug}
+          isPro={isPro}
           onPendingChange={setIsPending}
           onCancel={() => setOpen(false)}
           onCreated={() => setOpen(false)}

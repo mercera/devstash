@@ -18,6 +18,8 @@ type DiscardResponse = { success: true } | { success: false; error: string };
 
 const SIGN_IN = "Sign in to upload files.";
 const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
+const UPLOADS_REQUIRE_PRO =
+  "File and image uploads are a Pro feature. Upgrade to Pro to upload.";
 
 /** Room for the multipart boundaries and the `kind` field around the file. */
 const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
@@ -48,6 +50,11 @@ export async function POST(request: Request): Promise<NextResponse<UploadRespons
   const userId = session?.user?.id;
 
   if (!userId) return fail(SIGN_IN, 401);
+
+  // Every upload kind is Pro, so a Free user is refused before anything is
+  // buffered. `DELETE` below is not gated: a user downgraded mid-dialog must
+  // still be able to discard what they uploaded.
+  if (!session.user.isPro) return fail(UPLOADS_REQUIRE_PRO, 403);
 
   // Refuse an oversized body before buffering it. The header can lie, so the
   // file's own size is checked again below.

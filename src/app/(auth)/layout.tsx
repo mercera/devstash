@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { auth } from "@/auth";
 import { HomeNav } from "@/components/home/HomeNav";
+import { getSessionUser } from "@/lib/session";
 
 /**
  * Shell for the public auth pages. A route group, so it wraps `/sign-in`,
@@ -10,11 +10,12 @@ import { HomeNav } from "@/components/home/HomeNav";
  * 48px plus the nav's height.
  */
 export default async function AuthLayout({ children }: { children: ReactNode }) {
-  const session = await auth();
+  // Cached, so the page below reads the same session without a second lookup.
+  const sessionUser = await getSessionUser();
 
   return (
     <>
-      <HomeNav signedIn={Boolean(session?.user)} />
+      <HomeNav signedIn={sessionUser !== null} />
       <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 pt-28 pb-12">
         <div className="w-full max-w-sm">{children}</div>
       </div>

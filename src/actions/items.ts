@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { CollectionNotFoundError } from "@/lib/db/errors";
 import {
+  countUserItems,
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   setItemFavorite as setItemFavoriteRecord,
@@ -10,6 +11,11 @@ import {
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
 import { deleteUpload, getOwnedUploadKey } from "@/lib/r2";
+import {
+  PRO_REQUIRED,
+  canCreateTypeSlug,
+  checkItemLimit,
+} from "@/lib/usage-limits";
 import { isFavoriteSchema } from "@/lib/validations/favorites";
 import {
   createItemSchema,
@@ -56,6 +62,8 @@ export type CreateItemResult =
       error: string;
       /** Per-field validation messages, keyed by payload field. */
       issues?: Partial<Record<CreateItemField, string[]>>;
+      /** Set when the Free plan refused it, so the UI can offer an upgrade. */
+      upgradeRequired?: true;
     };
 
 export type UpdateItemField = keyof UpdateItemInput;
@@ -108,6 +116,14 @@ export async function createItem(
     };
   }
 
+  // `isPro` is refreshed from the database on every `auth()` call, so an
+  // upgrade or downgrade applies from the next request.
+  const isPro = session.user.isPro;
+
+  if (!canCreateTypeSlug(parsed.data.typeSlug, isPro)) {
+    return { success: false, error: PRO_REQUIRED, upgradeRequired: true };
+  }
+
   // Only one of the caller's own uploads may be attached. Otherwise deleting
   // this item would delete someone else's object from R2.
   if (
@@ -122,6 +138,16 @@ export async function createItem(
   }
 
   try {
+    // Pro skips the count entirely. Not atomic: two creates at 49 can both
+    // pass, which is acceptable for a soft plan limit.
+    if (!isPro) {
+      const limit = checkItemLimit(await countUserItems(userId), isPro);
+
+      if (!limit.allowed) {
+        return { success: false, error: limit.error, upgradeRequired: true };
+      }
+    }
+
     const item = await createItemRecord(userId, parsed.data);
 
     if (item === null) {

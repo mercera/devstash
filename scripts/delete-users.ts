@@ -10,11 +10,16 @@
  * if the demo account is missing — without it as an anchor, "everything except
  * demo" is just "everything".
  *
+ * Users with a Stripe customer have their running subscriptions cancelled in
+ * Stripe first, so a deleted account is not charged again. If any cancel
+ * fails, nothing is deleted.
+ *
  * `dotenv/config` must be imported first: ESM evaluates imports in source
  * order, and `src/lib/prisma.ts` reads DATABASE_URL as it loads.
  */
 import "dotenv/config";
 
+import { cancelCustomerSubscriptions } from "../src/lib/billing";
 import { prisma } from "../src/lib/prisma";
 import { linkTokenIdentifiersFor } from "../src/lib/tokens";
 
@@ -25,6 +30,7 @@ interface DoomedUser {
   id: string;
   email: string;
   name: string | null;
+  stripeCustomerId: string | null;
   _count: {
     items: number;
     collections: number;
@@ -68,6 +74,7 @@ async function findDoomedUsers(): Promise<DoomedUser[]> {
       id: true,
       email: true,
       name: true,
+      stripeCustomerId: true,
       _count: {
         select: {
           items: true,
@@ -95,10 +102,29 @@ function report(users: DoomedUser[]): void {
 
     console.log(`  ${user.email}${user.name ? ` (${user.name})` : ""}`);
     console.log(`    ${owned}`);
+
+    if (user.stripeCustomerId) {
+      console.log(`    Stripe customer ${user.stripeCustomerId}: subscriptions will be cancelled`);
+    }
+  }
+}
+
+/**
+ * Cancels every running subscription before any row is deleted. Sequential,
+ * so the first failure stops the run with the database untouched.
+ */
+async function cancelSubscriptions(users: DoomedUser[]): Promise<void> {
+  for (const user of users) {
+    if (!user.stripeCustomerId) continue;
+
+    await cancelCustomerSubscriptions(user.stripeCustomerId);
+    console.log(`✓ cancelled subscriptions for ${user.email}`);
   }
 }
 
 async function deleteUsers(users: DoomedUser[]): Promise<void> {
+  await cancelSubscriptions(users);
+
   const ids = users.map((user) => user.id);
 
   const deleted = await prisma.$transaction(async (tx) => {

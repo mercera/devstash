@@ -15,12 +15,14 @@ interface TopBarProps {
   /** What the command palette searches, pre-fetched with the app shell. */
   searchItems: SearchItem[];
   searchCollections: SearchCollection[];
+  isPro: boolean;
 }
 
 export function TopBar({
   itemTypes,
   searchItems,
   searchCollections,
+  isPro,
 }: TopBarProps) {
   const creatableTypes = getCreatableTypes(itemTypes);
 
@@ -37,7 +39,7 @@ export function TopBar({
           </Link>
         </Button>
         <NewCollectionDialog />
-        <NewItemDialog types={creatableTypes} labelFrom="lg" />
+        <NewItemDialog types={creatableTypes} isPro={isPro} labelFrom="lg" />
       </div>
     </header>
   );
