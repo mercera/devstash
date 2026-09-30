@@ -9,13 +9,13 @@ import { createItem } from "@/actions/items";
 import { CollectionPicker } from "@/components/items/CollectionPicker";
 import { FileUpload } from "@/components/items/FileUpload";
 import { ItemContentFields } from "@/components/items/ItemContentFields";
+import { ItemDescriptionField } from "@/components/items/ItemDescriptionField";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useActionErrorToast } from "@/hooks/use-action-error-toast";
 import { useItemForm } from "@/hooks/use-item-form";
 import { useUnsavedUpload } from "@/hooks/use-unsaved-upload";
@@ -142,13 +142,13 @@ export function NewItemForm({
           <Input {...bind("title")} required autoFocus />
         </ItemFormField>
 
-        <ItemFormField
-          label="Description"
-          htmlFor={idFor("description")}
-          issues={issues.description}
-        >
-          <Textarea {...bind("description")} className="min-h-16" />
-        </ItemFormField>
+        <ItemDescriptionField
+          form={form}
+          typeSlug={typeSlug}
+          fields={fields}
+          fileName={fields.upload ? file?.fileName : null}
+          className="min-h-16"
+        />
 
         {fields.upload && (
           <ItemFormField

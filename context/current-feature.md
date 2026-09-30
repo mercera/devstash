@@ -1,18 +1,59 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: AI Description Summary
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- An icon button (`WandSparkles`) beside the **Description** label, in both the
+  New Item dialog and the drawer's edit mode, generates a 1–2 sentence summary
+  for the Description field
+- It reads the **current, unsaved inputs**, so there is no need to save first
+- Works for **every item type**, using what that type has:
+  - snippet / command: title, content, language
+  - prompt / note: title, content
+  - link: title and URL (the page is never fetched)
+  - file / image: title and file name (no file bytes are sent)
+- The result is written into the Description input. Nothing is saved until the
+  user presses Create or Save, so edit mode's Cancel undoes it
+- The button is disabled while generating (spinner) and when there is nothing to
+  summarise (no title and no content)
+- Pro only, like auto-tagging: the button is hidden for Free users or when
+  OpenAI is not configured, and the server refuses Free users with 403
+- A new `POST /api/ai/summary` route, following `/api/ai/tags`: session (401),
+  Pro (403 `upgradeRequired`), API key (503), Zod input (422), AI rate limit
+  (429 + `Retry-After`), 64 KB body cap (413). Returns `{ summary: string }`
+- Unit tests for the summary logic and the route's orchestration, mirroring
+  `src/lib/ai/tags.test.ts` and `src/lib/ai/auto-tags.test.ts`
 
 ## Notes
 
-<!-- Any extra notes -->
+- Architecture is in `docs/ai-integration-plan.md` §4.2 and §10. Reuse what
+  auto-tagging built: `getOpenAI`/`isAiConfigured` (`src/lib/ai/client.ts`),
+  `mapAiError` (`src/lib/ai/errors.ts`), the `ai` rate limit, `useCanUseAi`,
+  `useAiRequest` and `ItemFormField`'s `action` slot
+- **Shares the `ai` limit** (20 per hour per user) with tag suggestions, per the
+  plan's single-limit decision
+- Call settings, as for tags: `store: false`, `reasoning.effort: "minimal"`,
+  `text.verbosity: "low"`, `safety_identifier` = SHA-256 of the user id, no
+  `temperature`. The plan says 400 output tokens, but the cap includes
+  reasoning tokens — tags needed 1,000 for ~20 tokens of JSON, so start there
+- Instructions: one or two plain sentences, no Markdown, no "This snippet…"
+  preamble. Trim the result and cap it at 300 characters in code
+- Content is cut before sending (the plan says 8,000 characters for summaries;
+  tags used 2,000). The client trims by the same shared constant
+- Only the fields the chosen type shows are sent, like `ItemTagsField`, so a
+  value left behind after switching type in New Item does not steer the result
+- **Open question — replace or confirm?** The plan (§10.2) proposes a panel that
+  shows the suggestion with Accept/"Replace" when the description already has
+  text. The request asks to fill the field directly. Default: fill directly,
+  replacing any existing text, since Cancel/closing without saving undoes it
+- In edit mode, file and image items get the file name from the loaded item;
+  in New Item, from the uploaded file once it has finished uploading
+- The OpenAI account had no credits at the end of the auto-tagging feature, so
+  the real model may again return 503. Browser checks may need
+  `/api/ai/summary` stubbed, as auto-tagging did
 
 ## History
 

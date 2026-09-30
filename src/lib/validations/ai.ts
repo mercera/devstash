@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+import { CREATABLE_TYPE_SLUGS } from "@/lib/item-fields";
+
 /**
- * Request rules for the AI features. Client-safe (Zod only), so the forms
+ * Request rules for the AI features. Client-safe (no server imports), so the forms
  * trim what they send by the same numbers the server enforces.
  */
 
@@ -45,3 +47,32 @@ export const suggestTagsSchema = z
   });
 
 export type SuggestTagsInput = z.infer<typeof suggestTagsSchema>;
+
+/**
+ * Every creatable type can be summarised from what it has: files and images
+ * from their title and file name, links from their title and URL.
+ */
+export const SUMMARY_TYPE_SLUGS = CREATABLE_TYPE_SLUGS;
+
+/** Content beyond this is cut before it is sent to the model. */
+export const SUMMARY_CONTENT_MAX_CHARS = 8_000;
+
+export const summarizeItemSchema = z
+  .object({
+    typeSlug: z.enum(SUMMARY_TYPE_SLUGS),
+    title: z.string().trim().max(500),
+    content: z.string().max(MAX_CONTENT_CHARS).default(""),
+    language: z.string().trim().max(100).default(""),
+    url: z.string().trim().max(2_048).default(""),
+    fileName: z.string().trim().max(500).default(""),
+  })
+  .refine(
+    (input) =>
+      input.title !== "" ||
+      input.content.trim() !== "" ||
+      input.url !== "" ||
+      input.fileName !== "",
+    { message: "Add a title or some content first.", path: ["title"] },
+  );
+
+export type SummarizeItemInput = z.infer<typeof summarizeItemSchema>;
