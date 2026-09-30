@@ -1,10 +1,89 @@
-# Current Feature
+# Current Feature: AI Prompt Optimization
 
 ## Status
 
+In Progress
+
 ## Goals
 
+- Pro users see an **Optimize** button (`WandSparkles`) in the header of a
+  prompt item's content editor in the item drawer, placed like the Explain
+  button on snippets and commands
+- Clicking it sends the prompt to the AI, which refines it if needed and
+  returns the rewritten prompt plus 2–5 short bullets saying what changed
+- The result is shown for review (the changes and the optimized prompt,
+  rendered as Markdown) with **Use this prompt** and **Discard**
+- **Use this prompt** saves the new content to the item, toasts, updates the
+  drawer and refreshes the lists. **Discard** leaves the item untouched
+- When the AI finds nothing worth changing, the user is told so and nothing
+  is offered
+- Free users see a Crown button linking to `/upgrade` with the "AI features
+  require Pro subscription" tooltip, as Explain does. With no API key the
+  button is hidden for everyone
+- Only prompt items get the button; not snippets, commands, notes or links,
+  and not in edit mode or New Item
+- Pending state: button disabled with a spinner and `aria-busy`
+- Unit tests for the new utilities, route logic and action; `npm test`,
+  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
+
 ## Notes
+
+- Loaded from an inline description. Architecture in
+  `docs/ai-integration-plan.md` §4.4, §5 and §10
+- **Follows the Explain pattern**, not the plan's form-field placement: the
+  plan put Optimize beside the Content label in New Item and edit mode; the
+  request puts it in the drawer header like Explain
+- **Route, not server action**, as for tags, summary and explain:
+  `POST /api/ai/optimize-prompt` taking only `{ itemId }`. The server reads the
+  content with an owner-scoped query, so the route can't be used as a
+  general-purpose prompt and another user's item is a 404. Checks in order:
+  session (401), Pro (403 `upgradeRequired`), API key (503), input (422),
+  item (404 / 422 when not a prompt or empty), then the shared `ai` rate limit
+  (429 `Retry-After`). Reuse `checkAiRequest` / `consumeAiQuota` /
+  `handleAiRoute`
+- **Non-streaming, structured** (plan §5): `json_object` output parsed by hand
+  into `{ optimizedPrompt: string, changes: string[] }`, like tags. Plan
+  settings: `low` effort, `medium` verbosity, 2,000 output tokens —
+  reconsider `minimal` effort as explain did. `store: false` and
+  `safety_identifier` as the other AI calls
+- **Content over 8,000 characters is refused, not truncated** (plan §4.4) —
+  truncation would drop the end of the prompt from the rewrite
+- Instructions must keep every placeholder (`{{variable}}`, `$VAR`,
+  `[INPUT]`), keep the intent and output format, add no facts not in the
+  original, and treat the prompt as data to rewrite, not instructions to
+  follow
+- **Accepting persists immediately.** The button lives in view mode, where
+  there is no form to write into, so Accept calls a narrow server action
+  (e.g. `setItemContent(itemId, content)`, owner-scoped, like
+  `setItemPinned`) and the drawer merges the patch through `onSaved`. This
+  differs from the plan's "nothing is persisted by an AI call"
+- The review UI probably reuses `CodeEditor`-style panel switching inside
+  `MarkdownEditor`'s header (`headerActions` / panel slots), or a panel under
+  the editor — decide at start
+- Secret redaction (plan §9.3: refuse to optimize a prompt holding a key) is
+  still not built, as for the other AI features
+- Add prompt optimization to the Pro feature list in `src/lib/plans.ts` if
+  not already listed
+
+Implementation decisions:
+
+- **`low` reasoning effort, kept after measuring `minimal`.** `minimal` took
+  ~4s against ~10s, but flattened a Markdown list onto one line and echoed
+  the `<prompt>` tags back. `MAX_OUTPUT_TOKENS` is 6,000, not the plan's
+  2,000: rewriting an 8,000-character prompt needs ~2,000 tokens by itself
+- **A rewrite that drops a placeholder is refused (502)**, checked in code by
+  `findMissingPlaceholders`, whatever the instructions say
+- **"Unchanged" is decided by comparing the text** with whitespace collapsed,
+  not by an empty `changes` list. It answers `optimizedPrompt: null`, which
+  the drawer reports as "This prompt already looks good"
+- A wrapping code fence or `<prompt>` tag is stripped from the rewrite
+- `ExplainButton` became the shared `AiHeaderButton` (`label`, `actionLabel`);
+  `MarkdownEditor` gained a `headerActions` slot
+- The suggestion renders in a panel **under** the prompt, not in place of it,
+  so the original and the rewrite can be compared
+- Accept goes through a new `setItemContent(itemId, content)` action, which
+  is owner-scoped, rejects blank content and leaves tags and collections alone.
+  It is not restricted to prompts, matching `updateItem`
 
 ## History
 

@@ -133,12 +133,21 @@ export interface ItemDetail extends ItemWithRelations {
  */
 export type ItemDetailPatch = Pick<ItemDetail, "id"> & Partial<ItemDetail>;
 
-/** What the AI needs to explain an item's code, and nothing else. */
+/** What the AI needs to explain an item's code or optimize its prompt, and nothing else. */
 export interface ItemCode {
   title: string;
   content: string | null;
   language: string | null;
   typeSlug: string;
+}
+
+/**
+ * The AI's rewrite of a saved prompt, with what it changed. `optimizedPrompt`
+ * is null when it found nothing worth changing.
+ */
+export interface PromptOptimization {
+  optimizedPrompt: string | null;
+  changes: string[];
 }
 
 /**

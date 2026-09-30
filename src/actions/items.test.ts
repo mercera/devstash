@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   deleteItem: vi.fn(),
   setItemFavorite: vi.fn(),
   setItemPinned: vi.fn(),
+  setItemContent: vi.fn(),
   getOwnedUploadKey: vi.fn(),
   deleteUpload: vi.fn(),
 }));
@@ -26,6 +27,7 @@ vi.mock("@/lib/db/items", () => ({
   deleteItem: mocks.deleteItem,
   setItemFavorite: mocks.setItemFavorite,
   setItemPinned: mocks.setItemPinned,
+  setItemContent: mocks.setItemContent,
 }));
 vi.mock("@/lib/r2", () => ({
   getOwnedUploadKey: mocks.getOwnedUploadKey,
@@ -35,6 +37,7 @@ vi.mock("@/lib/r2", () => ({
 import {
   createItem,
   deleteItem,
+  setItemContent,
   setItemFavorite,
   setItemPinned,
   updateItem,
@@ -519,5 +522,62 @@ describe("createItem plan limits", () => {
     mocks.createItem.mockResolvedValue(saved);
 
     expect((await createItem(snippet)).success).toBe(true);
+  });
+});
+
+describe("setItemContent", () => {
+  const updatedAt = new Date("2026-09-30T10:00:00Z");
+  const prompt = "  You are a code reviewer.\n\nReview {{code}}.";
+
+  it("refuses without a session", async () => {
+    signedInAs(null);
+
+    await expect(setItemContent("item-1", prompt)).resolves.toEqual({
+      success: false,
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(mocks.setItemContent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["blank content", "item-1", " \n ", "Something went wrong. Please try again."],
+    ["non-string content", "item-1", null, "Something went wrong. Please try again."],
+    ["a missing id", "", prompt, "This item could not be found."],
+  ])("rejects %s without touching the database", async (_label, id, content, error) => {
+    await expect(setItemContent(id, content as unknown as string)).resolves.toEqual({
+      success: false,
+      error,
+    });
+    expect(mocks.setItemContent).not.toHaveBeenCalled();
+  });
+
+  it("saves the content untrimmed on the session user's item", async () => {
+    mocks.setItemContent.mockResolvedValue({ content: prompt, updatedAt });
+
+    const result = await setItemContent("item-1", prompt);
+
+    expect(mocks.setItemContent).toHaveBeenCalledWith("item-1", "user-1", prompt);
+    expect(result).toEqual({
+      success: true,
+      data: { id: "item-1", content: prompt, updatedAt },
+    });
+  });
+
+  it("reports a missing or foreign item as not found", async () => {
+    mocks.setItemContent.mockResolvedValue(null);
+
+    await expect(setItemContent("item-2", prompt)).resolves.toEqual({
+      success: false,
+      error: "This item could not be found.",
+    });
+  });
+
+  it("reports a database error generically", async () => {
+    mocks.setItemContent.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemContent("item-1", prompt)).resolves.toEqual({
+      success: false,
+      error: "Something went wrong. Please try again.",
+    });
   });
 });

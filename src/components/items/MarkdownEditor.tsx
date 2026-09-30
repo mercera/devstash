@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Tabs } from "radix-ui";
 
 import {
@@ -20,6 +21,8 @@ interface MarkdownEditorProps {
   name?: string;
   ariaLabel?: string;
   invalid?: boolean;
+  /** Extra header controls before the copy button, such as an AI action. */
+  headerActions?: ReactNode;
 }
 
 const TRIGGER_CLASS =
@@ -38,6 +41,7 @@ export function MarkdownEditor({
   name,
   ariaLabel = "Content",
   invalid = false,
+  headerActions,
 }: MarkdownEditorProps) {
   return (
     <Tabs.Root
@@ -55,7 +59,10 @@ export function MarkdownEditor({
             Preview
           </Tabs.Trigger>
         </Tabs.List>
-        <EditorCopyButton value={value} label="Copy markdown" className="ml-auto" />
+        <div className="ml-auto flex items-center gap-1">
+          {headerActions}
+          <EditorCopyButton value={value} label="Copy markdown" />
+        </div>
       </EditorHeader>
 
       {!readOnly && (

@@ -151,3 +151,13 @@ export function parseTagInput(input: string): string[] {
     .map((tag) => tag.trim())
     .filter((tag) => tag !== "");
 }
+
+/**
+ * The drawer's "Use this prompt" payload: the whole new content. Not trimmed,
+ * like `content` in the edit form, but it must not be blank, since accepting a
+ * rewrite should never clear the item.
+ */
+export const itemContentSchema = z
+  .string()
+  .max(100_000)
+  .refine((value) => value.trim() !== "", "Content cannot be empty");

@@ -44,7 +44,7 @@ export const PRO_PLAN: Plan = {
     "Unlimited items and collections",
     "File and image uploads",
     "Custom item types",
-    "AI tagging, summaries and Explain Code",
+    "AI tagging, summaries, Explain Code and prompt optimization",
     "Export to JSON / ZIP",
   ],
 };

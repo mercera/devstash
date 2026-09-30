@@ -7,6 +7,7 @@ import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   setItemFavorite as setItemFavoriteRecord,
+  setItemContent as setItemContentRecord,
   setItemPinned as setItemPinnedRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
@@ -20,6 +21,7 @@ import { isFavoriteSchema } from "@/lib/validations/favorites";
 import {
   createItemSchema,
   isPinnedSchema,
+  itemContentSchema,
   updateItemSchema,
   type CreateItemInput,
   type UpdateItemInput,
@@ -83,6 +85,10 @@ export type SetItemFavoriteResult =
 
 export type SetItemPinnedResult =
   | { success: true; data: { id: string; isPinned: boolean; updatedAt: Date } }
+  | { success: false; error: string };
+
+export type SetItemContentResult =
+  | { success: true; data: { id: string; content: string | null; updatedAt: Date } }
   | { success: false; error: string };
 
 export type DeleteItemResult =
@@ -326,6 +332,48 @@ export async function setItemPinned(
     return { success: true, data: { id: itemId, ...result } };
   } catch (error) {
     console.error("Failed to update item pin:", error);
+
+    return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+}
+
+/**
+ * Replaces the content of one of the signed-in user's items. Used by the
+ * drawer when the user accepts an AI-optimized prompt, so it touches the
+ * content alone and leaves tags and collections as they are. Another user's
+ * item is "not found".
+ */
+export async function setItemContent(
+  itemId: string,
+  content: string,
+): Promise<SetItemContentResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: SESSION_EXPIRED };
+  }
+
+  if (typeof itemId !== "string" || itemId === "") {
+    return { success: false, error: NOT_FOUND };
+  }
+
+  const parsed = itemContentSchema.safeParse(content);
+
+  if (!parsed.success) {
+    return { success: false, error: SOMETHING_WENT_WRONG };
+  }
+
+  try {
+    const result = await setItemContentRecord(itemId, userId, parsed.data);
+
+    if (result === null) {
+      return { success: false, error: NOT_FOUND };
+    }
+
+    return { success: true, data: { id: itemId, ...result } };
+  } catch (error) {
+    console.error("Failed to update item content:", error);
 
     return { success: false, error: SOMETHING_WENT_WRONG };
   }

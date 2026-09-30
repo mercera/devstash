@@ -97,3 +97,21 @@ export const EXPLAIN_CONTENT_MAX_CHARS = 16_000;
 export const explainCodeSchema = z.object({
   itemId: z.string().trim().min(1).max(100),
 });
+
+/** The types whose content is a prompt that can be optimized. */
+export const OPTIMIZE_TYPE_SLUGS = ["prompt"] as const;
+
+export function canOptimizeType(slug: string): boolean {
+  return (OPTIMIZE_TYPE_SLUGS as readonly string[]).includes(slug);
+}
+
+/**
+ * Prompts longer than this are refused rather than cut: a rewrite of only the
+ * first part would silently drop the end of the user's prompt.
+ */
+export const OPTIMIZE_CONTENT_MAX_CHARS = 8_000;
+
+/** Only the item's id, as for explanations: the server reads the prompt itself. */
+export const optimizePromptSchema = z.object({
+  itemId: z.string().trim().min(1).max(100),
+});
