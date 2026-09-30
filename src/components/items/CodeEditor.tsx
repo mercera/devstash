@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
 
 import { useEditorPreferences } from "@/components/editor/EditorPreferencesProvider";
@@ -49,6 +49,15 @@ interface CodeEditorProps {
   /** Read by screen readers in place of a visible label on the editor itself. */
   ariaLabel?: string;
   invalid?: boolean;
+  /** After the traffic-light dots, e.g. view tabs. */
+  headerStart?: ReactNode;
+  /** Before the copy button, e.g. an AI action. */
+  headerActions?: ReactNode;
+  /**
+   * Shown in place of the code while set. The editor stays mounted underneath,
+   * so switching back is instant and keeps its scroll position.
+   */
+  panel?: ReactNode;
 }
 
 /**
@@ -66,6 +75,9 @@ export function CodeEditor({
   onChange,
   ariaLabel = "Code",
   invalid = false,
+  headerStart,
+  headerActions,
+  panel,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const preferences = useEditorPreferences();
@@ -110,66 +122,72 @@ export function CodeEditor({
       className={cn(editorFrameClass({ readOnly, invalid }), theme.surfaceClass)}
     >
       <EditorHeader>
-        <span className="ml-auto font-mono text-xs text-muted-foreground">
+        {headerStart}
+        <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
           {languageLabel}
         </span>
+        {headerActions}
         <EditorCopyButton value={value} label="Copy code" />
       </EditorHeader>
 
-      <Editor
-        height={height}
-        value={value}
-        language={monacoLanguage}
-        theme={theme.name}
-        beforeMount={handleBeforeMount}
-        onMount={handleMount}
-        onChange={(next) => onChange?.(next ?? "")}
-        loading={
-          <LoadingText
-            value={value}
-            className={cn(
-              LOADING_TEXT_CLASS[preferences.fontSize],
-              preferences.wordWrap && "whitespace-pre-wrap wrap-break-word",
-            )}
-          />
-        }
-        options={{
-          readOnly,
-          domReadOnly: readOnly,
-          ariaLabel,
-          fontFamily: "var(--font-mono), ui-monospace, monospace",
-          fontSize: preferences.fontSize,
-          lineHeight,
-          padding: { top: CODE_EDITOR_PADDING, bottom: CODE_EDITOR_PADDING },
-          automaticLayout: true,
-          scrollBeyondLastLine: false,
-          wordWrap: preferences.wordWrap ? "on" : "off",
-          minimap: { enabled: preferences.minimap },
-          stickyScroll: { enabled: false },
-          folding: false,
-          glyphMargin: false,
-          lineNumbersMinChars: 3,
-          lineDecorationsWidth: 12,
-          renderLineHighlight: readOnly ? "none" : "line",
-          overviewRulerLanes: 0,
-          overviewRulerBorder: false,
-          hideCursorInOverviewRuler: true,
-          // Monaco's context menu renders outside the drawer/dialog, where a
-          // click would count as outside and dismiss it.
-          contextmenu: false,
-          tabSize: preferences.tabSize,
-          // Otherwise Monaco guesses the tab size from the content and the
-          // setting is ignored for any code that is already indented.
-          detectIndentation: false,
-          scrollbar: {
-            verticalScrollbarSize: 8,
-            horizontalScrollbarSize: 8,
-            useShadows: false,
-            // Let the wheel scroll the drawer once the editor has nowhere to go.
-            alwaysConsumeMouseWheel: false,
-          },
-        }}
-      />
+      {panel}
+
+      <div className={cn(panel !== undefined && "hidden")}>
+        <Editor
+          height={height}
+          value={value}
+          language={monacoLanguage}
+          theme={theme.name}
+          beforeMount={handleBeforeMount}
+          onMount={handleMount}
+          onChange={(next) => onChange?.(next ?? "")}
+          loading={
+            <LoadingText
+              value={value}
+              className={cn(
+                LOADING_TEXT_CLASS[preferences.fontSize],
+                preferences.wordWrap && "whitespace-pre-wrap wrap-break-word",
+              )}
+            />
+          }
+          options={{
+            readOnly,
+            domReadOnly: readOnly,
+            ariaLabel,
+            fontFamily: "var(--font-mono), ui-monospace, monospace",
+            fontSize: preferences.fontSize,
+            lineHeight,
+            padding: { top: CODE_EDITOR_PADDING, bottom: CODE_EDITOR_PADDING },
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            wordWrap: preferences.wordWrap ? "on" : "off",
+            minimap: { enabled: preferences.minimap },
+            stickyScroll: { enabled: false },
+            folding: false,
+            glyphMargin: false,
+            lineNumbersMinChars: 3,
+            lineDecorationsWidth: 12,
+            renderLineHighlight: readOnly ? "none" : "line",
+            overviewRulerLanes: 0,
+            overviewRulerBorder: false,
+            hideCursorInOverviewRuler: true,
+            // Monaco's context menu renders outside the drawer/dialog, where a
+            // click would count as outside and dismiss it.
+            contextmenu: false,
+            tabSize: preferences.tabSize,
+            // Otherwise Monaco guesses the tab size from the content and the
+            // setting is ignored for any code that is already indented.
+            detectIndentation: false,
+            scrollbar: {
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8,
+              useShadows: false,
+              // Let the wheel scroll the drawer once the editor has nowhere to go.
+              alwaysConsumeMouseWheel: false,
+            },
+          }}
+        />
+      </div>
     </div>
   );
 }

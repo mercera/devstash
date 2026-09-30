@@ -179,7 +179,7 @@ describe("generateAutoTags", () => {
     expect(result?.status).toBe(502);
     expect(result?.body).toEqual({
       success: false,
-      error: "The AI couldn't come up with suggestions. Try again.",
+      error: "The AI couldn't finish that request. Try again.",
     });
   });
 

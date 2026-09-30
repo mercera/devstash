@@ -76,3 +76,24 @@ export const summarizeItemSchema = z
   );
 
 export type SummarizeItemInput = z.infer<typeof summarizeItemSchema>;
+
+/**
+ * The types that can be explained: actual code and terminal commands. The
+ * rest are already prose, or not text at all.
+ */
+export const EXPLAIN_TYPE_SLUGS = ["snippet", "command"] as const;
+
+export function canExplainType(slug: string): boolean {
+  return (EXPLAIN_TYPE_SLUGS as readonly string[]).includes(slug);
+}
+
+/** Code beyond this is cut, at a line end, before it is sent to the model. */
+export const EXPLAIN_CONTENT_MAX_CHARS = 16_000;
+
+/**
+ * Only the item's id: the server reads the code itself, so the route can only
+ * explain the caller's own saved snippets and commands, never arbitrary text.
+ */
+export const explainCodeSchema = z.object({
+  itemId: z.string().trim().min(1).max(100),
+});

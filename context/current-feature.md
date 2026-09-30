@@ -1,18 +1,57 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: AI Explain Code
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Pro users can ask the AI to explain a snippet or command from the item
+  drawer's read view (not in the create or edit forms)
+- An "Explain" button sits in the `CodeEditor` header, next to Copy, only for
+  snippet and command items
+- While generating, the button shows a `Loader2` spinner
+- Once generated, Code / Explain tabs appear in the editor header and switch
+  between the code and the explanation, which renders as Markdown in the same
+  container space as the editor
+- The explanation is concise (~200–300 words): what the code does and the key
+  concepts
+- Free users see the button with a Crown icon and the tooltip "AI features
+  require Pro subscription"
+- Errors (Pro gating, rate limit, AI service) are shown as toasts
+- Server side: auth, Pro gating, Zod validation and the shared `ai` rate limit,
+  following the existing AI pattern
+- Unit tests for the server-side logic
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/ai-explain-spec.md`; architecture in
+  `docs/ai-integration-plan.md` (explain: §4, §5.1, §10.1)
+- Explanations are not saved; each click regenerates
+- `isPro` must reach the drawer / code editor. `AiProvider`'s
+  `useCanUseAi()` is one boolean (Pro **and** key configured), so the Crown
+  state needs `isPro` on its own
+- Decisions made at load time (differ from the spec):
+  - **API route, not a server action**: `POST /api/ai/explain`, built on
+    `handleAiRoute` + `runAiRequest` like tags and summary. It can be
+    cancelled, and it does not block other server actions such as Save
+  - **The client sends only `{ itemId }`.** The server loads the item with
+    `getItemById` (404 if it is not the caller's) and explains only snippets and
+    commands, so the endpoint cannot be used as a general-purpose prompt
+  - **The response streams** as `text/plain` Markdown, so the first words show
+    in about a second. Needs a streaming client hook
+  - **Icon is `WandSparkles`**, matching the other AI buttons. `Sparkles`
+    already means Upgrade in the top bar
+- Kept from the spec: **Free users see the button with a Crown icon** and the
+  tooltip "AI features require Pro subscription"; clicking it leads to
+  `/upgrade`. This differs from tags and summary, which hide their buttons
+- Spec says "unit tests for server action"; with a route, the tests cover
+  `src/lib/ai/` (request builder, the explain runner) as the tags and summary
+  tests do
+- Reusable pieces: `src/lib/ai/` (`client.ts`, `errors.ts`,
+  `run-ai-request.ts`, `route.ts`), `use-ai-request`, `useActionErrorToast`
+  (Upgrade action), `MarkdownEditor`'s `.markdown-preview` rendering,
+  `EditorChrome`
 
 ## History
 

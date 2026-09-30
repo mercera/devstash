@@ -1,14 +1,13 @@
 "use client";
 
 import { Tabs } from "radix-ui";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import {
   EditorCopyButton,
   EditorHeader,
   editorFrameClass,
 } from "@/components/items/EditorChrome";
+import { MarkdownPreview } from "@/components/items/MarkdownPreview";
 import { cn } from "@/lib/utils";
 
 interface MarkdownEditorProps {
@@ -23,22 +22,6 @@ interface MarkdownEditorProps {
   invalid?: boolean;
 }
 
-/**
- * Open every link in a new tab, like the drawer's URL link. A link whose URL
- * react-markdown stripped as unsafe (`javascript:` and the like) arrives with
- * an empty `href`, and renders as its text.
- */
-const MARKDOWN_COMPONENTS: Components = {
-  a: ({ href, title, children }) =>
-    href ? (
-      <a href={href} title={title} target="_blank" rel="noopener noreferrer">
-        {children}
-      </a>
-    ) : (
-      <span>{children}</span>
-    ),
-};
-
 const TRIGGER_CLASS =
   "rounded-md px-2 py-0.5 text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=active]:bg-muted data-[state=active]:text-foreground";
 
@@ -46,9 +29,6 @@ const TRIGGER_CLASS =
  * Markdown for prompts and notes, in the same window chrome as `CodeEditor`:
  * traffic-light dots, Write/Preview tabs and a copy button in the header, and
  * a body that grows with its content up to 400px before it scrolls.
- *
- * Rendering goes through `react-markdown`, which escapes raw HTML and drops
- * `javascript:` URLs by default. Keep it that way: no `rehype-raw`.
  */
 export function MarkdownEditor({
   value,
@@ -104,14 +84,7 @@ export function MarkdownEditor({
         {value.trim() === "" ? (
           <p className="text-sm text-muted-foreground">Nothing to preview.</p>
         ) : (
-          <div className="markdown-preview">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={MARKDOWN_COMPONENTS}
-            >
-              {value}
-            </ReactMarkdown>
-          </div>
+          <MarkdownPreview value={value} />
         )}
       </Tabs.Content>
     </Tabs.Root>
