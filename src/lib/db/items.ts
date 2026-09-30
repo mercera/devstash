@@ -4,7 +4,8 @@
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
  * `getItemCode`, `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`,
- * `createItem`, `updateItem`, `setItemFavorite`, `setItemPinned` and
+ * `createItem`, `updateItem`, `setItemFavorite`, `setItemPinned`,
+ * `setItemContent` and
  * `deleteItem` are the exceptions: they take the caller's user id, because
  * they back API routes, server actions, the collection and favorites pages and
  * the command palette, none of which may reach another user's item.
@@ -310,6 +311,29 @@ export async function setItemFavorite(
       where: { id, userId },
       data: { isFavorite },
       select: { isFavorite: true, updatedAt: true },
+    });
+  } catch (error) {
+    if (isRecordNotFoundError(error)) return null;
+
+    throw error;
+  }
+}
+
+/**
+ * Replaces one of `userId`'s items' content, returning the stored content and
+ * the new `updatedAt`. Returns null when no item with that id belongs to
+ * `userId`.
+ */
+export async function setItemContent(
+  id: string,
+  userId: string,
+  content: string,
+): Promise<{ content: string | null; updatedAt: Date } | null> {
+  try {
+    return await prisma.item.update({
+      where: { id, userId },
+      data: { content },
+      select: { content: true, updatedAt: true },
     });
   } catch (error) {
     if (isRecordNotFoundError(error)) return null;

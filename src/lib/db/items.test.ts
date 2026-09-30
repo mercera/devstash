@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Only `getItemById`, `getItemCode`, `getItemsByCollection`, `getSearchItems`,
  * `getFavoriteItems`, `createItem`, `updateItem`, `setItemFavorite`,
- * `setItemPinned` and `deleteItem` are covered for scoping: they are the
+ * `setItemPinned`, `setItemContent` and `deleteItem` are covered for scoping: they are the
  * queries in this module scoped to a caller-supplied user, backing a public
  * API route, server actions, the collection and favorites pages and the
  * command palette.
@@ -47,6 +47,7 @@ import {
   getFavoriteItems,
   getItemById,
   getItemCode,
+  setItemContent,
   getItemsByCollection,
   getItemsByType,
   getSearchItems,
@@ -730,6 +731,38 @@ describe("setItemPinned", () => {
     mocks.prisma.item.update.mockRejectedValue(new Error("connection lost"));
 
     await expect(setItemPinned("item-1", "user-1", true)).rejects.toThrow(
+      "connection lost",
+    );
+  });
+});
+
+describe("setItemContent", () => {
+  it("writes only the owner's item and returns the stored content", async () => {
+    mocks.prisma.item.update.mockResolvedValue({ content: "New prompt", updatedAt });
+
+    await expect(setItemContent("item-1", "user-1", "New prompt")).resolves.toEqual({
+      content: "New prompt",
+      updatedAt,
+    });
+    expect(mocks.prisma.item.update).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+      data: { content: "New prompt" },
+      select: { content: true, updatedAt: true },
+    });
+  });
+
+  it("returns null for a missing or foreign item", async () => {
+    mocks.prisma.item.update.mockRejectedValue(
+      Object.assign(new Error("Record not found"), { code: "P2025" }),
+    );
+
+    await expect(setItemContent("item-2", "user-1", "New prompt")).resolves.toBeNull();
+  });
+
+  it("rethrows any other database error", async () => {
+    mocks.prisma.item.update.mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemContent("item-1", "user-1", "New prompt")).rejects.toThrow(
       "connection lost",
     );
   });

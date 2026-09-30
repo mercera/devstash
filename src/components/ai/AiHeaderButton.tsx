@@ -9,28 +9,38 @@ import { UPGRADE_PATH } from "@/lib/routes";
 
 const PRO_TOOLTIP = "AI features require Pro subscription";
 
-interface ExplainButtonProps {
+interface AiHeaderButtonProps {
+  /** The visible label, e.g. "Explain" or "Optimize". */
+  label: string;
+  /** The accessible name, e.g. "Explain code". */
+  actionLabel: string;
   isPro: boolean;
   pending: boolean;
-  onExplain: () => void;
+  onClick: () => void;
 }
 
 /**
- * The code editor header's "Explain" action. Pro users get the wand, which
- * spins while an explanation is being written. Free users get a crown, a
- * tooltip saying why, and a link to the upgrade page; the route refuses them
+ * An AI action in an editor header ("Explain", "Optimize"). Pro users get the
+ * wand, which spins while the AI works. Free users get a crown, a tooltip
+ * saying why, and a link to the upgrade page; the route refuses them
  * regardless.
  */
-export function ExplainButton({ isPro, pending, onExplain }: ExplainButtonProps) {
+export function AiHeaderButton({
+  label,
+  actionLabel,
+  isPro,
+  pending,
+  onClick,
+}: AiHeaderButtonProps) {
   if (!isPro) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="ghost" size="xs" className="shrink-0">
-              <Link href={UPGRADE_PATH} aria-label={`Explain code. ${PRO_TOOLTIP}`}>
+              <Link href={UPGRADE_PATH} aria-label={`${actionLabel}. ${PRO_TOOLTIP}`}>
                 <Crown className="text-amber-400" />
-                Explain
+                {label}
               </Link>
             </Button>
           </TooltipTrigger>
@@ -46,13 +56,13 @@ export function ExplainButton({ isPro, pending, onExplain }: ExplainButtonProps)
       variant="ghost"
       size="xs"
       className="shrink-0"
-      aria-label="Explain code"
+      aria-label={actionLabel}
       aria-busy={pending || undefined}
       disabled={pending}
-      onClick={onExplain}
+      onClick={onClick}
     >
       {pending ? <Loader2 className="animate-spin" /> : <WandSparkles />}
-      Explain
+      {label}
     </Button>
   );
 }

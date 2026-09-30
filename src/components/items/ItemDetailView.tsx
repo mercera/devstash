@@ -7,6 +7,7 @@ import { TypeIcon } from "@/components/items/TypeIcon";
 import { ItemActions } from "@/components/items/ItemActions";
 import { ItemCodeView } from "@/components/items/ItemCodeView";
 import { ItemEditForm } from "@/components/items/ItemEditForm";
+import { ItemPromptView } from "@/components/items/ItemPromptView";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import {
   CollectionSection,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { SheetTitle } from "@/components/ui/sheet";
 import { getAccentTileClass } from "@/lib/icons";
 import { getItemTypeFields } from "@/lib/item-fields";
+import { canOptimizeType } from "@/lib/validations/ai";
 import { formatFileSize } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import type { ItemDetail, ItemDetailPatch } from "@/types";
@@ -83,7 +85,7 @@ export function ItemDetailView({
           />
 
           <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6">
-            <ItemBody item={item} />
+            <ItemBody item={item} onSaved={onSaved} />
             <hr />
             <TagsSection item={item} />
             <CollectionSection item={item} />
@@ -95,7 +97,13 @@ export function ItemDetailView({
   );
 }
 
-function ItemBody({ item }: { item: ItemDetail }) {
+function ItemBody({
+  item,
+  onSaved,
+}: {
+  item: ItemDetail;
+  onSaved: (patch: ItemDetailPatch) => void;
+}) {
   const { code, upload } = getItemTypeFields(item.type.slug);
 
   return (
@@ -118,6 +126,8 @@ function ItemBody({ item }: { item: ItemDetail }) {
         <Section title="Content">
           {code ? (
             <ItemCodeView item={item} />
+          ) : canOptimizeType(item.type.slug) ? (
+            <ItemPromptView item={item} onSaved={onSaved} />
           ) : (
             <MarkdownEditor value={item.content} ariaLabel="Content" readOnly />
           )}

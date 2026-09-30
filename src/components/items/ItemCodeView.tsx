@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { useAiAccess } from "@/components/ai/AiProvider";
-import { ExplainButton } from "@/components/ai/ExplainButton";
+import { AiHeaderButton } from "@/components/ai/AiHeaderButton";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { MarkdownPreview } from "@/components/items/MarkdownPreview";
 import { useAiStream } from "@/hooks/use-ai-stream";
@@ -54,7 +54,15 @@ export function ItemCodeView({ item }: { item: ItemDetail }) {
         )
       }
       headerActions={
-        explainable && <ExplainButton isPro={isPro} pending={pending} onExplain={explain} />
+        explainable && (
+          <AiHeaderButton
+            label="Explain"
+            actionLabel="Explain code"
+            isPro={isPro}
+            pending={pending}
+            onClick={explain}
+          />
+        )
       }
       panel={
         showExplanation ? <ExplanationPanel text={text} streaming={pending} /> : undefined
