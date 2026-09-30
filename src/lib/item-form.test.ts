@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   EMPTY_ITEM_FORM_VALUES,
+  appendTag,
   itemToFormValues,
   toItemFieldsPayload,
   type ItemFormValues,
@@ -83,5 +84,19 @@ describe("itemToFormValues", () => {
       url: "https://lucide.dev",
       tags: "icons, react",
     });
+  });
+});
+
+describe("appendTag", () => {
+  it("adds a tag to an empty input", () => {
+    expect(appendTag("", "react")).toBe("react");
+  });
+
+  it("appends after the existing tags, tidying the separators", () => {
+    expect(appendTag("hooks, , state ", "react")).toBe("hooks, state, react");
+  });
+
+  it("leaves the input alone when the tag is already there, in any case", () => {
+    expect(appendTag("React, hooks", "react")).toBe("React, hooks");
   });
 });

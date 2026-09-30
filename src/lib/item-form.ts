@@ -37,6 +37,19 @@ export function itemToFormValues(item: ItemDetail): ItemFormValues {
 }
 
 /**
+ * Adds one tag to the comma-separated tags input, unless it is already there
+ * (compared case-insensitively). Used when an AI suggestion is accepted.
+ */
+export function appendTag(tagsInput: string, tag: string): string {
+  const tags = parseTagInput(tagsInput);
+  const lower = tag.toLowerCase();
+
+  if (tags.some((existing) => existing.toLowerCase() === lower)) return tagsInput;
+
+  return [...tags, tag].join(", ");
+}
+
+/**
  * The fields both item forms send. Only those shown for the type are
  * included: on edit an absent field is left alone by the server, so a hidden
  * field can never clear a column, and on create a value typed under another

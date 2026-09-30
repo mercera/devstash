@@ -4,6 +4,7 @@ import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT } from "@/lib/plans";
 import {
   PRO_TYPE_SLUGS,
   canCreateTypeSlug,
+  canUseAi,
   canViewTypeSlug,
   checkCollectionLimit,
   checkItemLimit,
@@ -68,6 +69,13 @@ describe("canCreateTypeSlug", () => {
       expect(canCreateTypeSlug(slug, true)).toBe(true);
     },
   );
+});
+
+describe("canUseAi", () => {
+  it("allows Pro and refuses Free", () => {
+    expect(canUseAi(true)).toBe(true);
+    expect(canUseAi(false)).toBe(false);
+  });
 });
 
 describe("canViewTypeSlug", () => {

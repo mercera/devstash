@@ -109,7 +109,7 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
           <Textarea {...bind("description")} className="min-h-20" />
         </ItemFormField>
 
-        <ItemContentFields form={form} fields={fields} />
+        <ItemContentFields form={form} typeSlug={item.type.slug} fields={fields} />
 
         <CollectionPicker
           id="item-edit"

@@ -8,6 +8,8 @@ interface ItemFormFieldProps {
   htmlFor: string;
   issues?: string[];
   hint?: string;
+  /** A small control at the right of the label row, such as an AI button. */
+  action?: ReactNode;
   children: ReactNode;
 }
 
@@ -20,13 +22,25 @@ export function ItemFormField({
   htmlFor,
   issues,
   hint,
+  action,
   children,
 }: ItemFormFieldProps) {
+  const labelElement = (
+    <Label htmlFor={htmlFor} className="text-muted-foreground">
+      {label}
+    </Label>
+  );
+
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor={htmlFor} className="text-muted-foreground">
-        {label}
-      </Label>
+      {action ? (
+        <div className="flex items-center justify-between gap-2">
+          {labelElement}
+          {action}
+        </div>
+      ) : (
+        labelElement
+      )}
       {children}
       <FieldError messages={issues} />
       {hint && !issues && <p className="text-xs text-muted-foreground">{hint}</p>}
