@@ -1,57 +1,10 @@
-# Current Feature: AI Explain Code
+# Current Feature
 
 ## Status
 
-In Progress
-
 ## Goals
 
-- Pro users can ask the AI to explain a snippet or command from the item
-  drawer's read view (not in the create or edit forms)
-- An "Explain" button sits in the `CodeEditor` header, next to Copy, only for
-  snippet and command items
-- While generating, the button shows a `Loader2` spinner
-- Once generated, Code / Explain tabs appear in the editor header and switch
-  between the code and the explanation, which renders as Markdown in the same
-  container space as the editor
-- The explanation is concise (~200–300 words): what the code does and the key
-  concepts
-- Free users see the button with a Crown icon and the tooltip "AI features
-  require Pro subscription"
-- Errors (Pro gating, rate limit, AI service) are shown as toasts
-- Server side: auth, Pro gating, Zod validation and the shared `ai` rate limit,
-  following the existing AI pattern
-- Unit tests for the server-side logic
-
 ## Notes
-
-- Spec: `context/features/ai-explain-spec.md`; architecture in
-  `docs/ai-integration-plan.md` (explain: §4, §5.1, §10.1)
-- Explanations are not saved; each click regenerates
-- `isPro` must reach the drawer / code editor. `AiProvider`'s
-  `useCanUseAi()` is one boolean (Pro **and** key configured), so the Crown
-  state needs `isPro` on its own
-- Decisions made at load time (differ from the spec):
-  - **API route, not a server action**: `POST /api/ai/explain`, built on
-    `handleAiRoute` + `runAiRequest` like tags and summary. It can be
-    cancelled, and it does not block other server actions such as Save
-  - **The client sends only `{ itemId }`.** The server loads the item with
-    `getItemById` (404 if it is not the caller's) and explains only snippets and
-    commands, so the endpoint cannot be used as a general-purpose prompt
-  - **The response streams** as `text/plain` Markdown, so the first words show
-    in about a second. Needs a streaming client hook
-  - **Icon is `WandSparkles`**, matching the other AI buttons. `Sparkles`
-    already means Upgrade in the top bar
-- Kept from the spec: **Free users see the button with a Crown icon** and the
-  tooltip "AI features require Pro subscription"; clicking it leads to
-  `/upgrade`. This differs from tags and summary, which hide their buttons
-- Spec says "unit tests for server action"; with a route, the tests cover
-  `src/lib/ai/` (request builder, the explain runner) as the tags and summary
-  tests do
-- Reusable pieces: `src/lib/ai/` (`client.ts`, `errors.ts`,
-  `run-ai-request.ts`, `route.ts`), `use-ai-request`, `useActionErrorToast`
-  (Upgrade action), `MarkdownEditor`'s `.markdown-preview` rendering,
-  `EditorChrome`
 
 ## History
 
@@ -4456,3 +4409,154 @@ Decisions worth carrying forward:
   endpoint so they never appeared in the transcript, then the tokens, the
   scripts and the server were removed. No database writes.
   `.playwright-mcp/` holds the screenshot and console log; it is gitignored
+
+### AI Explain Code — Completed (2026-09-30)
+
+Pro users can ask the AI to explain a snippet or command from the item
+drawer. The explanation streams into the code editor's space, with Code /
+Explain tabs to switch back. This is the third AI feature and the first to
+stream. Branch `feature/ai-explain-code`. Nine new source files (two of them
+tests), thirteen existing files touched, no new dependencies, no migration.
+Spec: `context/features/ai-explain-spec.md`; architecture in
+`docs/ai-integration-plan.md` §4.3 and §5.1.
+
+- Added `POST /api/ai/explain`, which takes only `{ itemId }`. It checks, in
+  order:
+  - session (401)
+  - Pro (403 with `upgradeRequired`)
+  - API key (503)
+  - input (422)
+  - the item: 404 when it is not the caller's; 422 when it is not a snippet
+    or command, or has no code
+  - the shared `ai` rate limit (429 with `Retry-After`)
+
+  Success is a `text/plain` stream of Markdown with `no-store` and `nosniff`.
+  Every refusal is JSON
+- Added `src/lib/ai/explain.ts`:
+  - the instructions: an overview sentence, a walk-through, then any gotchas,
+    in about 200–300 words
+  - `buildExplainInput`, which cuts code over
+    `EXPLAIN_CONTENT_MAX_CHARS = 16_000` at a line end and tells the model so
+  - `toExplanationStream`, which turns OpenAI's events into UTF-8 text
+  - `streamExplanation`
+- Added `src/lib/ai/auto-explain.ts` (`generateExplanation`), which holds
+  everything behind the route except HTTP
+- Split `src/lib/ai/run-ai-request.ts` into:
+  - `checkAiRequest`: session, plan, configuration and input
+  - `consumeAiQuota`: the rate limit
+
+  `runAiRequest` now composes the two. Also added `AiFailure`,
+  `AiStreamResult` and `aiFailure`. `handleAiRoute` returns a plain
+  `Response`, and passes a stream through with the text headers
+- Added `getItemCode(id, userId)` to `src/lib/db/items.ts` and the `ItemCode`
+  type
+- `src/lib/validations/ai.ts` gained `EXPLAIN_TYPE_SLUGS` (snippet, command),
+  `canExplainType`, `EXPLAIN_CONTENT_MAX_CHARS` and `explainCodeSchema`
+- Added `src/hooks/use-ai-stream.ts` (`useAiStream`):
+  - statuses `idle` / `pending` / `streaming` / `done`
+  - refusals toasted through `useActionErrorToast`
+  - cancelled by a new run or by unmounting
+- Added `src/components/ai/ExplainButton.tsx` and
+  `src/components/items/ItemCodeView.tsx`. `ItemDetailView` renders
+  `ItemCodeView` for code types in view mode
+- `CodeEditor` gained `headerStart`, `headerActions` and `panel`. The panel
+  shows in place of the code while Monaco stays mounted underneath
+- Moved `MarkdownEditor`'s rendering into
+  `src/components/items/MarkdownPreview.tsx`, which both now use
+- `AiProvider` now takes `isPro` and `configured` separately and gained
+  `useAiAccess()`. `useCanUseAi()` is unchanged for the tags and summary
+  fields
+- `AI_FAILED` now reads "The AI couldn't finish that request. Try again."
+- 30 unit tests across `explain`, `auto-explain` and `db/items`. Suite
+  621 → 651
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  build registers `ƒ /api/ai/explain`
+
+Verified against the running dev server, with real OpenAI calls:
+
+- With curl:
+  - anonymous: 401
+  - a user id with no row (Free): 403 with `upgradeRequired`
+  - a body without `itemId`: 422
+  - an unknown id: 404
+  - a prompt: 422
+  - a command and a snippet streamed their explanations. The first bytes
+    arrived at 3.4–4.2s and the whole answer at 8.3–9.4s
+- In the browser as the demo user (Pro):
+  - clicking Explain disabled the button and set `aria-busy`, with a spinner
+    and "Explaining..."
+  - the first words showed at 4.3s, and the explanation finished at 7.0s
+    (237 words, 14 bullets, 20 inline code spans)
+  - the Explain tab showed as pressed. Code brought Monaco back, and Explain
+    returned to the text
+  - there was no Explain button in edit mode, on a prompt or in New Item
+  - closing the drawer mid-stream aborted the request (`net::ERR_ABORTED`)
+  - a stubbed 429 toasted its message and fell back to the code view with no
+    tabs
+  - at 390px the header fit in 324px with no horizontal scroll
+- As Free, the Crown button linked to `/upgrade` with the tooltip "AI features
+  require Pro subscription", and made no explain request
+- No console errors or warnings apart from the stubbed 429
+
+Decisions worth carrying forward:
+
+- **A route, not the spec's `explainCode` server action**, chosen by the user
+  at load time, as for tags and summary. A server action could neither stream
+  nor be cancelled, and would hold up Save on the same page
+- **The client sends only the item id**, chosen by the user. The server reads
+  the code with `getItemCode`, scoped to the caller, so the route cannot be
+  used as a general-purpose prompt, and another user's item is a 404. It uses
+  a narrow `select` rather than `getItemById`, which joins tags and
+  collections the explanation never reads
+- **Every refusal that costs nothing runs before the rate limit**, including
+  the item lookup. A 404 or a prompt's id never uses up the hourly quota
+- **`WandSparkles`, not the spec's `Sparkles`**, chosen by the user.
+  `Sparkles` means Upgrade in the top bar
+- **Free users see a Crown and a tooltip, as the spec asks**, while tags and
+  summary still hide their buttons. When no API key is set, the button is
+  hidden for everyone, since there is nothing to upgrade to
+- **The Crown button is a link to `/upgrade`**, not a button that toasts.
+  The tooltip does not appear on touch screens, but the link still works there
+- **Reasoning effort is `minimal`, not the plan's `low`.** Reasoning happens
+  before the first streamed word, and the answers at `minimal` were already
+  good. The other settings are `verbosity: "medium"` and
+  `max_output_tokens: 2_000`
+- **`responses.create({ stream: true })` resolves once OpenAI has accepted
+  the request**, so a quota, key or timeout failure still throws there and
+  becomes a status code. After that, a failure can only end the stream. A
+  failed response, or one with no text, errors the stream, and the client
+  toasts "The AI stopped before it finished."
+- **Cancelling stops the billing.** The route passes `request.signal` to
+  OpenAI, and the stream's `cancel()` aborts the OpenAI stream's controller,
+  so closing the drawer stops the generation
+- **A new run keeps the last explanation up until its first words arrive**,
+  so a failed regeneration leaves the old one in place. A failed first run
+  falls back to the code view. This is derived from the stream status rather
+  than set in an effect
+- **The tabs are `aria-pressed` buttons, not Radix Tabs.** Radix needs a
+  `Tabs.Content` for each tab, and the code view is Monaco inside
+  `CodeEditor`, where it cannot be wrapped from outside
+- **Monaco is hidden with `display: none`, not unmounted**, so switching back
+  to Code is instant. `automaticLayout` lays it out again when it is shown
+- **A truncated explanation ends with "Only the first N lines were
+  explained."**, which the server appends after the model's text
+- **`ExplainButton` wraps its own `TooltipProvider`.** No provider is mounted
+  in the app shell; the sidebar dropped its tooltips in Dashboard Phase 2
+- At 390px the header truncates the language label ("d…") to fit the tabs
+  and the button
+- **Still not built, from the plan:**
+  - secret redaction before the call; a snippet holding a key is sent to
+    OpenAI as written
+  - a Stop button
+  - the `AI_FEATURES_ENABLED` kill switch
+  - usage logging
+  - a budget on the OpenAI account
+- **The Free state was checked with the drawer's item API stubbed in the
+  browser.** The only account in the dev database is the demo user, which is
+  Pro, and a session for a user id with no row cannot open the demo user's
+  items
+- The browser session used session JWTs minted locally for `seed-user-demo`
+  and a user id with no row. They were served from a throwaway local
+  endpoint so they never appeared in the transcript, then the tokens, the
+  scripts and the server were removed. No database writes.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
