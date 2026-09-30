@@ -1,30 +1,18 @@
 # Current Feature
 
-Language Dropdown for Code Items
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- Replace the free-text Language input with a dropdown of common languages
-- Put it above the Content editor, so the code is highlighted as you type
-  once a language is picked
-- Both the New Item dialog and the drawer's edit mode (they share
-  `ItemContentFields`)
-- Applies to the types that record a language: snippet and command
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Branch `feature/language-select`. Loaded from an inline description rather
-  than a spec file
-- The language column stays free text. An item whose stored language is not in
-  the list keeps it: the value is offered as an extra option, so opening and
-  saving the item does not change it
-- A "Plain text" option stores null, as a blank input did
-- Values are lowercase names that `resolveMonacoLanguage` already maps to
-  Monaco (`bash` → `shell`, `typescript`, `dockerfile`, …)
+<!-- Any extra notes -->
 
 ## History
 
@@ -4136,3 +4124,55 @@ Decisions worth carrying forward:
   a helper by the PID listening on its port, never by image name
 - The session token and the mint script were deleted afterwards.
   `.playwright-mcp/` holds the screenshot; it is gitignored
+
+### Language Dropdown for Code Items — Completed (2026-09-30)
+
+Snippets and commands pick their language from a dropdown placed above the
+content editor, in both the New Item dialog and the drawer's edit mode.
+Branch `feature/language-select`. Three new source files (one a test), one
+existing file touched, no new dependencies, no migration. Loaded from an
+inline description rather than a spec file.
+
+- Added `src/lib/languages.ts`: `CODE_LANGUAGES` (25 languages, alphabetical
+  by label), `PLAIN_TEXT_OPTION`, `getLanguageOptions`,
+  `toLanguageSelectValue` and `fromLanguageSelectValue`
+- Added `src/components/items/LanguageSelect.tsx` over the ShadCN `Select`,
+  with `position="popper"` and `max-h-72`
+- `ItemContentFields` renders Language first, then Content, URL and Tags. The
+  free-text Language input is gone
+- 11 unit tests in `src/lib/languages.test.ts`. Suite 551 → 562
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser as the demo user, with zero console errors or
+warnings:
+
+- Language sits above Content in both forms, and the dropdown lists Plain
+  text plus the 25 languages
+- Typing `const answer: number = 42;` after picking TypeScript highlighted
+  `const` and `number` as keywords and `42` as a number. Plain text removed
+  the highlighting, and switching back restored it
+- Escape with the dropdown open closed only the dropdown
+- A throwaway snippet created as TypeScript opened in edit mode on
+  TypeScript, then saved as Python and as Plain text, with the drawer showing
+  each. It was deleted through the drawer afterwards
+- At 390px the dropdown is full width with no horizontal scroll
+
+Decisions worth carrying forward:
+
+- **The column stays free text.** A stored language outside the list is
+  added as an extra option under its own name, so saving an item does not
+  change it. A listed language is matched case-insensitively, so `TypeScript`
+  selects `typescript`, but the stored value only changes if the user picks
+  another option
+- **Values are the lowercase names `resolveMonacoLanguage` already maps**
+  (`bash` → Monaco's `shell`), so existing items keep their highlighting
+- **"Plain text" is a sentinel value (`__plain__`)**, because Radix Select
+  does not allow an empty string as an item value. It maps back to a blank
+  form value, which the schema stores as null
+- **`position="popper"`, not the ShadCN default `item-aligned`**. Aligned to
+  the chosen item, a 26-option list would cover the field it belongs to
+- The browser session used a session JWT minted locally for
+  `seed-user-demo`, served from a throwaway local endpoint so it never
+  appeared in the transcript. The script was deleted and the server stopped
+  afterwards
