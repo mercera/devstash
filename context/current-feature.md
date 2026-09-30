@@ -1,65 +1,18 @@
-# Current Feature: AI Auto-Tagging
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- OpenAI foundation (first AI feature): install the `openai` SDK, add a
-  server-only client utility with an `AI_MODEL` constant (`gpt-5-nano`)
-- `POST /api/ai/tags` route handler: session (401), then Pro gating (403
-  with `upgradeRequired`), then Zod validation (422), then rate limiting
-  (429 + `Retry-After`), returning `{ success, data, error }`. The route
-  stays thin; the logic lives in `src/lib/ai/` so it can be unit tested
-- AI rate limit (20 requests/hour per user) added to `LIMITS` in
-  `src/lib/rate-limit.ts`
-- Call the **Responses API** (`client.responses.create`) with `instructions`
-  + `input` and `text: { format: { type: "json_object" } }`; read
-  `response.output_text` and parse it manually
-- Accept both `{"tags": [...]}` and a bare `[...]`; normalize tags to
-  lowercase; return 3–5 freeform tags (not limited to existing ones)
-- Truncate content to 2,000 characters before the call
-- "Suggest Tags" button (`WandSparkles` icon, ghost variant) by the tags input in
-  the New Item dialog and the drawer's edit mode
-- Suggestions render as badges, each with accept (check) and reject (X);
-  accepted tags are added to the item's tag list in the form
-- Button hidden for Free users; server gating enforces it regardless
-- The client calls the route with `fetch` and an `AbortController`, so
-  closing the dialog or drawer cancels the OpenAI call
-- Errors (Pro required, rate limit, AI service failure) shown as toasts,
-  through `useActionErrorToast` so a 403 gets the Upgrade action
-- Unit tests for the `src/lib/ai/` logic behind the route
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Spec: `context/features/ai-auto-tag-spec.md`. Architecture context:
-  `docs/ai-integration-plan.md`
-- **The spec diverges from the plan in several places; the spec is followed
-  except where noted:**
-  - **Exception, chosen by the user:** the plan's `POST /api/ai/tags` route
-    handler, not the spec's `generateAutoTags` server action. Server actions
-    from one page run one at a time and cannot be cancelled, and Phase 3's
-    streaming explain must be a route anyway, so all AI features share one
-    pattern
-  - `json_object` + manual parsing, not `responses.parse` + `zodTextFormat`
-    (the spec says structured output hits length limits on this model)
-  - one limit of 20/hour, not `aiBurst` 20/10m + `aiDaily` 100/day
-  - 2,000-char truncation, not 8,000
-  - button **hidden** for Free users, not disabled with a `PRO` badge
-  - **Exception, chosen by the user:** the button uses the plan's
-    `WandSparkles` icon, not the spec's `Sparkles`, because `Sparkles`
-    already means Upgrade in the top bar
-- **Never use Chat Completions** — gpt-5-nano returns empty content there. No
-  `temperature`, no `max_tokens`
-- `OPENAI_API_KEY` is already in `.env`. Read it per call, never at module
-  load (the `getStripe()` pattern)
-- `isPro` is not currently passed to the item forms; the UI gate needs it
-  as a prop or via a provider in `(app)/layout.tsx` (which already reads
-  `getSessionUser()`)
-- Accepted tags only fill the form's comma-separated tags value through
-  `useItemForm`; nothing is saved until Create/Save
-- The demo account is Pro, so it can exercise the feature
+<!-- Any extra notes -->
 
 ## History
 
@@ -4223,3 +4176,142 @@ Decisions worth carrying forward:
   `seed-user-demo`, served from a throwaway local endpoint so it never
   appeared in the transcript. The script was deleted and the server stopped
   afterwards
+
+### AI Auto-Tagging — Completed (2026-09-30)
+
+Pro users can ask the AI for tag suggestions on an item and accept or dismiss
+each one. This is the first AI feature, so it also adds the OpenAI client,
+the error mapping and the AI rate limit that later AI features will reuse.
+Branch `feature/ai-auto-tagging`. Eleven new source files (two of them
+tests), eleven existing files touched plus three test files, one new
+dependency, no migration. Spec: `context/features/ai-auto-tag-spec.md`;
+architecture in `docs/ai-integration-plan.md`.
+
+- Installed `openai@7.25.0`. It requires Node 22 or later; this machine runs
+  Node 24
+- Added `src/lib/ai/`:
+  - `client.ts`: `AI_MODEL = "gpt-5-nano"`, `isAiConfigured()` and
+    `getOpenAI()`. The client is built per call and cached on its key (the
+    `getStripe()` pattern), with a 20s timeout and one retry
+  - `tags.ts`: the instructions, `buildTagInput`, `parseTagResponse`,
+    `normalizeSuggestedTags` and `suggestTags`
+  - `errors.ts`: `AiResponseError` and `mapAiError`
+  - `auto-tags.ts`: `generateAutoTags(user, body, signal)`, which holds
+    everything behind the route except HTTP
+- Added `POST /api/ai/tags`. It checks, in order: session (401), Pro (403
+  with `upgradeRequired`), API key (503), input (422) and the AI rate limit
+  (429 with `Retry-After`). It rejects bodies over 64 KB with 413
+- Added `src/lib/validations/ai.ts`: `suggestTagsSchema`,
+  `TAG_SUGGESTION_TYPE_SLUGS` (snippet, prompt, command, note, link),
+  `canSuggestTagsFor` and `TAG_CONTENT_MAX_CHARS = 2_000`
+- `src/lib/rate-limit.ts` gained the `ai` limit (20 per hour, keyed on the
+  user id), and `rateLimitMessage` gained an optional lead. The auth messages
+  are unchanged
+- `src/lib/usage-limits.ts` gained `canUseAi(isPro)`
+- Added `src/components/ai/AiProvider.tsx` (`useCanUseAi()`), mounted in
+  `(app)/layout.tsx` with `canUseAi(isPro) && isAiConfigured()`. It adds no
+  query, since the layout already reads the session
+- Added `src/hooks/use-ai-request.ts`: a JSON `fetch` with an
+  `AbortController`. It toasts failures through `useActionErrorToast` and
+  aborts on a new request or on unmount
+- Added `src/components/items/ItemTagsField.tsx`, which replaces the tags
+  block in `ItemContentFields`:
+  - a ghost `xs` "Suggest Tags" button with the `WandSparkles` icon
+  - chips with ✓ (add) and ✕ (dismiss) under the input
+- `ItemFormField` gained an `action` slot at the right of the label row.
+  `ItemContentFields` takes `typeSlug`
+- `src/lib/item-form.ts` gained `appendTag`
+- `.env.example` documents `OPENAI_API_KEY`
+- 35 unit tests: `src/lib/ai/auto-tags.test.ts` (21) and
+  `src/lib/ai/tags.test.ts` (10), plus `appendTag`, `canUseAi` and the rate
+  limit message lead. Suite 562 → 597
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass;
+  the build registers `ƒ /api/ai/tags`
+
+Checked that the tests catch real bugs. Removing the Pro check failed one
+test, and switching `store: false` to `true` failed another. Both files were
+restored.
+
+Verified against the running dev server:
+
+- With curl:
+  - anonymous: 401
+  - a user id with no row (Free): 403 with `upgradeRequired`
+  - blank title and content: 422 "Add a title or some content first."
+  - malformed JSON: 422
+- **The real model was never reached.** A demo-user request returned 503
+  after ~7.5s. Calling OpenAI directly showed `429 insufficient_quota`: the
+  account has no credits. The route answered as designed, with the generic
+  message and none of OpenAI's text
+- In the browser as the demo user (Pro), with `/api/ai/tags` stubbed in the
+  browser for the chip checks:
+  - the button showed and was disabled until there was a title or content
+  - it showed "Suggesting..." while waiting
+  - the real call toasted "AI features are temporarily unavailable."
+  - ✓ added `hooks` and `debounce` to `react`; ✕ removed its chip; the list
+    closed once empty
+  - in the drawer's edit mode, accepting `shell` filled the input, and
+    Cancel dropped it
+  - Image and File hide the button; Link and Prompt show it
+  - closing the dialog mid-request left no stray toast
+  - at 390px the chips wrap with no horizontal scroll
+  - a Free session sees the tags input but no button
+  - the only console error was the expected 503 resource log
+
+Decisions worth carrying forward:
+
+- **A route handler, not the spec's server action**, chosen by the user at
+  load time. Server actions from one page run one at a time, so a slow AI
+  call would hold up Save. They also cannot be cancelled. Here
+  `request.signal` is passed to OpenAI. The later streaming explain feature
+  must be a route anyway, so every AI feature shares this pattern.
+  `/api/*` is outside the proxy, so `generateAutoTags` checks the session
+- **The `WandSparkles` icon, not the spec's `Sparkles`**, chosen by the user.
+  `Sparkles` already means Upgrade in the top bar
+- **Where the spec and the plan disagreed, the spec won** on:
+  - `json_object` output parsed by hand, since a strict schema burns the
+    token cap on this model
+  - one limit of 20 per hour
+  - content cut to 2,000 characters
+  - the button hidden, not disabled, for Free users
+- **Validation runs before the rate limit**, so a malformed request does not
+  use up the user's quota. A Free user never reaches the limiter or OpenAI
+- **Every call sets `store: false`, `reasoning.effort: "minimal"`,
+  `text.verbosity: "low"` and `max_output_tokens: 1_000`.** It sends no
+  `temperature` and no `max_tokens`. The cap includes reasoning tokens, which
+  is why it is far above the ~20 tokens of JSON in the answer.
+  `safety_identifier` is the SHA-256 of the user id
+- **Normalization is in code, whatever the instructions say**: lowercase,
+  `#` and commas stripped (the form splits on commas), spaces hyphenated,
+  over 30 characters dropped, duplicates and tags already in the field
+  dropped, at most 5. An empty result is a 200 with `[]`, which the UI
+  reports as "No new tags to suggest."
+- **Only the fields the type shows are sent.** A URL typed under Link in New
+  Item and left behind after switching to Snippet does not steer the
+  suggestions
+- **The client also cuts the content to 2,000 characters** before sending, so
+  the 64 KB body limit never affects an honest request
+- **Malformed JSON is read as null and fails validation** after the session
+  and plan checks, so an anonymous caller always gets 401, never 400
+- **OpenAI's error text is logged, never returned.** The log has the status,
+  code and request id, never the key or the user's content
+- **`insufficient_quota` is retried once by the SDK**, which is where the
+  ~7.5s went. A retry cannot help there; worth skipping for that code
+- **Left out, though the plan proposed them:**
+  - secret redaction before the call. A snippet holding a key is sent to
+    OpenAI as written. The most important of these to add
+  - the `AI_FEATURES_ENABLED` kill switch
+  - sending the user's existing tag names, so `react` is reused rather than
+    `reactjs` invented
+  - usage logging
+  - the "Sent to OpenAI" notice
+- **Before this works in production:** the OpenAI account needs credits, and
+  a budget should be set on it, since the AI limiter fails open like the
+  auth limiters. The host needs Node 22 or later for `openai@7`
+- Suggestions from a stubbed response can include tags already in the
+  field, but the real route filters them out, so they never reach the UI
+- The browser session used session JWTs minted locally for `seed-user-demo`
+  and for a user id with no row. They were served from a throwaway local
+  endpoint so they never appeared in the transcript, then the tokens, the
+  scripts and the server were removed. No database writes.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
