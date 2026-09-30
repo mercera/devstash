@@ -1,59 +1,18 @@
-# Current Feature: AI Description Summary
+# Current Feature
+
+<!-- Feature Name -->
 
 ## Status
 
-In Progress
+<!-- Not Started|In Progress|Completed -->
 
 ## Goals
 
-- An icon button (`WandSparkles`) beside the **Description** label, in both the
-  New Item dialog and the drawer's edit mode, generates a 1–2 sentence summary
-  for the Description field
-- It reads the **current, unsaved inputs**, so there is no need to save first
-- Works for **every item type**, using what that type has:
-  - snippet / command: title, content, language
-  - prompt / note: title, content
-  - link: title and URL (the page is never fetched)
-  - file / image: title and file name (no file bytes are sent)
-- The result is written into the Description input. Nothing is saved until the
-  user presses Create or Save, so edit mode's Cancel undoes it
-- The button is disabled while generating (spinner) and when there is nothing to
-  summarise (no title and no content)
-- Pro only, like auto-tagging: the button is hidden for Free users or when
-  OpenAI is not configured, and the server refuses Free users with 403
-- A new `POST /api/ai/summary` route, following `/api/ai/tags`: session (401),
-  Pro (403 `upgradeRequired`), API key (503), Zod input (422), AI rate limit
-  (429 + `Retry-After`), 64 KB body cap (413). Returns `{ summary: string }`
-- Unit tests for the summary logic and the route's orchestration, mirroring
-  `src/lib/ai/tags.test.ts` and `src/lib/ai/auto-tags.test.ts`
+<!-- Goals & requirements -->
 
 ## Notes
 
-- Architecture is in `docs/ai-integration-plan.md` §4.2 and §10. Reuse what
-  auto-tagging built: `getOpenAI`/`isAiConfigured` (`src/lib/ai/client.ts`),
-  `mapAiError` (`src/lib/ai/errors.ts`), the `ai` rate limit, `useCanUseAi`,
-  `useAiRequest` and `ItemFormField`'s `action` slot
-- **Shares the `ai` limit** (20 per hour per user) with tag suggestions, per the
-  plan's single-limit decision
-- Call settings, as for tags: `store: false`, `reasoning.effort: "minimal"`,
-  `text.verbosity: "low"`, `safety_identifier` = SHA-256 of the user id, no
-  `temperature`. The plan says 400 output tokens, but the cap includes
-  reasoning tokens — tags needed 1,000 for ~20 tokens of JSON, so start there
-- Instructions: one or two plain sentences, no Markdown, no "This snippet…"
-  preamble. Trim the result and cap it at 300 characters in code
-- Content is cut before sending (the plan says 8,000 characters for summaries;
-  tags used 2,000). The client trims by the same shared constant
-- Only the fields the chosen type shows are sent, like `ItemTagsField`, so a
-  value left behind after switching type in New Item does not steer the result
-- **Open question — replace or confirm?** The plan (§10.2) proposes a panel that
-  shows the suggestion with Accept/"Replace" when the description already has
-  text. The request asks to fill the field directly. Default: fill directly,
-  replacing any existing text, since Cancel/closing without saving undoes it
-- In edit mode, file and image items get the file name from the loaded item;
-  in New Item, from the uploaded file once it has finished uploading
-- The OpenAI account had no credits at the end of the auto-tagging feature, so
-  the real model may again return 503. Browser checks may need
-  `/api/ai/summary` stubbed, as auto-tagging did
+<!-- Any extra notes -->
 
 ## History
 
@@ -4356,3 +4315,105 @@ Decisions worth carrying forward:
   endpoint so they never appeared in the transcript, then the tokens, the
   scripts and the server were removed. No database writes.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### AI Description Summary — Completed (2026-09-30)
+
+Pro users can click a wand icon beside the Description label to have the AI
+write a one- or two-sentence description from what is in the form right now.
+This is the second AI feature, and it moved the checks that `/api/ai/tags` ran
+into helpers both routes now share. Branch `feature/ai-description-summary`.
+Eight new source files (two of them tests), six existing files touched, no new
+dependencies, no migration. Loaded from an inline description rather than a
+spec file; architecture in `docs/ai-integration-plan.md` §4.2.
+
+- Added `POST /api/ai/summary`, returning `{ summary: string }`. It checks
+  what `/api/ai/tags` checks, in the same order: session (401), Pro (403 with
+  `upgradeRequired`), API key (503), input (422), the shared `ai` rate limit
+  (429 with `Retry-After`), and a 64 KB body cap (413)
+- Added `src/lib/ai/summary.ts`: the instructions, `buildSummaryInput`,
+  `normalizeSummary` and `summarizeItem`. Added `src/lib/ai/auto-summary.ts`
+  (`generateAutoSummary`)
+- Added `src/lib/ai/run-ai-request.ts` (`runAiRequest`): the session, plan,
+  configuration, input and rate-limit checks and the error mapping. Each
+  feature supplies only its schema and its model call.
+  `generateAutoTags` now uses it
+- Added `src/lib/ai/route.ts` (`handleAiRoute`): the body cap, JSON parsing,
+  session read, 499 on cancel and the `Retry-After` header. Both route files
+  are now a few lines each
+- `src/lib/validations/ai.ts` gained `summarizeItemSchema`,
+  `SUMMARY_TYPE_SLUGS` (every creatable type) and
+  `SUMMARY_CONTENT_MAX_CHARS = 8_000`. It now imports `CREATABLE_TYPE_SLUGS`
+  from `src/lib/item-fields.ts`
+- Added `src/components/items/ItemDescriptionField.tsx`: the Description
+  textarea plus an icon-only ghost `WandSparkles` button
+  (`aria-label="Generate description"`) and an `sr-only` live region.
+  `NewItemForm` and `ItemEditForm` use it in place of their own textarea
+- 24 unit tests in `src/lib/ai/summary.test.ts` and
+  `src/lib/ai/auto-summary.test.ts`. Suite 597 → 621
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass;
+  the build registers `ƒ /api/ai/summary`
+
+Verified against the running dev server, **with real OpenAI calls** (the
+account has credits again). Each took about 3s:
+
+- With curl:
+  - anonymous: 401
+  - a user id with no row (Free): 403 with `upgradeRequired`
+  - nothing to summarise: 422 "Add a title or some content first."
+  - a command, a snippet, a link, an image and a file known only by its name
+    (`docker-compose.prod.yml`) each got one or two sensible sentences
+  - a prompt whose content said "Ignore all previous instructions…" was
+    described, not obeyed
+  - `/api/ai/tags` still returned tags after the refactor
+- In the browser as the demo user (Pro):
+  - New Item: the button was disabled until there was a title, and a link's
+    URL alone was enough. It showed a spinner and `aria-busy` while waiting,
+    then filled the Description and announced "Description generated."
+  - Edit mode: it replaced an existing description, and Cancel then Edit
+    showed the original again
+  - a Free session sees no button
+  - at 390px the button is 24×24 and nothing scrolls sideways
+  - no console errors or warnings
+
+Decisions worth carrying forward:
+
+- **The summary fills the field directly**, replacing any text there. The plan
+  (§10.2) proposed a panel with Accept/"Replace"; the request asked for a
+  direct fill, and nothing is saved until the form is, so Cancel is the undo
+- **Every type, not the plan's five.** Files and images are summarised from
+  their title and file name only; no file bytes are sent. In New Item the
+  name comes from the upload once it has finished; in edit mode, from the
+  loaded item. Links use only the title and URL; the page is never fetched
+- **Icon-only button**, as asked, unlike "Suggest Tags", which has a text
+  label. Its accessible name is "Generate description", and the tooltip says
+  what is missing when it is disabled
+- **Plain text output, not `json_object`.** One or two sentences need no
+  wrapper, so there is nothing to parse. `normalizeSummary` is what
+  guarantees one clean line: whitespace collapsed, `**`, `__` and backticks
+  removed, a `Summary:`/`Description:` label dropped, and double quotes
+  removed only when they wrap the whole answer with none inside. Capped at
+  300 characters: at the last sentence end, else at a word with "…"
+- **`max_output_tokens` is 1,000, not the plan's 400**, because the cap
+  includes reasoning tokens, as tags found
+- **Content is cut at 8,000 characters** (the plan's figure for summaries),
+  against 2,000 for tags. The client cuts by the same shared constant
+- **Only the fields the chosen type shows are sent**, like tags, so a URL left
+  behind after switching type in New Item does not steer the summary
+- **One shared `ai` limit** of 20 per hour covers tags and summaries together
+- The 502 message is still `AI_FAILED`, "The AI couldn't come up with
+  suggestions. Try again.", which reads a little oddly for a summary. Worth
+  generalising when a third AI feature lands
+- **Still not built, from the plan:** secret redaction before the call (a
+  snippet holding a key is sent to OpenAI as written), the
+  `AI_FEATURES_ENABLED` kill switch, usage logging and a budget on the OpenAI
+  account. The AI limiter fails open like the auth limiters
+- **Files written through the Bash tool come out LF** while the repo's files
+  are CRLF, so a scripted string match against an existing file fails. Git
+  normalises them on commit. Use the Edit tool for existing files
+- The file and image buttons were not clicked in the browser; their
+  summaries were checked through the route with curl
+- The browser session used session JWTs minted locally for `seed-user-demo`
+  and a user id with no row. They were served from a throwaway local
+  endpoint so they never appeared in the transcript, then the tokens, the
+  scripts and the server were removed. No database writes.
+  `.playwright-mcp/` holds the screenshot and console log; it is gitignored
