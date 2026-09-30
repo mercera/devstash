@@ -7,11 +7,11 @@ import { toast } from "sonner";
 import { updateItem } from "@/actions/items";
 import { CollectionPicker } from "@/components/items/CollectionPicker";
 import { ItemContentFields } from "@/components/items/ItemContentFields";
+import { ItemDescriptionField } from "@/components/items/ItemDescriptionField";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { DatesSection } from "@/components/items/ItemSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useItemForm } from "@/hooks/use-item-form";
 import { itemToFormValues, toItemFieldsPayload } from "@/lib/item-form";
 import { getItemTypeFields } from "@/lib/item-fields";
@@ -101,13 +101,13 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
           <Input {...bind("title")} required />
         </ItemFormField>
 
-        <ItemFormField
-          label="Description"
-          htmlFor={idFor("description")}
-          issues={issues.description}
-        >
-          <Textarea {...bind("description")} className="min-h-20" />
-        </ItemFormField>
+        <ItemDescriptionField
+          form={form}
+          typeSlug={item.type.slug}
+          fields={fields}
+          fileName={item.fileName}
+          className="min-h-20"
+        />
 
         <ItemContentFields form={form} typeSlug={item.type.slug} fields={fields} />
 
