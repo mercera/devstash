@@ -14,7 +14,6 @@ import { getRecentCollections } from "@/lib/db/collections";
 import { getItemTypesWithCounts, getSearchItems } from "@/lib/db/items";
 import { getCurrentUser, getEditorPreferences } from "@/lib/db/user";
 import { getSessionUser } from "@/lib/session";
-import { canUseAi } from "@/lib/usage-limits";
 
 /**
  * The signed-in app shell — sidebar, top bar and main area — shared by
@@ -70,7 +69,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <SidebarInset className="min-w-0">
         <EditorPreferencesProvider initialPreferences={editorPreferences}>
           <CollectionOptionsProvider collections={collectionOptions}>
-            <AiProvider canUseAi={canUseAi(isPro) && isAiConfigured()}>
+            <AiProvider isPro={isPro} configured={isAiConfigured()}>
               <ItemDrawerProvider>
                 <TopBar
                   itemTypes={itemTypes}

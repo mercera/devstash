@@ -133,6 +133,14 @@ export interface ItemDetail extends ItemWithRelations {
  */
 export type ItemDetailPatch = Pick<ItemDetail, "id"> & Partial<ItemDetail>;
 
+/** What the AI needs to explain an item's code, and nothing else. */
+export interface ItemCode {
+  title: string;
+  content: string | null;
+  language: string | null;
+  typeSlug: string;
+}
+
 /**
  * An item as the command palette searches and lists it. Pre-fetched for every
  * item on each app-shell request, so it carries a short preview rather than

@@ -7,7 +7,11 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import type { AiRouteResponse, AiRouteResult } from "@/lib/ai/run-ai-request";
+import type {
+  AiRouteResponse,
+  AiRouteResult,
+  AiStreamResult,
+} from "@/lib/ai/run-ai-request";
 import type { SessionUser } from "@/lib/session";
 
 /** Every AI client trims what it sends, so a real request is far smaller. */
@@ -17,7 +21,14 @@ type AiHandler<TData> = (
   user: SessionUser | null,
   body: unknown,
   signal: AbortSignal,
-) => Promise<AiRouteResult<TData> | null>;
+) => Promise<AiRouteResult<TData> | AiStreamResult | null>;
+
+/** Plain text as it is generated: never cached, never sniffed as HTML. */
+const STREAM_HEADERS = {
+  "Content-Type": "text/plain; charset=utf-8",
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+};
 
 function fail<TData>(error: string, status: number): NextResponse<AiRouteResponse<TData>> {
   return NextResponse.json({ success: false, error }, { status });
@@ -29,12 +40,15 @@ function fail<TData>(error: string, status: number): NextResponse<AiRouteRespons
  * cancelled. Here `request.signal` reaches OpenAI, so closing the form stops
  * the generation. `/api/*` is outside the proxy, so the handler checks the
  * session.
+ *
+ * A refusal is always JSON with its status code. A streaming feature answers
+ * success with the text itself.
  */
 export async function handleAiRoute<TData>(
   request: Request,
   handler: AiHandler<TData>,
   tooLargeMessage: string,
-): Promise<NextResponse<AiRouteResponse<TData>>> {
+): Promise<Response> {
   if (Number(request.headers.get("content-length")) > MAX_BODY_BYTES) {
     return fail(tooLargeMessage, 413);
   }
@@ -51,6 +65,10 @@ export async function handleAiRoute<TData>(
 
   // The client went away; nobody reads this.
   if (!result) return fail("Request cancelled.", 499);
+
+  if ("stream" in result) {
+    return new Response(result.stream, { status: result.status, headers: STREAM_HEADERS });
+  }
 
   return NextResponse.json(result.body, {
     status: result.status,

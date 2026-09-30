@@ -3,12 +3,11 @@
  *
  * The list and count queries are still scoped to the seeded demo user (see
  * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
- * `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`, `createItem`,
- * `updateItem`, `setItemFavorite`, `setItemPinned` and `deleteItem` are the
- * exceptions: they take the caller's user
- * id, because they back an API route, server actions, the collection and
- * favorites pages and the command palette, none of which may reach another
- * user's item.
+ * `getItemCode`, `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`,
+ * `createItem`, `updateItem`, `setItemFavorite`, `setItemPinned` and
+ * `deleteItem` are the exceptions: they take the caller's user id, because
+ * they back API routes, server actions, the collection and favorites pages and
+ * the command palette, none of which may reach another user's item.
  */
 
 import { cache } from "react";
@@ -22,6 +21,7 @@ import { toSearchPreview } from "@/lib/search";
 import type { CreateItemData, UpdateItemData } from "@/lib/validations/items";
 import type {
   FavoriteItem,
+  ItemCode,
   ItemDetail,
   ItemType,
   ItemTypeWithCount,
@@ -101,6 +101,27 @@ export async function getItemById(
   return {
     ...toItemWithRelations(item),
     collections: item.collections.map(({ collection }) => collection),
+  };
+}
+
+/**
+ * The code an AI explanation needs, or null when no item with that id belongs
+ * to `userId`. One narrow query rather than `getItemById`, which joins tags
+ * and collections the explanation never reads.
+ */
+export async function getItemCode(id: string, userId: string): Promise<ItemCode | null> {
+  const item = await prisma.item.findFirst({
+    where: { id, userId },
+    select: { title: true, content: true, language: true, type: { select: { slug: true } } },
+  });
+
+  if (item === null) return null;
+
+  return {
+    title: item.title,
+    content: item.content,
+    language: item.language,
+    typeSlug: item.type.slug,
   };
 }
 

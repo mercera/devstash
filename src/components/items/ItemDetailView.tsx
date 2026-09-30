@@ -4,8 +4,8 @@ import { useState } from "react";
 import { ExternalLink, FileText, Tag } from "lucide-react";
 
 import { TypeIcon } from "@/components/items/TypeIcon";
-import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemActions } from "@/components/items/ItemActions";
+import { ItemCodeView } from "@/components/items/ItemCodeView";
 import { ItemEditForm } from "@/components/items/ItemEditForm";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import {
@@ -117,12 +117,7 @@ function ItemBody({ item }: { item: ItemDetail }) {
       {item.content && (
         <Section title="Content">
           {code ? (
-            <CodeEditor
-              value={item.content}
-              language={item.language}
-              ariaLabel="Content"
-              readOnly
-            />
+            <ItemCodeView item={item} />
           ) : (
             <MarkdownEditor value={item.content} ariaLabel="Content" readOnly />
           )}

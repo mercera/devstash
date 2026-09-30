@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById`, `getItemsByCollection`, `getSearchItems`,
+ * Only `getItemById`, `getItemCode`, `getItemsByCollection`, `getSearchItems`,
  * `getFavoriteItems`, `createItem`, `updateItem`, `setItemFavorite`,
  * `setItemPinned` and `deleteItem` are covered for scoping: they are the
  * queries in this module scoped to a caller-supplied user, backing a public
@@ -46,6 +46,7 @@ import {
   deleteItem,
   getFavoriteItems,
   getItemById,
+  getItemCode,
   getItemsByCollection,
   getItemsByType,
   getSearchItems,
@@ -102,6 +103,41 @@ function itemRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("getItemCode", () => {
+  it("scopes the lookup to both the item id and the owner, selecting only the code", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue(null);
+
+    await getItemCode("item-1", "user-1");
+
+    expect(mocks.prisma.item.findFirst).toHaveBeenCalledWith({
+      where: { id: "item-1", userId: "user-1" },
+      select: { title: true, content: true, language: true, type: { select: { slug: true } } },
+    });
+  });
+
+  it("returns null when no item with that id belongs to the user", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue(null);
+
+    await expect(getItemCode("someone-elses-item", "user-1")).resolves.toBeNull();
+  });
+
+  it("flattens the type to its slug", async () => {
+    mocks.prisma.item.findFirst.mockResolvedValue({
+      title: "Kill port",
+      content: "lsof -i :3000 -t | xargs kill -9",
+      language: "bash",
+      type: { slug: "command" },
+    });
+
+    await expect(getItemCode("item-1", "user-1")).resolves.toEqual({
+      title: "Kill port",
+      content: "lsof -i :3000 -t | xargs kill -9",
+      language: "bash",
+      typeSlug: "command",
+    });
+  });
 });
 
 describe("getItemById", () => {

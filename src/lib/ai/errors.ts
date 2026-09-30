@@ -16,7 +16,7 @@ export class AiResponseError extends Error {
 }
 
 export const AI_UNAVAILABLE = "AI features are temporarily unavailable.";
-export const AI_FAILED = "The AI couldn't come up with suggestions. Try again.";
+export const AI_FAILED = "The AI couldn't finish that request. Try again.";
 const AI_TIMEOUT = "The AI took too long to respond. Try again.";
 const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
 
