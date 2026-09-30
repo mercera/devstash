@@ -169,7 +169,7 @@ export function NewItemForm({
           </ItemFormField>
         )}
 
-        <ItemContentFields form={form} fields={fields} urlRequired />
+        <ItemContentFields form={form} typeSlug={typeSlug} fields={fields} urlRequired />
 
         <CollectionPicker
           id="item-new"

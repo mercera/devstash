@@ -1,18 +1,65 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: AI Auto-Tagging
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- OpenAI foundation (first AI feature): install the `openai` SDK, add a
+  server-only client utility with an `AI_MODEL` constant (`gpt-5-nano`)
+- `POST /api/ai/tags` route handler: session (401), then Pro gating (403
+  with `upgradeRequired`), then Zod validation (422), then rate limiting
+  (429 + `Retry-After`), returning `{ success, data, error }`. The route
+  stays thin; the logic lives in `src/lib/ai/` so it can be unit tested
+- AI rate limit (20 requests/hour per user) added to `LIMITS` in
+  `src/lib/rate-limit.ts`
+- Call the **Responses API** (`client.responses.create`) with `instructions`
+  + `input` and `text: { format: { type: "json_object" } }`; read
+  `response.output_text` and parse it manually
+- Accept both `{"tags": [...]}` and a bare `[...]`; normalize tags to
+  lowercase; return 3–5 freeform tags (not limited to existing ones)
+- Truncate content to 2,000 characters before the call
+- "Suggest Tags" button (`WandSparkles` icon, ghost variant) by the tags input in
+  the New Item dialog and the drawer's edit mode
+- Suggestions render as badges, each with accept (check) and reject (X);
+  accepted tags are added to the item's tag list in the form
+- Button hidden for Free users; server gating enforces it regardless
+- The client calls the route with `fetch` and an `AbortController`, so
+  closing the dialog or drawer cancels the OpenAI call
+- Errors (Pro required, rate limit, AI service failure) shown as toasts,
+  through `useActionErrorToast` so a 403 gets the Upgrade action
+- Unit tests for the `src/lib/ai/` logic behind the route
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/ai-auto-tag-spec.md`. Architecture context:
+  `docs/ai-integration-plan.md`
+- **The spec diverges from the plan in several places; the spec is followed
+  except where noted:**
+  - **Exception, chosen by the user:** the plan's `POST /api/ai/tags` route
+    handler, not the spec's `generateAutoTags` server action. Server actions
+    from one page run one at a time and cannot be cancelled, and Phase 3's
+    streaming explain must be a route anyway, so all AI features share one
+    pattern
+  - `json_object` + manual parsing, not `responses.parse` + `zodTextFormat`
+    (the spec says structured output hits length limits on this model)
+  - one limit of 20/hour, not `aiBurst` 20/10m + `aiDaily` 100/day
+  - 2,000-char truncation, not 8,000
+  - button **hidden** for Free users, not disabled with a `PRO` badge
+  - **Exception, chosen by the user:** the button uses the plan's
+    `WandSparkles` icon, not the spec's `Sparkles`, because `Sparkles`
+    already means Upgrade in the top bar
+- **Never use Chat Completions** — gpt-5-nano returns empty content there. No
+  `temperature`, no `max_tokens`
+- `OPENAI_API_KEY` is already in `.env`. Read it per call, never at module
+  load (the `getStripe()` pattern)
+- `isPro` is not currently passed to the item forms; the UI gate needs it
+  as a prop or via a provider in `(app)/layout.tsx` (which already reads
+  `getSessionUser()`)
+- Accepted tags only fill the form's comma-separated tags value through
+  `useItemForm`; nothing is saved until Create/Save
+- The demo account is Pro, so it can exercise the feature
 
 ## History
 

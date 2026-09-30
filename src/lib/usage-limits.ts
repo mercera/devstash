@@ -46,6 +46,11 @@ export function canCreateTypeSlug(slug: string, isPro: boolean): boolean {
   return isPro || !PRO_TYPE_SLUGS.has(slug);
 }
 
+/** The AI features are Pro only. The UI hides them; the server refuses them. */
+export function canUseAi(isPro: boolean): boolean {
+  return isPro;
+}
+
 /**
  * Whether the type's list page (`/items/[slug]`) is open to this plan. A Free
  * user gets the upgrade page instead. Single items stay reachable elsewhere

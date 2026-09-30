@@ -2,16 +2,19 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { SIGN_IN_PATH } from "@/auth.config";
+import { AiProvider } from "@/components/ai/AiProvider";
 import { CollectionOptionsProvider } from "@/components/collections/CollectionOptionsProvider";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { EditorPreferencesProvider } from "@/components/editor/EditorPreferencesProvider";
 import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { isAiConfigured } from "@/lib/ai/client";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getItemTypesWithCounts, getSearchItems } from "@/lib/db/items";
 import { getCurrentUser, getEditorPreferences } from "@/lib/db/user";
 import { getSessionUser } from "@/lib/session";
+import { canUseAi } from "@/lib/usage-limits";
 
 /**
  * The signed-in app shell — sidebar, top bar and main area — shared by
@@ -67,15 +70,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <SidebarInset className="min-w-0">
         <EditorPreferencesProvider initialPreferences={editorPreferences}>
           <CollectionOptionsProvider collections={collectionOptions}>
-            <ItemDrawerProvider>
-              <TopBar
-                itemTypes={itemTypes}
-                searchItems={searchItems}
-                searchCollections={searchCollections}
-                isPro={isPro}
-              />
-              <div className="min-w-0 flex-1 p-6">{children}</div>
-            </ItemDrawerProvider>
+            <AiProvider canUseAi={canUseAi(isPro) && isAiConfigured()}>
+              <ItemDrawerProvider>
+                <TopBar
+                  itemTypes={itemTypes}
+                  searchItems={searchItems}
+                  searchCollections={searchCollections}
+                  isPro={isPro}
+                />
+                <div className="min-w-0 flex-1 p-6">{children}</div>
+              </ItemDrawerProvider>
+            </AiProvider>
           </CollectionOptionsProvider>
         </EditorPreferencesProvider>
       </SidebarInset>

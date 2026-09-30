@@ -122,4 +122,10 @@ describe("rateLimitMessage", () => {
   ])("states %i seconds as %j", (seconds, phrase) => {
     expect(rateLimitMessage(seconds)).toBe(`Too many attempts. Please try again in ${phrase}.`);
   });
+
+  it("opens with the given lead", () => {
+    expect(rateLimitMessage(120, "You've reached the hourly AI limit.")).toBe(
+      "You've reached the hourly AI limit. Please try again in 2 minutes.",
+    );
+  });
 });

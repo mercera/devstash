@@ -2,7 +2,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
 /**
- * Rate limiting for the public auth surfaces.
+ * Rate limiting for the public auth surfaces and the AI features.
  *
  * Every limit is a sliding window in Upstash Redis, keyed by client IP — plus
  * the submitted email where the target is a specific account rather than the
@@ -27,6 +27,8 @@ const LIMITS = {
   forgotPassword: { tokens: 3, window: "1 h" },
   resetPassword: { tokens: 5, window: "15 m" },
   resendVerification: { tokens: 3, window: "15 m" },
+  /** Per signed-in user, shared by every AI feature. */
+  ai: { tokens: 20, window: "1 h" },
 } as const satisfies Record<string, { tokens: number; window: `${number} ${string}` }>;
 
 export type RateLimitName = keyof typeof LIMITS;
@@ -200,7 +202,10 @@ function formatRetryDelay(seconds: number): string {
   return `${hours} ${hours === 1 ? "hour" : "hours"}`;
 }
 
-/** The single message every rate-limited surface shows. */
-export function rateLimitMessage(seconds: number): string {
-  return `Too many attempts. Please try again in ${formatRetryDelay(seconds)}.`;
+/**
+ * The message a rate-limited surface shows. `lead` says what ran out; the auth
+ * surfaces keep the default.
+ */
+export function rateLimitMessage(seconds: number, lead = "Too many attempts."): string {
+  return `${lead} Please try again in ${formatRetryDelay(seconds)}.`;
 }

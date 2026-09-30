@@ -2,6 +2,7 @@
 
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemFormField } from "@/components/items/ItemFormField";
+import { ItemTagsField } from "@/components/items/ItemTagsField";
 import { LanguageSelect } from "@/components/items/LanguageSelect";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,8 @@ import type { ItemTypeFields } from "@/lib/item-fields";
 
 interface ItemContentFieldsProps {
   form: ItemForm;
+  /** The item's type, for the tag suggestions. */
+  typeSlug: string;
   fields: ItemTypeFields;
   /** Marks the URL input required; a link must have one when created. */
   urlRequired?: boolean;
@@ -21,6 +24,7 @@ interface ItemContentFieldsProps {
  */
 export function ItemContentFields({
   form,
+  typeSlug,
   fields,
   urlRequired = false,
 }: ItemContentFieldsProps) {
@@ -69,14 +73,7 @@ export function ItemContentFields({
         </ItemFormField>
       )}
 
-      <ItemFormField
-        label="Tags"
-        htmlFor={idFor("tags")}
-        issues={issues.tags}
-        hint="Separate tags with commas."
-      >
-        <Input {...bind("tags")} placeholder="react, hooks" />
-      </ItemFormField>
+      <ItemTagsField form={form} typeSlug={typeSlug} fields={fields} />
     </>
   );
 }
