@@ -2,6 +2,7 @@
 
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { ItemFormField } from "@/components/items/ItemFormField";
+import { LanguageSelect } from "@/components/items/LanguageSelect";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Input } from "@/components/ui/input";
 import type { ItemForm } from "@/hooks/use-item-form";
@@ -15,7 +16,7 @@ interface ItemContentFieldsProps {
 }
 
 /**
- * The type-dependent fields shared by both item forms — content, language and
+ * The type-dependent fields shared by both item forms — language, content and
  * URL, each only for the types that carry it — followed by tags.
  */
 export function ItemContentFields({
@@ -27,6 +28,19 @@ export function ItemContentFields({
 
   return (
     <>
+      {/* Above the content, so the language is chosen before the code is
+          typed and the editor highlights it as it goes. */}
+      {fields.language && (
+        <ItemFormField label="Language" htmlFor={idFor("language")} issues={issues.language}>
+          <LanguageSelect
+            id={idFor("language")}
+            value={values.language}
+            invalid={Boolean(issues.language)}
+            onChange={(language) => setValue("language", language)}
+          />
+        </ItemFormField>
+      )}
+
       {fields.content && (
         <ItemFormField label="Content" htmlFor={idFor("content")} issues={issues.content}>
           {fields.code ? (
@@ -46,12 +60,6 @@ export function ItemContentFields({
               onChange={(content) => setValue("content", content)}
             />
           )}
-        </ItemFormField>
-      )}
-
-      {fields.language && (
-        <ItemFormField label="Language" htmlFor={idFor("language")} issues={issues.language}>
-          <Input {...bind("language")} placeholder="e.g. typescript" />
         </ItemFormField>
       )}
 

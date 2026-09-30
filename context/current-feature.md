@@ -1,18 +1,30 @@
 # Current Feature
 
-<!-- Feature Name -->
+Language Dropdown for Code Items
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Replace the free-text Language input with a dropdown of common languages
+- Put it above the Content editor, so the code is highlighted as you type
+  once a language is picked
+- Both the New Item dialog and the drawer's edit mode (they share
+  `ItemContentFields`)
+- Applies to the types that record a language: snippet and command
 
 ## Notes
 
-<!-- Any extra notes -->
+- Branch `feature/language-select`. Loaded from an inline description rather
+  than a spec file
+- The language column stays free text. An item whose stored language is not in
+  the list keeps it: the value is offered as an extra option, so opening and
+  saving the item does not change it
+- A "Plain text" option stores null, as a blank input did
+- Values are lowercase names that `resolveMonacoLanguage` already maps to
+  Monaco (`bash` → `shell`, `typescript`, `dockerfile`, …)
 
 ## History
 
