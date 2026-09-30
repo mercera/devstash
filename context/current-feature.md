@@ -1,89 +1,10 @@
-# Current Feature: AI Prompt Optimization
+# Current Feature
 
 ## Status
 
-In Progress
-
 ## Goals
 
-- Pro users see an **Optimize** button (`WandSparkles`) in the header of a
-  prompt item's content editor in the item drawer, placed like the Explain
-  button on snippets and commands
-- Clicking it sends the prompt to the AI, which refines it if needed and
-  returns the rewritten prompt plus 2–5 short bullets saying what changed
-- The result is shown for review (the changes and the optimized prompt,
-  rendered as Markdown) with **Use this prompt** and **Discard**
-- **Use this prompt** saves the new content to the item, toasts, updates the
-  drawer and refreshes the lists. **Discard** leaves the item untouched
-- When the AI finds nothing worth changing, the user is told so and nothing
-  is offered
-- Free users see a Crown button linking to `/upgrade` with the "AI features
-  require Pro subscription" tooltip, as Explain does. With no API key the
-  button is hidden for everyone
-- Only prompt items get the button; not snippets, commands, notes or links,
-  and not in edit mode or New Item
-- Pending state: button disabled with a spinner and `aria-busy`
-- Unit tests for the new utilities, route logic and action; `npm test`,
-  `npx tsc --noEmit`, `npm run lint` and `npm run build` pass
-
 ## Notes
-
-- Loaded from an inline description. Architecture in
-  `docs/ai-integration-plan.md` §4.4, §5 and §10
-- **Follows the Explain pattern**, not the plan's form-field placement: the
-  plan put Optimize beside the Content label in New Item and edit mode; the
-  request puts it in the drawer header like Explain
-- **Route, not server action**, as for tags, summary and explain:
-  `POST /api/ai/optimize-prompt` taking only `{ itemId }`. The server reads the
-  content with an owner-scoped query, so the route can't be used as a
-  general-purpose prompt and another user's item is a 404. Checks in order:
-  session (401), Pro (403 `upgradeRequired`), API key (503), input (422),
-  item (404 / 422 when not a prompt or empty), then the shared `ai` rate limit
-  (429 `Retry-After`). Reuse `checkAiRequest` / `consumeAiQuota` /
-  `handleAiRoute`
-- **Non-streaming, structured** (plan §5): `json_object` output parsed by hand
-  into `{ optimizedPrompt: string, changes: string[] }`, like tags. Plan
-  settings: `low` effort, `medium` verbosity, 2,000 output tokens —
-  reconsider `minimal` effort as explain did. `store: false` and
-  `safety_identifier` as the other AI calls
-- **Content over 8,000 characters is refused, not truncated** (plan §4.4) —
-  truncation would drop the end of the prompt from the rewrite
-- Instructions must keep every placeholder (`{{variable}}`, `$VAR`,
-  `[INPUT]`), keep the intent and output format, add no facts not in the
-  original, and treat the prompt as data to rewrite, not instructions to
-  follow
-- **Accepting persists immediately.** The button lives in view mode, where
-  there is no form to write into, so Accept calls a narrow server action
-  (e.g. `setItemContent(itemId, content)`, owner-scoped, like
-  `setItemPinned`) and the drawer merges the patch through `onSaved`. This
-  differs from the plan's "nothing is persisted by an AI call"
-- The review UI probably reuses `CodeEditor`-style panel switching inside
-  `MarkdownEditor`'s header (`headerActions` / panel slots), or a panel under
-  the editor — decide at start
-- Secret redaction (plan §9.3: refuse to optimize a prompt holding a key) is
-  still not built, as for the other AI features
-- Add prompt optimization to the Pro feature list in `src/lib/plans.ts` if
-  not already listed
-
-Implementation decisions:
-
-- **`low` reasoning effort, kept after measuring `minimal`.** `minimal` took
-  ~4s against ~10s, but flattened a Markdown list onto one line and echoed
-  the `<prompt>` tags back. `MAX_OUTPUT_TOKENS` is 6,000, not the plan's
-  2,000: rewriting an 8,000-character prompt needs ~2,000 tokens by itself
-- **A rewrite that drops a placeholder is refused (502)**, checked in code by
-  `findMissingPlaceholders`, whatever the instructions say
-- **"Unchanged" is decided by comparing the text** with whitespace collapsed,
-  not by an empty `changes` list. It answers `optimizedPrompt: null`, which
-  the drawer reports as "This prompt already looks good"
-- A wrapping code fence or `<prompt>` tag is stripped from the rewrite
-- `ExplainButton` became the shared `AiHeaderButton` (`label`, `actionLabel`);
-  `MarkdownEditor` gained a `headerActions` slot
-- The suggestion renders in a panel **under** the prompt, not in place of it,
-  so the original and the rewrite can be compared
-- Accept goes through a new `setItemContent(itemId, content)` action, which
-  is owner-scoped, rejects blank content and leaves tags and collections alone.
-  It is not restricted to prompts, matching `updateItem`
 
 ## History
 
@@ -4639,3 +4560,124 @@ Decisions worth carrying forward:
   endpoint so they never appeared in the transcript, then the tokens, the
   scripts and the server were removed. No database writes.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### AI Prompt Optimization — Completed (2026-09-30)
+
+Pro users can ask the AI to optimize a saved prompt from the item drawer.
+The rewrite and what changed show under the prompt, and the user chooses to
+use it or discard it. This is the fourth AI feature. Branch
+`feature/ai-prompt-optimization`. Six new source files (two of them tests),
+twelve existing files touched, no new dependencies, no migration. Loaded from
+an inline description rather than a spec file; architecture in
+`docs/ai-integration-plan.md` §4.4.
+
+- Added `POST /api/ai/optimize-prompt`, which takes only `{ itemId }` and
+  answers `{ optimizedPrompt, changes }`. It checks, in order:
+  - session (401)
+  - Pro (403 with `upgradeRequired`)
+  - API key (503)
+  - input (422)
+  - the item: 404 when it is not the caller's; 422 when it is not a prompt,
+    is empty, or is over 8,000 characters
+  - the shared `ai` rate limit (429 with `Retry-After`)
+- Added `src/lib/ai/optimize-prompt.ts`:
+  - the instructions: keep the intent, the output format and every
+    placeholder, and add no facts
+  - `buildOptimizeInput`, `findMissingPlaceholders`, `parseOptimizeResponse`
+    and `optimizePrompt`
+- Added `src/lib/ai/auto-optimize.ts` (`generatePromptOptimization`)
+- `src/lib/validations/ai.ts` gained `OPTIMIZE_TYPE_SLUGS` (prompt),
+  `canOptimizeType`, `OPTIMIZE_CONTENT_MAX_CHARS = 8_000` and
+  `optimizePromptSchema`
+- Added the `setItemContent(itemId, content)` server action, backed by
+  `setItemContent` in `src/lib/db/items.ts` and `itemContentSchema` in
+  `src/lib/validations/items.ts`
+- Added `src/components/items/ItemPromptView.tsx`: the read-only
+  `MarkdownEditor` with Optimize in its header, and a panel under it showing
+  the changes, the rewrite as Markdown, and **Use this prompt** / **Discard**.
+  `ItemDetailView` renders it for prompts and passes `onSaved` down
+- `ExplainButton` became `src/components/ai/AiHeaderButton.tsx`, taking
+  `label` and `actionLabel`. `MarkdownEditor` gained a `headerActions` slot
+- Added `PromptOptimization` to `src/types/index.ts`
+- `src/lib/plans.ts`: the Pro feature list now reads "AI tagging, summaries,
+  Explain Code and prompt optimization"
+- 42 unit tests across `optimize-prompt`, `auto-optimize`, `db/items` and
+  `actions/items`. Suite 651 → 693
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  build registers `ƒ /api/ai/optimize-prompt`
+
+Checked that the tests catch real bugs. Removing the length refusal failed one
+test, and disabling the placeholder check failed two. Both files were restored.
+
+Verified against the running dev server, with real OpenAI calls:
+
+- With curl:
+  - anonymous: 401
+  - a user id with no row (Free): 403 with `upgradeRequired`
+  - a body without `itemId`: 422
+  - an unknown id: 404
+  - a snippet: 422
+  - a seeded prompt: 200 with a structured rewrite and four change bullets,
+    in about 10s
+- In the browser as the demo user (Pro), on a throwaway prompt created and
+  then deleted through the UI:
+  - Optimize disabled itself with `aria-busy` while waiting
+  - Discard closed the panel and left the prompt unchanged
+  - Use this prompt toasted "Prompt updated" after ~0.9s, closed the panel,
+    showed the new text, and the text was still there after a reload
+  - the `{{table}}` placeholder survived both rewrites
+  - at 390px the header and the panel fit, with no horizontal scroll
+  - snippets still show Explain, with no Optimize
+- As Free, with the drawer's item API stubbed in the browser: a Crown link to
+  `/upgrade`, the "AI features require Pro subscription" tooltip, and no
+  optimize request
+- No console errors or warnings
+
+Decisions worth carrying forward:
+
+- **In the drawer header, like Explain**, as asked. The plan put Optimize
+  beside the Content label in New Item and edit mode
+- **Accepting saves immediately.** The button is in view mode, where there is
+  no form to write into, so Use this prompt calls `setItemContent`. This
+  departs from the plan's "nothing is persisted by an AI call". Discard is the
+  only undo; there is no revert after accepting
+- **`setItemContent` is not restricted to prompts.** It is owner-scoped,
+  rejects blank content and leaves tags and collections alone, the same rule
+  `updateItem` follows. The content is not trimmed
+- **A route, not a server action**, and **only the item id is sent**, as for
+  Explain. The server reads the prompt, so another user's item is a 404 and
+  the route cannot rewrite arbitrary text
+- **`low` reasoning effort, kept after measuring `minimal`.** `minimal` took
+  ~4s against ~10s, but collapsed a Markdown list onto one line and echoed the
+  `<prompt>` tags back. Explain uses `minimal` because it streams
+- **`max_output_tokens` is 6,000, not the plan's 2,000.** A rewrite of an
+  8,000-character prompt is ~2,000 tokens by itself, and reasoning tokens count
+  toward the cap
+- **Over-long prompts are refused, not truncated**, per the plan: a rewrite of
+  the first part would silently drop the end of the prompt
+- **A rewrite that drops a placeholder is refused (502)**, whatever the
+  instructions say. `findMissingPlaceholders` recognises `{{name}}`,
+  `${NAME}`, `$NAME` and `[NAME]` in capitals, so `[see docs]` and `$5` are
+  not treated as placeholders
+- **"Unchanged" is decided by comparing the text** with whitespace collapsed,
+  not by an empty `changes` list. The route answers `optimizedPrompt: null`,
+  and the drawer toasts "This prompt already looks good. No changes
+  suggested." This branch never came up with a real prompt, so it is covered
+  by unit tests only
+- **The rewrite shows under the prompt, not in place of it**, so the two can
+  be compared before choosing
+- A wrapping code fence or `<prompt>` tag is stripped from the rewrite
+- The suggestion lives in component state, so closing the drawer drops it and
+  cancels a request in progress
+- **Still not built, from the plan:**
+  - secret redaction; the plan says a prompt holding a key should be refused
+    here, since accepting would replace the real key with `[REDACTED]`
+  - the `AI_FEATURES_ENABLED` kill switch
+  - usage logging
+  - a budget on the OpenAI account
+- The browser session used session JWTs minted locally for `seed-user-demo`
+  and a user id with no row. They were served from a throwaway local endpoint
+  so they never appeared in the transcript, then the tokens, the scripts and
+  the server were removed. The only database writes were the throwaway
+  prompt, which was deleted. `.playwright-mcp/` holds the screenshots; it is
+  gitignored
