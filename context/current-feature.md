@@ -1,45 +1,10 @@
-# Current Feature: Session-Scoped Item Reads
+# Current Feature
 
 ## Status
 
-In Progress
-
 ## Goals
 
-- Every item read in `src/lib/db/items.ts` takes the caller's `userId`;
-  `DEMO_USER_ID` is removed from the module
-  - `getRecentItems(userId, limit)` and `getPinnedItems(userId)`: the
-    dashboard's Recent and Pinned sections
-  - `getItemStats(userId)`: the dashboard and profile stat cards
-  - `getItemTypesWithCounts(userId)`: the sidebar, the New Item type picker,
-    the type pages and the profile breakdown (still memoised per request)
-  - `getItemTypeBySlug(userId, slug)` and `getItemsByType(userId, typeId,
-    page)`: the `/items/[type]` pages
-- The callers pass the session user: `(app)/layout.tsx`,
-  `(app)/dashboard/page.tsx`, `(app)/items/[type]/page.tsx` (including
-  `generateMetadata`) and `/profile`
-- A newly registered user sees their own items on the dashboard, the sidebar
-  counts, the type pages and the profile page, and every card opens in the
-  drawer without "Couldn't load item"
-- The demo user still sees their own data, unchanged
-- Comments that describe the demo-scoping as current (`items.ts`, `user.ts`,
-  `billing.ts`, the profile page) are updated
-- Unit tests cover the new `userId` scoping of each getter
-
 ## Notes
-
-- Reported from production: a new user created a command, and it showed
-  nowhere except search. The dashboard's Recent list showed the demo user's
-  items, and opening one gave "Couldn't load item", because
-  `GET /api/items/[id]` is scoped to the session user while the lists were
-  scoped to `seed-user-demo`
-- First flagged in Auth Phase 3 and carried as a known gap since. Collections,
-  favorites, search and every write were already session-scoped
-- The getters take `userId` as a parameter rather than calling `auth()`
-  themselves, the pattern `getRecentCollections` set. Pages read it through
-  the cached `getSessionUser()` / `getSessionUserId()`
-- Custom item types stay visible only to their owner: the type lookup becomes
-  `isSystem OR userId = caller`
 
 ## History
 
@@ -4716,3 +4681,77 @@ Decisions worth carrying forward:
   the server were removed. The only database writes were the throwaway
   prompt, which was deleted. `.playwright-mcp/` holds the screenshots; it is
   gitignored
+
+### Session-Scoped Item Reads — Completed (2026-10-01)
+
+Every item read now uses the signed-in user, so a new account sees its own
+items instead of the demo user's. Branch `fix/session-scoped-item-reads`.
+No new source files, nine existing files touched plus one test file, no new
+dependencies, no migration. Loaded from an inline description, after a bug
+report from production.
+
+- `src/lib/db/items.ts` dropped `DEMO_USER_ID`. These now take `userId`:
+  - `getRecentItems` and `getPinnedItems`: the dashboard's Recent and
+    Pinned sections
+  - `getItemStats`: the dashboard and profile stat cards
+  - `getItemTypesWithCounts`: the sidebar, the New Item type picker, the type
+    pages and the profile breakdown. Still memoised per request through React
+    `cache`, now keyed on the user id
+  - `getItemTypeBySlug` and `getItemsByType`: the `/items/[type]` pages
+- The callers pass the session user: `(app)/layout.tsx`,
+  `(app)/dashboard/page.tsx`, `(app)/items/[type]/page.tsx` (including
+  `generateMetadata`) and `/profile`
+- Comments that described reads as demo-scoped were removed or rewritten in
+  `items.ts`, `collections.ts`, `user.ts`, `billing.ts`,
+  `actions/items.ts` and the profile page
+- 5 unit tests, plus the `getItemsByType` test now asserting the user scope.
+  Suite 693 → 698. Removing the user filter from `getPinnedItems` failed its
+  test
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass;
+  the route table is unchanged
+
+The bug, as reported from production: a new user created a command and it
+appeared nowhere but search. The dashboard's Recent list showed the demo
+user's items, and opening one gave "Couldn't load item", because
+`GET /api/items/[id]` is scoped to the session while the lists were scoped to
+`seed-user-demo`.
+
+Verified in the browser against the dev server, with zero console errors or
+warnings:
+
+- A newly registered account started with every stat at 0 and an empty
+  Recent list. After creating a command through New Item:
+  - the dashboard and the sidebar read 1
+  - the item was in Recent and on `/items/command`, and `/items/snippet` was
+    empty
+  - the profile page read 1 item, with Commands 1 in the breakdown
+  - the item opened in the drawer from Recent and from the Commands page
+    (API 200)
+- The demo account still saw its own 28 items, 4 pinned and its own counts,
+  and none of the test account's
+- The test account was deleted through Settings → Delete account. A
+  read-only query on the dev branch found no rows left for it, and the demo
+  account still had 28 items
+
+Decisions worth carrying forward:
+
+- **The getters take `userId` as a parameter** rather than calling `auth()`,
+  the pattern `getRecentCollections` set. Pages read it through the cached
+  `getSessionUser()` / `getSessionUserId()`
+- **The type page now reads the session before the type lookup**, since the
+  lookup needs the id. The session read is cached and the layout has already
+  done it, so this adds no query
+- **Custom types are visible only to their owner**: the lookup is
+  `isSystem OR userId = caller`
+- **No reads remain demo-scoped.** `prisma/seed.ts` still seeds
+  `seed-user-demo`, but nothing in `src/` refers to it
+- **After this is deployed, a new production account sees an empty
+  dashboard** until it creates items, rather than the demo data
+- **`git checkout -- <file>` reverts every uncommitted change in that file**,
+  not just a temporary test edit. It wiped this feature's edits to
+  `items.ts` during the mutation check; a backup taken just before restored
+  them. Back a file up before mutating it, and restore from the backup
+- The demo session used a JWT minted locally for `seed-user-demo` and served
+  from a throwaway local endpoint, so the token never appeared in the
+  transcript. The script was deleted and the server stopped afterwards.
+  `.playwright-mcp/` holds the console log; it is gitignored
