@@ -2,22 +2,9 @@
 
 ## Status
 
-In progress — Server Action Cleanup 2. Branch `refactor/actions-results-and-db`.
-
 ## Goals
 
-- Add a shared `ActionResult<T, Failure>` type in `src/types/actions.ts` and
-  turn the existing per-action result types into aliases of it
-- Add an `ownedMutation` helper and move `setItemFavorite`, `setItemPinned`,
-  `setItemContent` and `setCollectionFavorite` onto it
-- Move `src/actions/profile.ts`'s direct Prisma calls into
-  `src/lib/db/user.ts`, with tests there
-
 ## Notes
-
-- No behaviour change: messages, result shapes and log lines stay the same
-- The exported result type names stay, so no component changes
-- Follows Server Action Cleanup; the free-plan limit helper is still left out
 
 ## History
 
@@ -4950,3 +4937,62 @@ Decisions worth carrying forward:
   - a shared `ActionResult<T>` type
   - a free-plan limit helper shared by `createItem` and `createCollection`
   - moving `profile.ts`'s direct Prisma calls into `src/lib/db/user.ts`
+
+### Server Action Cleanup 2 — Completed (2026-10-01)
+
+Three of the four items left over from Server Action Cleanup. Branch
+`refactor/actions-results-and-db`. Two new source files, eight existing files
+touched plus two test files, no new dependencies, no migration. No behaviour
+change: messages, result shapes and log lines are the same.
+
+- Added `src/types/actions.ts`:
+  - `ActionResult<T, Failure>`: `{ success: true; data: T }` or
+    `{ success: false; error: string }` plus `Failure`
+  - `FieldIssues<Field>` and `UpgradeRequired` for the extra failure fields
+
+  All 12 result types in `src/actions/` are now one-line aliases of it under
+  their existing names, so no component changed. `useOptimisticToggle` uses it
+  in place of its own `ToggleResult`
+- Added `src/lib/owned-mutation.ts` (`ownedMutation`). It checks the session,
+  the id and the value, calls `write` scoped to the user, maps null to
+  "not found" and logs failures. `setItemFavorite`, `setItemPinned`,
+  `setItemContent` and `setCollectionFavorite` are now one call each.
+  `items.ts` went from 362 to 244 lines, `collections.ts` from 205 to 168
+- `src/lib/db/user.ts` gained `getPasswordHash`, `setPasswordHash`,
+  `getAccountForDeletion` and `deleteUserAccount`. `src/actions/profile.ts` no
+  longer imports Prisma. The delete-order explanation moved with the
+  transaction; the action keeps the Stripe-first reasoning
+- `profile.test.ts` mocks `@/lib/db/user` instead of `@/lib/prisma`. The
+  scoping and delete-order checks moved to 7 new tests in `db/user.test.ts`.
+  Suite 709 → 715
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged. Not checked in the browser
+
+Checked that the tests catch real bugs: disabling `ownedMutation`'s id check
+failed the "missing id" test of all four toggles. The file was restored from a
+backup.
+
+Decisions worth carrying forward:
+
+- **New single-field actions should use `ownedMutation`.** It returns
+  `{ id, ...whatever write returned }`, and `write` takes
+  `(userId, id, value)`, so a query with another argument order is wrapped in a
+  lambda at the call site
+- **`ownedMutation` has no tests of its own.** The 20 toggle tests in
+  `items.test.ts` and `collections.test.ts` cover every branch, and the mutation
+  check above confirms it. Add direct tests if it gains a branch the actions do
+  not reach
+- **`updateItem`, `deleteItem`, `updateCollection` and `deleteCollection` stay
+  as they are.** They validate whole forms, handle more than one kind of
+  failure, or do extra work after the write, so they would not fit the helper
+  cleanly
+- **`ActionResult` is for server actions only.** The API route bodies,
+  `useAiRequest`, `ItemDrawerProvider` and `upload-client` still declare their
+  own `{ success, data }` unions. Their data is JSON, with dates as strings, so
+  the shapes differ
+- **`profile.test.ts` no longer matches the coding standards' description** of
+  the reference pattern (it mocked `@/lib/prisma`); it now mocks the query
+  module, like the other action tests
+- **Still not built:** the free-plan limit helper shared by `createItem` and
+  `createCollection`, and moving the shared messages into `src/lib/ai`, the API
+  routes and the form components
