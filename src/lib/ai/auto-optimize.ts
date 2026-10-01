@@ -13,6 +13,7 @@ import {
   type AiRouteResult,
 } from "@/lib/ai/run-ai-request";
 import { getItemCode } from "@/lib/db/items";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import type { SessionUser } from "@/lib/session";
 import {
   OPTIMIZE_CONTENT_MAX_CHARS,
@@ -26,7 +27,6 @@ const ITEM_NOT_FOUND = "This item could not be found.";
 const NOT_PROMPT = "Only prompts can be optimized.";
 const NO_PROMPT = "There's no prompt to optimize.";
 const TOO_LONG = `This prompt is too long to optimize. The limit is ${OPTIMIZE_CONTENT_MAX_CHARS.toLocaleString("en-US")} characters.`;
-const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
 
 /**
  * Checks, in order: session (401), plan (403), configuration (503), input

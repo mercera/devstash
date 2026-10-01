@@ -7,6 +7,7 @@ import type { z } from "zod";
 
 import { isAiConfigured } from "@/lib/ai/client";
 import { AI_UNAVAILABLE, mapAiError } from "@/lib/ai/errors";
+import { SESSION_EXPIRED } from "@/lib/messages";
 import { checkRateLimit, rateLimitMessage, retryAfterSeconds } from "@/lib/rate-limit";
 import type { SessionUser } from "@/lib/session";
 import { PRO_REQUIRED, canUseAi } from "@/lib/usage-limits";
@@ -38,7 +39,6 @@ export interface AiFeature<TSchema extends z.ZodType, TData> {
   generate: (input: z.output<TSchema>, userId: string, signal?: AbortSignal) => Promise<TData>;
 }
 
-const SESSION_EXPIRED = "Your session has expired. Sign in again to continue.";
 const AI_LIMIT_REACHED = "You've reached the hourly AI limit.";
 
 export function aiFailure(status: number, error: string): AiFailure {

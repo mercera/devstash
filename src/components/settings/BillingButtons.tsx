@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -9,7 +8,7 @@ import {
   createCheckoutSession,
   type BillingRedirectResult,
 } from "@/actions/billing";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/layout/PendingButton";
 import type { BillingPeriod } from "@/lib/plans";
 
 /** Runs a billing action and follows the Stripe-hosted URL it returns. */
@@ -54,16 +53,16 @@ export function UpgradeButton({
   const { busy, go } = useStripeRedirect();
 
   return (
-    <Button
+    <PendingButton
       variant={variant}
       size={size}
       className={className}
-      disabled={busy}
+      pending={busy}
+      pendingLabel="Redirecting..."
       onClick={() => go(() => createCheckoutSession(period))}
     >
-      {busy && <Loader2 className="animate-spin" />}
-      {busy ? "Redirecting..." : label}
-    </Button>
+      {label}
+    </PendingButton>
   );
 }
 
@@ -71,9 +70,13 @@ export function ManageBillingButton() {
   const { busy, go } = useStripeRedirect();
 
   return (
-    <Button variant="outline" disabled={busy} onClick={() => go(createBillingPortalSession)}>
-      {busy && <Loader2 className="animate-spin" />}
-      {busy ? "Opening..." : "Manage billing"}
-    </Button>
+    <PendingButton
+      variant="outline"
+      pending={busy}
+      pendingLabel="Opening..."
+      onClick={() => go(createBillingPortalSession)}
+    >
+      Manage billing
+    </PendingButton>
   );
 }

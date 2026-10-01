@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isUniqueConstraintError } from "@/lib/db/errors";
 import { issueEmailVerification } from "@/lib/email-verification";
 import { isEmailVerificationEnabled } from "@/lib/flags";
+import { INVALID_INPUT, SOMETHING_WENT_WRONG } from "@/lib/messages";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
@@ -87,7 +88,7 @@ export async function POST(request: Request): Promise<NextResponse<RegisterRespo
     return NextResponse.json(
       {
         success: false,
-        error: "Please check the details you entered",
+        error: INVALID_INPUT,
         issues: parsed.error.flatten().fieldErrors,
       },
       { status: 422 },
@@ -146,7 +147,7 @@ export async function POST(request: Request): Promise<NextResponse<RegisterRespo
     console.error("Failed to register user:", error);
 
     return NextResponse.json(
-      { success: false, error: "Something went wrong. Please try again." },
+      { success: false, error: SOMETHING_WENT_WRONG },
       { status: 500 },
     );
   }

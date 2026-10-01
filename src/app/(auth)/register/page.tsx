@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { AuthDivider } from "@/components/auth/AuthDivider";
 import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { RegisterForm } from "@/components/auth/RegisterForm";
@@ -35,7 +36,7 @@ export default async function RegisterPage() {
 
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href={SIGN_IN_PATH} className="font-medium text-foreground hover:underline">
             Sign in
           </Link>
         </p>

@@ -29,6 +29,7 @@ import {
   getTotalPages,
   parsePageParam,
 } from "@/lib/pagination";
+import { getItemTypePath } from "@/lib/routes";
 import { getSessionUser, getSessionUserId } from "@/lib/session";
 import { canViewTypeSlug } from "@/lib/usage-limits";
 
@@ -78,7 +79,7 @@ export default async function ItemsByTypePage({
     );
   }
 
-  const pathname = `/items/${type.slug}`;
+  const pathname = getItemTypePath(type.slug);
   const { rows: items, total } = await getItemsByType(userId, type.id, page);
   const totalPages = getTotalPages(total, ITEMS_PER_PAGE);
 

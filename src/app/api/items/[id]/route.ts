@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { getItemById } from "@/lib/db/items";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import type { ItemDetail } from "@/types";
 
 type ItemDetailResponse =
@@ -52,7 +53,7 @@ export async function GET(
     console.error("Failed to load item:", error);
 
     return NextResponse.json(
-      { success: false, error: "Something went wrong. Please try again." },
+      { success: false, error: SOMETHING_WENT_WRONG },
       { status: 500 },
     );
   }

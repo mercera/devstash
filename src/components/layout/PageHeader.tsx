@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { AccentTile } from "@/components/layout/AccentTile";
 
 interface PageHeaderProps {
   title: string;
@@ -27,14 +27,9 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="flex items-start gap-3">
-      <span
-        className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5",
-          tileClassName ?? "bg-muted text-muted-foreground",
-        )}
-      >
+      <AccentTile size="lg" className={tileClassName}>
         {icon}
-      </span>
+      </AccentTile>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
           {title}

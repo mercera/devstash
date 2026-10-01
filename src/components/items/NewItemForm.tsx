@@ -2,7 +2,6 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createItem } from "@/actions/items";
@@ -13,6 +12,7 @@ import { ItemDescriptionField } from "@/components/items/ItemDescriptionField";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { Badge } from "@/components/ui/badge";
+import { PendingButton } from "@/components/layout/PendingButton";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -27,13 +27,12 @@ import {
   singularTypeName,
   type CreatableTypeSlug,
 } from "@/lib/item-fields";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import { discardUpload } from "@/lib/upload-client";
 import { canCreateTypeSlug } from "@/lib/usage-limits";
 import type { UploadedFile } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import type { ItemType } from "@/types";
-
-const CREATE_FAILED = "Something went wrong. Please try again.";
 
 interface NewItemFormProps {
   types: ItemType[];
@@ -117,7 +116,7 @@ export function NewItemForm({
         // up the new item on a refresh.
         router.refresh();
       } catch {
-        toast.error(CREATE_FAILED);
+        toast.error(SOMETHING_WENT_WRONG);
       } finally {
         onPendingChange(false);
       }
@@ -184,10 +183,14 @@ export function NewItemForm({
         <Button type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending || !canSubmit}>
-          {isPending && <Loader2 className="animate-spin" />}
-          {isPending ? "Creating..." : "Create"}
-        </Button>
+        <PendingButton
+          type="submit"
+          pending={isPending}
+          pendingLabel="Creating..."
+          disabled={!canSubmit}
+        >
+          Create
+        </PendingButton>
       </DialogFooter>
     </form>
   );

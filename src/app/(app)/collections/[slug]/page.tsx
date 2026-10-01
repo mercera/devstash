@@ -18,6 +18,7 @@ import {
   getTotalPages,
   parsePageParam,
 } from "@/lib/pagination";
+import { COLLECTIONS_PATH, getCollectionPath } from "@/lib/routes";
 import { getSessionUserId } from "@/lib/session";
 
 /**
@@ -58,7 +59,7 @@ export default async function CollectionPage({
   if (collection === null) notFound();
 
   const page = parsePageParam(query.page);
-  const pathname = `/collections/${collection.slug}`;
+  const pathname = getCollectionPath(collection.slug);
   const { rows: items, total } = await getItemsByCollection(
     userId,
     collection.id,
@@ -71,7 +72,7 @@ export default async function CollectionPage({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
-        <BackLink href="/collections" label="All collections" />
+        <BackLink href={COLLECTIONS_PATH} label="All collections" />
         <PageHeader
           title={collection.name}
           icon={<FolderOpen />}

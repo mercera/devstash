@@ -7,7 +7,7 @@ import { GlobalSearch } from "@/components/search/GlobalSearch";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getCreatableTypes } from "@/lib/item-fields";
-import { UPGRADE_PATH } from "@/lib/routes";
+import { FAVORITES_PATH, UPGRADE_PATH } from "@/lib/routes";
 import type { ItemType, SearchCollection, SearchItem } from "@/types";
 
 interface TopBarProps {
@@ -47,7 +47,7 @@ export function TopBar({
           </Button>
         )}
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/favorites" aria-label="Favorites" title="Favorites">
+          <Link href={FAVORITES_PATH} aria-label="Favorites" title="Favorites">
             <Star />
           </Link>
         </Button>

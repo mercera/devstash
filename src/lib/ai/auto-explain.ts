@@ -13,6 +13,7 @@ import {
   type AiStreamResult,
 } from "@/lib/ai/run-ai-request";
 import { getItemCode } from "@/lib/db/items";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import type { SessionUser } from "@/lib/session";
 import { canExplainType, explainCodeSchema } from "@/lib/validations/ai";
 
@@ -20,7 +21,6 @@ const INVALID_REQUEST = "This item can't be explained.";
 const ITEM_NOT_FOUND = "This item could not be found.";
 const NOT_CODE = "Only snippets and commands can be explained.";
 const NO_CODE = "There's no code to explain.";
-const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
 
 /**
  * Checks, in order: session (401), plan (403), configuration (503), input

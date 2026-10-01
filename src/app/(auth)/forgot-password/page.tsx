@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyRound, MailWarning, MailX } from "lucide-react";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHours } from "@/lib/format";
@@ -78,7 +79,7 @@ export default async function ForgotPasswordPage({
 
         <p className="text-center text-sm text-muted-foreground">
           Remembered it?{" "}
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href={SIGN_IN_PATH} className="font-medium text-foreground hover:underline">
             Sign in
           </Link>
         </p>

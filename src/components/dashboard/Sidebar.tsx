@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Folder, Star } from "lucide-react";
+import { ChevronDown, Folder } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,7 +28,14 @@ import {
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Logo } from "@/components/brand/Logo";
 import { TypeIcon } from "@/components/items/TypeIcon";
+import { FavoriteStar } from "@/components/layout/StatusMarks";
 import { getAccentDotClass, getAccentTextClass } from "@/lib/icons";
+import {
+  COLLECTIONS_PATH,
+  DASHBOARD_PATH,
+  getCollectionPath,
+  getItemTypePath,
+} from "@/lib/routes";
 import { PRO_TYPE_SLUGS } from "@/lib/usage-limits";
 import { cn } from "@/lib/utils";
 import type {
@@ -60,7 +67,7 @@ export function Sidebar({ itemTypes, collections, user, isPro }: SidebarProps) {
   return (
     <SidebarRoot>
       <SidebarHeader className="h-12 shrink-0 flex-row items-center border-b border-sidebar-border px-4 py-0">
-        <Logo href="/dashboard" />
+        <Logo href={DASHBOARD_PATH} />
       </SidebarHeader>
 
       <SidebarContent>
@@ -68,7 +75,7 @@ export function Sidebar({ itemTypes, collections, user, isPro }: SidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {itemTypes.map((type) => {
-                const href = `/items/${type.slug}`;
+                const href = getItemTypePath(type.slug);
 
                 return (
                   <SidebarMenuItem key={type.id}>
@@ -114,12 +121,12 @@ export function Sidebar({ itemTypes, collections, user, isPro }: SidebarProps) {
               {favoriteCollections.map((collection) => (
                 <CollectionItem
                   key={collection.id}
-                  href={`/collections/${collection.slug}`}
-                  isActive={pathname === `/collections/${collection.slug}`}
+                  href={getCollectionPath(collection.slug)}
+                  isActive={pathname === getCollectionPath(collection.slug)}
                   name={collection.name}
                 >
                   <SidebarMenuBadge>
-                    <Star className="size-3.5 fill-yellow-400 text-yellow-400" />
+                    <FavoriteStar />
                   </SidebarMenuBadge>
                 </CollectionItem>
               ))}
@@ -130,8 +137,8 @@ export function Sidebar({ itemTypes, collections, user, isPro }: SidebarProps) {
               {otherCollections.map((collection) => (
                 <CollectionItem
                   key={collection.id}
-                  href={`/collections/${collection.slug}`}
-                  isActive={pathname === `/collections/${collection.slug}`}
+                  href={getCollectionPath(collection.slug)}
+                  isActive={pathname === getCollectionPath(collection.slug)}
                   name={collection.name}
                 >
                   <SidebarMenuBadge>
@@ -150,10 +157,10 @@ export function Sidebar({ itemTypes, collections, user, isPro }: SidebarProps) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === "/collections"}
+                  isActive={pathname === COLLECTIONS_PATH}
                   className="text-sidebar-foreground/50 hover:text-sidebar-foreground"
                 >
-                  <Link href="/collections">View all collections</Link>
+                  <Link href={COLLECTIONS_PATH}>View all collections</Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

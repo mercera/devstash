@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FAVORITE_STAR_CLASS } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { EditableCollection } from "@/types";
 
@@ -67,9 +68,7 @@ export function CollectionCardMenu({ collection }: { collection: EditableCollect
             Edit
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={favorite.toggle}>
-            <Star
-              className={cn(favorite.value && "fill-yellow-400 text-yellow-400")}
-            />
+            <Star className={cn(favorite.value && FAVORITE_STAR_CLASS)} />
             {favorite.value ? "Unfavorite" : "Favorite"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />

@@ -10,11 +10,13 @@ import { ItemContentFields } from "@/components/items/ItemContentFields";
 import { ItemDescriptionField } from "@/components/items/ItemDescriptionField";
 import { ItemFormField } from "@/components/items/ItemFormField";
 import { DatesSection } from "@/components/items/ItemSections";
+import { PendingButton } from "@/components/layout/PendingButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useItemForm } from "@/hooks/use-item-form";
 import { itemToFormValues, toItemFieldsPayload } from "@/lib/item-form";
 import { getItemTypeFields } from "@/lib/item-fields";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import type { ItemDetail } from "@/types";
 
 interface ItemEditFormProps {
@@ -22,8 +24,6 @@ interface ItemEditFormProps {
   onCancel: () => void;
   onSaved: (item: ItemDetail) => void;
 }
-
-const SAVE_FAILED = "Something went wrong. Please try again.";
 
 /**
  * Edit mode for the drawer. Replaces the action bar with Save and Cancel and
@@ -64,7 +64,7 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
         // new title, tags and ordering on a refresh.
         router.refresh();
       } catch {
-        toast.error(SAVE_FAILED);
+        toast.error(SOMETHING_WENT_WRONG);
       }
     });
   }
@@ -87,13 +87,15 @@ export function ItemEditForm({ item, onCancel, onSaved }: ItemEditFormProps) {
         >
           Cancel
         </Button>
-        <Button
+        <PendingButton
           type="submit"
           size="sm"
-          disabled={isPending || values.title.trim() === ""}
+          pending={isPending}
+          pendingLabel="Saving..."
+          disabled={values.title.trim() === ""}
         >
-          {isPending ? "Saving..." : "Save"}
-        </Button>
+          Save
+        </PendingButton>
       </div>
 
       <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6">

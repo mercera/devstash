@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Loader2 } from "lucide-react";
 
 import { deleteAccount, type DeleteAccountState } from "@/actions/profile";
 import { FormError } from "@/components/auth/FieldError";
@@ -15,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { PendingButton } from "@/components/layout/PendingButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,14 +89,15 @@ export function DeleteAccountDialog({ email }: DeleteAccountDialogProps) {
                 the dialog on click, which would unmount this form and cancel its
                 own submit before the action ever ran. The dialog stays open for
                 the round trip, and the redirect takes it down. */}
-            <Button
+            <PendingButton
               type="submit"
               variant="destructive"
-              disabled={confirmation !== DELETE_CONFIRMATION_WORD || isPending}
+              pending={isPending}
+              pendingLabel="Deleting..."
+              disabled={confirmation !== DELETE_CONFIRMATION_WORD}
             >
-              {isPending && <Loader2 className="animate-spin" />}
-              {isPending ? "Deleting..." : "Delete account"}
-            </Button>
+              Delete account
+            </PendingButton>
           </AlertDialogFooter>
         </form>
       </AlertDialogContent>

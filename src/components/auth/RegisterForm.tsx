@@ -2,13 +2,14 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AuthFormField } from "@/components/auth/AuthFormField";
 import { FormError } from "@/components/auth/FieldError";
-import { Button } from "@/components/ui/button";
-import { PASSWORD_LENGTH_HINT, registerSchema } from "@/lib/validations/auth";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
+import { PendingButton } from "@/components/layout/PendingButton";
+import { INVALID_INPUT, SOMETHING_WENT_WRONG } from "@/lib/messages";
+import { registerSchema } from "@/lib/validations/auth";
 
 type FieldName = "name" | "email" | "password" | "confirmPassword";
 type FieldIssues = Partial<Record<FieldName, string[]>>;
@@ -79,7 +80,7 @@ export function RegisterForm() {
     // schema, so nothing depends on this pass having run.
     if (!parsed.success) {
       setIssues(parsed.error.flatten().fieldErrors);
-      setError("Please check the details you entered");
+      setError(INVALID_INPUT);
       return;
     }
 
@@ -107,7 +108,7 @@ export function RegisterForm() {
       }
 
       const body: RegisterErrorBody = await response.json().catch(() => ({}));
-      const message = body.error ?? "Something went wrong. Please try again.";
+      const message = body.error ?? SOMETHING_WENT_WRONG;
 
       // This form posts to the route directly rather than through a Server
       // Action, so it reads the rate limiter's refusal off the status code
@@ -151,27 +152,22 @@ export function RegisterForm() {
         issues={issues.email}
       />
 
-      <AuthFormField
-        name="password"
+      <NewPasswordFields
+        issues={issues}
         label="Password"
-        type="password"
-        autoComplete="new-password"
-        issues={issues.password}
-        hint={PASSWORD_LENGTH_HINT}
+        confirmLabel="Confirm password"
+        required={false}
       />
 
-      <AuthFormField
-        name="confirmPassword"
-        label="Confirm password"
-        type="password"
-        autoComplete="new-password"
-        issues={issues.confirmPassword}
-      />
-
-      <Button type="submit" size="lg" className="w-full" disabled={isPending}>
-        {isPending && <Loader2 className="animate-spin" />}
-        {isPending ? "Creating account..." : "Create account"}
-      </Button>
+      <PendingButton
+        type="submit"
+        size="lg"
+        className="w-full"
+        pending={isPending}
+        pendingLabel="Creating account..."
+      >
+        Create account
+      </PendingButton>
     </form>
   );
 }

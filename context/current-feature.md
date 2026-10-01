@@ -2,9 +2,27 @@
 
 ## Status
 
+In progress — Shared Components Cleanup. Branch `refactor/components-shared`.
+
 ## Goals
 
+From a `refactor-scanner` pass over `src/components`:
+
+- Use `src/lib/messages.ts` everywhere (forms, API routes, `src/lib/ai`) and add
+  `NETWORK_SAVE_FAILED`
+- Route helpers in `src/lib/routes.ts` (`getCollectionPath`, `getItemTypePath`,
+  `COLLECTIONS_PATH`, `FAVORITES_PATH`, `PROFILE_PATH`, `SETTINGS_PATH`) in
+  place of hardcoded paths
+- `AccentTile`, `StatusMarks` / `FavoriteStar`, `FavoriteToggleButton`,
+  `PendingButton`, `FormDialog` and `ConfirmDeleteDialog` in
+  `src/components/layout/`
+- `EmailLinkRequestForm` and `NewPasswordFields` in `src/components/auth/`
+
 ## Notes
+
+- No behaviour change intended; checked in the browser
+- Skipped from the scan: the shared save-and-toast hook (#8), and everything
+  the scanner listed as not worth it
 
 ## History
 

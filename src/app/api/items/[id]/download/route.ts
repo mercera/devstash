@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { getItemById } from "@/lib/db/items";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import { getOwnedUploadKey, getUpload } from "@/lib/r2";
 
 type ErrorResponse = { success: false; error: string };
@@ -75,6 +76,6 @@ export async function GET(
   } catch (error) {
     console.error("Failed to download file:", error);
 
-    return fail("Something went wrong. Please try again.", 500);
+    return fail(SOMETHING_WENT_WRONG, 500);
   }
 }

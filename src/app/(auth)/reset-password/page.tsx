@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { checkPasswordResetToken } from "@/lib/password-reset";
@@ -68,7 +69,7 @@ export default async function ResetPasswordPage({
 
         <p className="text-center text-sm text-muted-foreground">
           Changed your mind?{" "}
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href={SIGN_IN_PATH} className="font-medium text-foreground hover:underline">
             Sign in
           </Link>
         </p>
