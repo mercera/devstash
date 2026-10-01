@@ -2,11 +2,18 @@
 
 import bcrypt from "bcryptjs";
 
-import { auth, signOut } from "@/auth";
+import { signOut } from "@/auth";
 import { SIGN_IN_PATH } from "@/auth.config";
+import { invalidInput } from "@/lib/action-helpers";
 import { cancelCustomerSubscriptions } from "@/lib/billing";
+import {
+  INVALID_INPUT,
+  SESSION_EXPIRED,
+  SOMETHING_WENT_WRONG,
+} from "@/lib/messages";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/session";
 import { linkTokenIdentifiersFor } from "@/lib/tokens";
 import { changePasswordSchema } from "@/lib/validations/auth";
 import {
@@ -18,17 +25,8 @@ import {
  * Account actions for `/settings`.
  *
  * Both of these are mutations on the **signed-in** user, resolved from the
- * session every time. The read-side getters in `src/lib/db/` are still scoped
- * to the seeded demo account; pointing either action at that id would let any
- * signed-in user rewrite or destroy the demo account.
+ * session every time, never from an id the client sends.
  */
-
-/** The session's user id, or null when there is no usable session. */
-async function requireUserId(): Promise<string | null> {
-  const session = await auth();
-
-  return session?.user?.id ?? null;
-}
 
 export interface ChangePasswordState {
   /** Message shown above the form. */
@@ -54,10 +52,10 @@ export async function changePassword(
   _prevState: ChangePasswordState,
   formData: FormData,
 ): Promise<ChangePasswordState> {
-  const userId = await requireUserId();
+  const userId = await getSessionUserId();
 
   if (!userId) {
-    return { error: "Your session has expired. Sign in again to continue." };
+    return { error: SESSION_EXPIRED };
   }
 
   const parsed = changePasswordSchema.safeParse({
@@ -67,10 +65,7 @@ export async function changePassword(
   });
 
   if (!parsed.success) {
-    return {
-      error: "Please check the details you entered",
-      issues: parsed.error.flatten().fieldErrors,
-    };
+    return invalidInput(parsed.error);
   }
 
   try {
@@ -91,7 +86,7 @@ export async function changePassword(
 
     if (!matches) {
       return {
-        error: "Please check the details you entered",
+        error: INVALID_INPUT,
         issues: { currentPassword: ["That is not your current password"] },
       };
     }
@@ -103,7 +98,7 @@ export async function changePassword(
   } catch (error) {
     console.error("Failed to change password:", error);
 
-    return { error: "Something went wrong. Please try again." };
+    return { error: SOMETHING_WENT_WRONG };
   }
 
   return { success: true };
@@ -140,10 +135,10 @@ export async function deleteAccount(
   _prevState: DeleteAccountState,
   formData: FormData,
 ): Promise<DeleteAccountState> {
-  const userId = await requireUserId();
+  const userId = await getSessionUserId();
 
   if (!userId) {
-    return { error: "Your session has expired. Sign in again to continue." };
+    return { error: SESSION_EXPIRED };
   }
 
   // Re-checked here rather than trusted from the dialog: the disabled button is
@@ -191,7 +186,7 @@ export async function deleteAccount(
   } catch (error) {
     console.error("Failed to delete account:", error);
 
-    return { error: "Something went wrong. Please try again." };
+    return { error: SOMETHING_WENT_WRONG };
   }
 
   // The JWT names a row that no longer exists, so the cookie has to be cleared

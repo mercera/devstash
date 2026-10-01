@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { invalidInput, isId } from "@/lib/action-helpers";
 import { CollectionNotFoundError } from "@/lib/db/errors";
 import {
   countUserItems,
@@ -11,7 +11,13 @@ import {
   setItemPinned as setItemPinnedRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
+import {
+  INVALID_INPUT,
+  SESSION_EXPIRED,
+  SOMETHING_WENT_WRONG,
+} from "@/lib/messages";
 import { deleteUpload, getOwnedUploadKey } from "@/lib/r2";
+import { getSessionUser, getSessionUserId } from "@/lib/session";
 import {
   PRO_REQUIRED,
   canCreateTypeSlug,
@@ -35,11 +41,7 @@ import type { ItemDetail } from "@/types";
  * like `GET /api/items/[id]`.
  */
 
-const SESSION_EXPIRED = "Your session has expired. Sign in again to continue.";
 const NOT_FOUND = "This item could not be found.";
-const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
-const INVALID_INPUT = "Please check the details you entered";
-
 const COLLECTION_NOT_FOUND = "A chosen collection no longer exists. Reload and try again.";
 
 /**
@@ -104,26 +106,21 @@ export type DeleteItemResult =
 export async function createItem(
   data: CreateItemInput,
 ): Promise<CreateItemResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const user = await getSessionUser();
 
-  if (!userId) {
+  if (!user) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
   const parsed = createItemSchema.safeParse(data);
 
   if (!parsed.success) {
-    return {
-      success: false,
-      error: INVALID_INPUT,
-      issues: parsed.error.flatten().fieldErrors,
-    };
+    return { success: false, ...invalidInput(parsed.error) };
   }
 
   // `isPro` is refreshed from the database on every `auth()` call, so an
   // upgrade or downgrade applies from the next request.
-  const isPro = session.user.isPro;
+  const { id: userId, isPro } = user;
 
   if (!canCreateTypeSlug(parsed.data.typeSlug, isPro)) {
     return { success: false, error: PRO_REQUIRED, upgradeRequired: true };
@@ -180,25 +177,20 @@ export async function updateItem(
   itemId: string,
   data: UpdateItemInput,
 ): Promise<UpdateItemResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
-  if (typeof itemId !== "string" || itemId === "") {
+  if (!isId(itemId)) {
     return { success: false, error: NOT_FOUND };
   }
 
   const parsed = updateItemSchema.safeParse(data);
 
   if (!parsed.success) {
-    return {
-      success: false,
-      error: INVALID_INPUT,
-      issues: parsed.error.flatten().fieldErrors,
-    };
+    return { success: false, ...invalidInput(parsed.error) };
   }
 
   try {
@@ -224,14 +216,13 @@ export async function updateItem(
  * never as forbidden.
  */
 export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
-  if (typeof itemId !== "string" || itemId === "") {
+  if (!isId(itemId)) {
     return { success: false, error: NOT_FOUND };
   }
 
@@ -263,14 +254,13 @@ export async function setItemFavorite(
   itemId: string,
   isFavorite: boolean,
 ): Promise<SetItemFavoriteResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
-  if (typeof itemId !== "string" || itemId === "") {
+  if (!isId(itemId)) {
     return { success: false, error: NOT_FOUND };
   }
 
@@ -304,14 +294,13 @@ export async function setItemPinned(
   itemId: string,
   isPinned: boolean,
 ): Promise<SetItemPinnedResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
-  if (typeof itemId !== "string" || itemId === "") {
+  if (!isId(itemId)) {
     return { success: false, error: NOT_FOUND };
   }
 
@@ -346,14 +335,13 @@ export async function setItemContent(
   itemId: string,
   content: string,
 ): Promise<SetItemContentResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
-  if (typeof itemId !== "string" || itemId === "") {
+  if (!isId(itemId)) {
     return { success: false, error: NOT_FOUND };
   }
 

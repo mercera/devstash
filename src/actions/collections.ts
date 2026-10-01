@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { invalidInput, isId } from "@/lib/action-helpers";
 import {
   countUserCollections,
   createCollection as createCollectionRecord,
@@ -8,6 +8,8 @@ import {
   setCollectionFavorite as setCollectionFavoriteRecord,
   updateCollection as updateCollectionRecord,
 } from "@/lib/db/collections";
+import { SESSION_EXPIRED, SOMETHING_WENT_WRONG } from "@/lib/messages";
+import { getSessionUser, getSessionUserId } from "@/lib/session";
 import { checkCollectionLimit } from "@/lib/usage-limits";
 import { isFavoriteSchema } from "@/lib/validations/favorites";
 import {
@@ -26,9 +28,6 @@ import type { Collection } from "@/types";
  * like the item actions in `src/actions/items.ts`.
  */
 
-const SESSION_EXPIRED = "Your session has expired. Sign in again to continue.";
-const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
-const INVALID_INPUT = "Please check the details you entered";
 const NOT_FOUND = "This collection could not be found.";
 
 export type CreateCollectionField = keyof CreateCollectionInput;
@@ -63,11 +62,6 @@ export type DeleteCollectionResult =
   | { success: true; data: { id: string } }
   | { success: false; error: string };
 
-/** Whether a server action argument is usable as an id. */
-function isId(value: unknown): value is string {
-  return typeof value === "string" && value !== "";
-}
-
 /**
  * Creates a collection for the signed-in user and returns it. The payload is
  * re-validated here whatever the client checked: a server action is a public
@@ -76,26 +70,22 @@ function isId(value: unknown): value is string {
 export async function createCollection(
   data: CreateCollectionInput,
 ): Promise<CreateCollectionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const user = await getSessionUser();
 
-  if (!userId) {
+  if (!user) {
     return { success: false, error: SESSION_EXPIRED };
   }
 
   const parsed = createCollectionSchema.safeParse(data);
 
   if (!parsed.success) {
-    return {
-      success: false,
-      error: INVALID_INPUT,
-      issues: parsed.error.flatten().fieldErrors,
-    };
+    return { success: false, ...invalidInput(parsed.error) };
   }
+
+  const { id: userId, isPro } = user;
 
   try {
     // Pro skips the count. Soft limit: concurrent creates can overshoot it.
-    const isPro = session.user.isPro;
 
     if (!isPro) {
       const limit = checkCollectionLimit(await countUserCollections(userId), isPro);
@@ -124,8 +114,7 @@ export async function updateCollection(
   collectionId: string,
   data: UpdateCollectionInput,
 ): Promise<UpdateCollectionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
@@ -138,11 +127,7 @@ export async function updateCollection(
   const parsed = updateCollectionSchema.safeParse(data);
 
   if (!parsed.success) {
-    return {
-      success: false,
-      error: INVALID_INPUT,
-      issues: parsed.error.flatten().fieldErrors,
-    };
+    return { success: false, ...invalidInput(parsed.error) };
   }
 
   try {
@@ -168,8 +153,7 @@ export async function setCollectionFavorite(
   collectionId: string,
   isFavorite: boolean,
 ): Promise<SetCollectionFavoriteResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
@@ -207,8 +191,7 @@ export async function setCollectionFavorite(
 export async function deleteCollection(
   collectionId: string,
 ): Promise<DeleteCollectionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };

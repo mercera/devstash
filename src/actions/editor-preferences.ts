@@ -1,11 +1,12 @@
 "use server";
 
-import { auth } from "@/auth";
 import { updateEditorPreferences as updateEditorPreferencesRecord } from "@/lib/db/user";
 import {
   editorPreferencesSchema,
   type EditorPreferences,
 } from "@/lib/editor-preferences";
+import { SESSION_EXPIRED, SOMETHING_WENT_WRONG } from "@/lib/messages";
+import { getSessionUserId } from "@/lib/session";
 
 /**
  * The editor preferences section on `/settings` saves every change through
@@ -24,14 +25,10 @@ export type UpdateEditorPreferencesResult =
 export async function updateEditorPreferences(
   data: unknown,
 ): Promise<UpdateEditorPreferencesResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
-    return {
-      success: false,
-      error: "Your session has expired. Sign in again to continue.",
-    };
+    return { success: false, error: SESSION_EXPIRED };
   }
 
   const parsed = editorPreferencesSchema.safeParse(data);
@@ -49,7 +46,7 @@ export async function updateEditorPreferences(
   } catch (error) {
     console.error("Failed to update editor preferences:", error);
 
-    return { success: false, error: "Something went wrong. Please try again." };
+    return { success: false, error: SOMETHING_WENT_WRONG };
   }
 
   return { success: true, data: parsed.data };

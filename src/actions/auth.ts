@@ -6,6 +6,7 @@ import { AuthError } from "next-auth";
 
 import { signIn, signOut } from "@/auth";
 import { CREDENTIALS_PROVIDER_ID, SIGN_IN_PATH } from "@/auth.config";
+import { invalidInput } from "@/lib/action-helpers";
 import { isEmailNotVerifiedError, isRateLimitedError } from "@/lib/auth-errors";
 import {
   resendEmailVerification,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/email-verification";
 import { isEmailVerificationEnabled } from "@/lib/flags";
 import { formatHours } from "@/lib/format";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import {
   PASSWORD_RESET_TOKEN_TTL_HOURS,
   requestPasswordReset,
@@ -86,11 +88,7 @@ export async function signInWithCredentials(
   });
 
   if (!parsed.success) {
-    return {
-      error: "Please check the details you entered",
-      issues: parsed.error.flatten().fieldErrors,
-      email,
-    };
+    return { ...invalidInput(parsed.error), email };
   }
 
   try {
@@ -131,7 +129,7 @@ export async function signInWithCredentials(
 
       console.error("Sign-in failed:", error);
 
-      return { error: "Something went wrong. Please try again.", email };
+      return { error: SOMETHING_WENT_WRONG, email };
     }
 
     // The success path is a `NEXT_REDIRECT` throw — Next.js needs it to
@@ -213,7 +211,7 @@ async function handleEmailLinkRequest(
   } catch (error) {
     console.error(request.failureLog, error);
 
-    return { error: "Something went wrong. Please try again.", email };
+    return { error: SOMETHING_WENT_WRONG, email };
   }
 
   return { message: request.neutralMessage, email };
@@ -325,10 +323,7 @@ export async function resetPassword(
   // Checked after the password, so someone who mistypes their new password on a
   // dead link is told about the link rather than about the typo.
   if (!parsed.success) {
-    return {
-      error: "Please check the details you entered",
-      issues: parsed.error.flatten().fieldErrors,
-    };
+    return invalidInput(parsed.error);
   }
 
   if (!token) {
@@ -342,7 +337,7 @@ export async function resetPassword(
   } catch (error) {
     console.error("Failed to reset password:", error);
 
-    return { error: "Something went wrong. Please try again." };
+    return { error: SOMETHING_WENT_WRONG };
   }
 
   if (result.status === "expired") {
