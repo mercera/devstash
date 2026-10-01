@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
+import { SIGN_IN_PATH } from "@/auth.config";
 import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
 import { ItemCard } from "@/components/items/ItemCard";
 import { TypeIcon } from "@/components/items/TypeIcon";
@@ -26,7 +27,7 @@ import {
   getTotalPages,
   parsePageParam,
 } from "@/lib/pagination";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, getSessionUserId } from "@/lib/session";
 import { canViewTypeSlug } from "@/lib/usage-limits";
 import { cn } from "@/lib/utils";
 
@@ -39,8 +40,8 @@ const loadItemType = cache(getItemTypeBySlug);
 export async function generateMetadata({
   params,
 }: PageProps<"/items/[type]">): Promise<Metadata> {
-  const { type: slug } = await params;
-  const type = await loadItemType(slug);
+  const [{ type: slug }, userId] = await Promise.all([params, getSessionUserId()]);
+  const type = userId ? await loadItemType(userId, slug) : null;
 
   return { title: `${type?.name ?? "Items"} | DevStash` };
 }
@@ -51,15 +52,18 @@ export default async function ItemsByTypePage({
 }: PageProps<"/items/[type]">) {
   const [{ type: slug }, query] = await Promise.all([params, searchParams]);
   const page = parsePageParam(query.page);
-  const [type, itemTypes, sessionUser] = await Promise.all([
-    loadItemType(slug),
-    getItemTypesWithCounts(),
-    getSessionUser(),
+  const sessionUser = await getSessionUser();
+
+  // The proxy and the layout already turn anonymous requests away.
+  if (!sessionUser) redirect(SIGN_IN_PATH);
+
+  const { id: userId, isPro } = sessionUser;
+  const [type, itemTypes] = await Promise.all([
+    loadItemType(userId, slug),
+    getItemTypesWithCounts(userId),
   ]);
 
   if (type === null) notFound();
-
-  const isPro = sessionUser?.isPro ?? false;
 
   if (type.isSystem && !canViewTypeSlug(type.slug, isPro)) {
     return (
@@ -71,7 +75,7 @@ export default async function ItemsByTypePage({
   }
 
   const pathname = `/items/${type.slug}`;
-  const { rows: items, total } = await getItemsByType(type.id, page);
+  const { rows: items, total } = await getItemsByType(userId, type.id, page);
   const totalPages = getTotalPages(total, ITEMS_PER_PAGE);
 
   if (page > totalPages) redirect(getPageHref(pathname, totalPages));

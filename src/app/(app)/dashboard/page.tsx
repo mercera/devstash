@@ -39,9 +39,9 @@ export default async function DashboardPage() {
     await Promise.all([
       getRecentCollections(userId, DASHBOARD_COLLECTIONS_LIMIT),
       getCollectionStats(userId),
-      getPinnedItems(),
-      getRecentItems(DASHBOARD_RECENT_ITEMS_LIMIT),
-      getItemStats(),
+      getPinnedItems(userId),
+      getRecentItems(userId, DASHBOARD_RECENT_ITEMS_LIMIT),
+      getItemStats(userId),
     ]);
 
   return (

@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const [itemTypes, collections, user, searchItems, editorPreferences] =
     await Promise.all([
-      getItemTypesWithCounts(),
+      getItemTypesWithCounts(userId),
       getRecentCollections(userId),
       getCurrentUser(),
       getSearchItems(userId),

@@ -33,12 +33,8 @@ export const dynamic = "force-dynamic";
  * dashboard layout would mean restructuring both routes into a shared group,
  * which is more than this feature needs.
  *
- * The **item stats below are the seeded demo account's**, not the signed-in
- * user's: `getItemStats` and `getItemTypesWithCounts` are still scoped to
- * `seed-user-demo`, while `getCollectionStats` reads the session user. That is
- * deliberate for now — moving the item getters onto the session is its own
- * change, and it would take the dashboard with it. The account actions live
- * on `/settings`.
+ * Every stat is the signed-in user's own. The account actions live on
+ * `/settings`.
  */
 export default async function ProfilePage() {
   const [userId, user] = await Promise.all([getSessionUserId(), getProfileUser()]);
@@ -51,9 +47,9 @@ export default async function ProfilePage() {
   }
 
   const [itemStats, collectionStats, itemTypes] = await Promise.all([
-    getItemStats(),
+    getItemStats(userId),
     getCollectionStats(userId),
-    getItemTypesWithCounts(),
+    getItemTypesWithCounts(userId),
   ]);
 
   return (

@@ -1,14 +1,10 @@
 /**
- * Prisma-backed item queries for the dashboard.
+ * Prisma-backed item queries.
  *
- * The list and count queries are still scoped to the seeded demo user (see
- * `prisma/seed.ts`) until reads move onto the session. `getItemById`,
- * `getItemCode`, `getItemsByCollection`, `getSearchItems`, `getFavoriteItems`,
- * `createItem`, `updateItem`, `setItemFavorite`, `setItemPinned`,
- * `setItemContent` and
- * `deleteItem` are the exceptions: they take the caller's user id, because
- * they back API routes, server actions, the collection and favorites pages and
- * the command palette, none of which may reach another user's item.
+ * Every query takes the caller's user id and is scoped to it. The pages pass
+ * the signed-in user (`getSessionUser` in `src/lib/session.ts`) rather than
+ * the queries calling `auth()` themselves, which keeps them testable and lets
+ * one cached session lookup serve a layout and its page.
  */
 
 import { cache } from "react";
@@ -30,8 +26,6 @@ import type {
   Paginated,
   SearchItem,
 } from "@/types";
-
-const DEMO_USER_ID = "seed-user-demo";
 
 /**
  * Everything `ItemCard` needs: the item's type (icon + accent color) and the
@@ -377,17 +371,18 @@ export async function isFileUrlInUse(fileUrl: string): Promise<boolean> {
 }
 
 /**
- * How many items `userId` owns, for the Free plan's item limit. Scoped to the
- * given user; `getItemStats()` below is demo-scoped and must not gate anyone.
+ * How many items `userId` owns, for the Free plan's item limit.
  */
 export async function countUserItems(userId: string): Promise<number> {
   return prisma.item.count({ where: { userId } });
 }
 
 /** Pinned items for the dashboard's "Pinned" section, most recently updated first. */
-export async function getPinnedItems(): Promise<ItemWithRelations[]> {
+export async function getPinnedItems(
+  userId: string,
+): Promise<ItemWithRelations[]> {
   const items = await prisma.item.findMany({
-    where: { userId: DEMO_USER_ID, isPinned: true },
+    where: { userId, isPinned: true },
     orderBy: { updatedAt: "desc" },
     include: itemInclude,
   });
@@ -396,9 +391,12 @@ export async function getPinnedItems(): Promise<ItemWithRelations[]> {
 }
 
 /** Most recently updated items for the dashboard's "Recent" section. */
-export async function getRecentItems(limit = 6): Promise<ItemWithRelations[]> {
+export async function getRecentItems(
+  userId: string,
+  limit = 6,
+): Promise<ItemWithRelations[]> {
   const items = await prisma.item.findMany({
-    where: { userId: DEMO_USER_ID },
+    where: { userId },
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: itemInclude,
@@ -507,9 +505,12 @@ export async function getFavoriteItems(userId: string): Promise<FavoriteItem[]> 
  * a system type and a same-slug custom type at once, and an unknown slug must
  * be told apart from a known type with no items.
  */
-export async function getItemTypeBySlug(slug: string): Promise<ItemType | null> {
+export async function getItemTypeBySlug(
+  userId: string,
+  slug: string,
+): Promise<ItemType | null> {
   return prisma.itemType.findFirst({
-    where: { slug, OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
+    where: { slug, OR: [{ isSystem: true }, { userId }] },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -524,10 +525,11 @@ export async function getItemTypeBySlug(slug: string): Promise<ItemType | null> 
 
 /** One page of the user's items of one type, most recently updated first. */
 export async function getItemsByType(
+  userId: string,
   typeId: string,
   page: number,
 ): Promise<Paginated<ItemWithRelations>> {
-  return getItemsPage({ userId: DEMO_USER_ID, typeId }, page);
+  return getItemsPage({ userId, typeId }, page);
 }
 
 /**
@@ -539,36 +541,36 @@ export async function getItemsByType(
  *
  * Memoised per request: the app layout and a type's page both need the list.
  */
-export const getItemTypesWithCounts = cache(async (): Promise<
-  ItemTypeWithCount[]
-> => {
-  const types = await prisma.itemType.findMany({
-    where: { OR: [{ isSystem: true }, { userId: DEMO_USER_ID }] },
-    orderBy: { createdAt: "asc" },
-    include: {
-      _count: { select: { items: { where: { userId: DEMO_USER_ID } } } },
-    },
-  });
+export const getItemTypesWithCounts = cache(
+  async (userId: string): Promise<ItemTypeWithCount[]> => {
+    const types = await prisma.itemType.findMany({
+      where: { OR: [{ isSystem: true }, { userId }] },
+      orderBy: { createdAt: "asc" },
+      include: {
+        _count: { select: { items: { where: { userId } } } },
+      },
+    });
 
-  return types.map((type) => ({
-    id: type.id,
-    name: type.name,
-    slug: type.slug,
-    icon: type.icon,
-    color: type.color,
-    isSystem: type.isSystem,
-    itemCount: type._count.items,
-  }));
-});
+    return types.map((type) => ({
+      id: type.id,
+      name: type.name,
+      slug: type.slug,
+      icon: type.icon,
+      color: type.color,
+      isSystem: type.isSystem,
+      itemCount: type._count.items,
+    }));
+  },
+);
 
 /** Item counts for the dashboard stat cards. */
-export async function getItemStats(): Promise<{
+export async function getItemStats(userId: string): Promise<{
   itemCount: number;
   favoriteItemCount: number;
 }> {
   const [itemCount, favoriteItemCount] = await Promise.all([
-    prisma.item.count({ where: { userId: DEMO_USER_ID } }),
-    prisma.item.count({ where: { userId: DEMO_USER_ID, isFavorite: true } }),
+    prisma.item.count({ where: { userId } }),
+    prisma.item.count({ where: { userId, isFavorite: true } }),
   ]);
 
   return { itemCount, favoriteItemCount };

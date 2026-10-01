@@ -32,8 +32,7 @@ import type { ItemDetail } from "@/types";
  * Item mutations for the drawer and the New Item dialog.
  *
  * Scoped to the **signed-in** user, resolved from the session on every call,
- * like `GET /api/items/[id]`. The list getters are still demo-scoped; pointing
- * a write at that id would let any signed-in user edit the demo account.
+ * like `GET /api/items/[id]`.
  */
 
 const SESSION_EXPIRED = "Your session has expired. Sign in again to continue.";

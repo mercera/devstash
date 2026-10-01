@@ -1,10 +1,45 @@
-# Current Feature
+# Current Feature: Session-Scoped Item Reads
 
 ## Status
 
+In Progress
+
 ## Goals
 
+- Every item read in `src/lib/db/items.ts` takes the caller's `userId`;
+  `DEMO_USER_ID` is removed from the module
+  - `getRecentItems(userId, limit)` and `getPinnedItems(userId)`: the
+    dashboard's Recent and Pinned sections
+  - `getItemStats(userId)`: the dashboard and profile stat cards
+  - `getItemTypesWithCounts(userId)`: the sidebar, the New Item type picker,
+    the type pages and the profile breakdown (still memoised per request)
+  - `getItemTypeBySlug(userId, slug)` and `getItemsByType(userId, typeId,
+    page)`: the `/items/[type]` pages
+- The callers pass the session user: `(app)/layout.tsx`,
+  `(app)/dashboard/page.tsx`, `(app)/items/[type]/page.tsx` (including
+  `generateMetadata`) and `/profile`
+- A newly registered user sees their own items on the dashboard, the sidebar
+  counts, the type pages and the profile page, and every card opens in the
+  drawer without "Couldn't load item"
+- The demo user still sees their own data, unchanged
+- Comments that describe the demo-scoping as current (`items.ts`, `user.ts`,
+  `billing.ts`, the profile page) are updated
+- Unit tests cover the new `userId` scoping of each getter
+
 ## Notes
+
+- Reported from production: a new user created a command, and it showed
+  nowhere except search. The dashboard's Recent list showed the demo user's
+  items, and opening one gave "Couldn't load item", because
+  `GET /api/items/[id]` is scoped to the session user while the lists were
+  scoped to `seed-user-demo`
+- First flagged in Auth Phase 3 and carried as a known gap since. Collections,
+  favorites, search and every write were already session-scoped
+- The getters take `userId` as a parameter rather than calling `auth()`
+  themselves, the pattern `getRecentCollections` set. Pages read it through
+  the cached `getSessionUser()` / `getSessionUserId()`
+- Custom item types stay visible only to their owner: the type lookup becomes
+  `isSystem OR userId = caller`
 
 ## History
 
