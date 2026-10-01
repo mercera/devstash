@@ -1,14 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Only `getItemById`, `getItemCode`, `getItemsByCollection`, `getSearchItems`,
- * `getFavoriteItems`, `createItem`, `updateItem`, `setItemFavorite`,
- * `setItemPinned`, `setItemContent` and `deleteItem` are covered for scoping: they are the
- * queries in this module scoped to a caller-supplied user, backing a public
- * API route, server actions, the collection and favorites pages and the
- * command palette.
- * `getItemsByType` is covered for its pagination and pinned-first order. The database is mocked, so
- * these tests pin the queries' shape and the mapping, not Postgres behaviour.
+ * Every query in this module is scoped to a caller-supplied user, and each is
+ * covered for that scoping. `getItemsByType` is also covered for its
+ * pagination and pinned-first order. The database is mocked, so these tests
+ * pin the queries' shape and the mapping, not Postgres behaviour.
  */
 
 const mocks = vi.hoisted(() => {
@@ -30,7 +26,7 @@ const mocks = vi.hoisted(() => {
         update: vi.fn(),
         deleteMany: vi.fn(),
       },
-      itemType: { findFirst: vi.fn() },
+      itemType: { findFirst: vi.fn(), findMany: vi.fn() },
       $transaction: vi.fn(async (run: (client: typeof tx) => Promise<unknown>) =>
         run(tx),
       ),
@@ -49,7 +45,12 @@ import {
   getItemCode,
   setItemContent,
   getItemsByCollection,
+  getItemStats,
+  getItemTypeBySlug,
+  getItemTypesWithCounts,
   getItemsByType,
+  getPinnedItems,
+  getRecentItems,
   getSearchItems,
   setItemFavorite,
   setItemPinned,
@@ -542,25 +543,102 @@ describe("getItemsByCollection", () => {
 });
 
 describe("getItemsByType", () => {
-  it("fetches one page of the type's items with the type's total", async () => {
+  it("fetches one page of the owner's items of the type with their total", async () => {
     mocks.prisma.item.findMany.mockResolvedValue([itemRow()]);
     mocks.prisma.item.count.mockResolvedValue(22);
 
-    const { rows, total } = await getItemsByType("type-command", 2);
+    const { rows, total } = await getItemsByType("user-1", "type-command", 2);
 
     expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ typeId: "type-command" }),
+        where: { userId: "user-1", typeId: "type-command" },
         orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }, { id: "asc" }],
         skip: ITEMS_PER_PAGE,
         take: ITEMS_PER_PAGE,
       }),
     );
     expect(mocks.prisma.item.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({ typeId: "type-command" }),
+      where: { userId: "user-1", typeId: "type-command" },
     });
     expect(rows).toHaveLength(1);
     expect(total).toBe(22);
+  });
+});
+
+describe("getItemTypeBySlug", () => {
+  it("looks among the system types and the caller's own, never another user's", async () => {
+    mocks.prisma.itemType.findFirst.mockResolvedValue(type);
+
+    await expect(getItemTypeBySlug("user-1", "command")).resolves.toEqual(type);
+
+    expect(mocks.prisma.itemType.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { slug: "command", OR: [{ isSystem: true }, { userId: "user-1" }] },
+      }),
+    );
+  });
+});
+
+describe("getItemTypesWithCounts", () => {
+  it("lists system and own types, counting only the caller's items", async () => {
+    mocks.prisma.itemType.findMany.mockResolvedValue([
+      { ...type, userId: null, createdAt, updatedAt, _count: { items: 3 } },
+    ]);
+
+    const [counted] = await getItemTypesWithCounts("user-1");
+
+    expect(mocks.prisma.itemType.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { OR: [{ isSystem: true }, { userId: "user-1" }] },
+        include: {
+          _count: { select: { items: { where: { userId: "user-1" } } } },
+        },
+      }),
+    );
+    expect(counted).toEqual({ ...type, itemCount: 3 });
+  });
+});
+
+describe("dashboard item reads", () => {
+  it("scopes the recent items to the owner, newest first, up to the limit", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([itemRow()]);
+
+    const [item] = await getRecentItems("user-1", 10);
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      }),
+    );
+    expect(item).not.toHaveProperty("userId");
+  });
+
+  it("scopes the pinned items to the owner", async () => {
+    mocks.prisma.item.findMany.mockResolvedValue([]);
+
+    await getPinnedItems("user-1");
+
+    expect(mocks.prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1", isPinned: true } }),
+    );
+  });
+
+  it("counts only the owner's items and favorites", async () => {
+    mocks.prisma.item.count.mockResolvedValueOnce(7).mockResolvedValueOnce(2);
+
+    await expect(getItemStats("user-1")).resolves.toEqual({
+      itemCount: 7,
+      favoriteItemCount: 2,
+    });
+
+    expect(mocks.prisma.item.count).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+    });
+    expect(mocks.prisma.item.count).toHaveBeenCalledWith({
+      where: { userId: "user-1", isFavorite: true },
+    });
   });
 });
 

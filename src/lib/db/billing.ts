@@ -28,8 +28,7 @@ export async function getBillingUser(userId: string): Promise<BillingUser | null
 }
 
 /**
- * The user's own item and collection counts. `getItemStats()` is still scoped
- * to the demo user, so plan limits must never count through it.
+ * The user's own item and collection counts, for the Billing card's usage.
  */
 export async function getUsageCounts(userId: string): Promise<{
   itemCount: number;

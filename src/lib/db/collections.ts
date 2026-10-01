@@ -2,8 +2,7 @@
  * Prisma-backed collection queries.
  *
  * Every query is scoped to a caller-supplied user — the signed-in one, resolved
- * from the session by the page or action. The item getters in `items.ts` are
- * still scoped to the seeded demo user.
+ * from the session by the page or action.
  */
 
 import { isRecordNotFoundError, isUniqueConstraintError } from "@/lib/db/errors";
