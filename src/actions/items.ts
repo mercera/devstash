@@ -17,6 +17,7 @@ import {
   SOMETHING_WENT_WRONG,
 } from "@/lib/messages";
 import { deleteUpload, getOwnedUploadKey } from "@/lib/r2";
+import { ownedMutation } from "@/lib/owned-mutation";
 import { getSessionUser, getSessionUserId } from "@/lib/session";
 import {
   PRO_REQUIRED,
@@ -33,6 +34,7 @@ import {
   type UpdateItemInput,
 } from "@/lib/validations/items";
 import type { ItemDetail } from "@/types";
+import type { ActionResult, FieldIssues, UpgradeRequired } from "@/types/actions";
 
 /**
  * Item mutations for the drawer and the New Item dialog.
@@ -58,43 +60,34 @@ function collectionNotFound() {
 
 export type CreateItemField = keyof CreateItemInput;
 
-export type CreateItemResult =
-  | { success: true; data: ItemDetail }
-  | {
-      success: false;
-      error: string;
-      /** Per-field validation messages, keyed by payload field. */
-      issues?: Partial<Record<CreateItemField, string[]>>;
-      /** Set when the Free plan refused it, so the UI can offer an upgrade. */
-      upgradeRequired?: true;
-    };
+export type CreateItemResult = ActionResult<
+  ItemDetail,
+  FieldIssues<CreateItemField> & UpgradeRequired
+>;
 
 export type UpdateItemField = keyof UpdateItemInput;
 
-export type UpdateItemResult =
-  | { success: true; data: ItemDetail }
-  | {
-      success: false;
-      error: string;
-      /** Per-field validation messages, keyed by payload field. */
-      issues?: Partial<Record<UpdateItemField, string[]>>;
-    };
+export type UpdateItemResult = ActionResult<ItemDetail, FieldIssues<UpdateItemField>>;
 
-export type SetItemFavoriteResult =
-  | { success: true; data: { id: string; isFavorite: boolean; updatedAt: Date } }
-  | { success: false; error: string };
+export type SetItemFavoriteResult = ActionResult<{
+  id: string;
+  isFavorite: boolean;
+  updatedAt: Date;
+}>;
 
-export type SetItemPinnedResult =
-  | { success: true; data: { id: string; isPinned: boolean; updatedAt: Date } }
-  | { success: false; error: string };
+export type SetItemPinnedResult = ActionResult<{
+  id: string;
+  isPinned: boolean;
+  updatedAt: Date;
+}>;
 
-export type SetItemContentResult =
-  | { success: true; data: { id: string; content: string | null; updatedAt: Date } }
-  | { success: false; error: string };
+export type SetItemContentResult = ActionResult<{
+  id: string;
+  content: string | null;
+  updatedAt: Date;
+}>;
 
-export type DeleteItemResult =
-  | { success: true; data: { id: string } }
-  | { success: false; error: string };
+export type DeleteItemResult = ActionResult<{ id: string }>;
 
 /**
  * Creates an item for the signed-in user from the New Item dialog and returns
@@ -254,35 +247,14 @@ export async function setItemFavorite(
   itemId: string,
   isFavorite: boolean,
 ): Promise<SetItemFavoriteResult> {
-  const userId = await getSessionUserId();
-
-  if (!userId) {
-    return { success: false, error: SESSION_EXPIRED };
-  }
-
-  if (!isId(itemId)) {
-    return { success: false, error: NOT_FOUND };
-  }
-
-  const parsed = isFavoriteSchema.safeParse(isFavorite);
-
-  if (!parsed.success) {
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
-
-  try {
-    const result = await setItemFavoriteRecord(itemId, userId, parsed.data);
-
-    if (result === null) {
-      return { success: false, error: NOT_FOUND };
-    }
-
-    return { success: true, data: { id: itemId, ...result } };
-  } catch (error) {
-    console.error("Failed to update item favorite:", error);
-
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
+  return ownedMutation({
+    id: itemId,
+    value: isFavorite,
+    schema: isFavoriteSchema,
+    write: (userId, id, value) => setItemFavoriteRecord(id, userId, value),
+    notFound: NOT_FOUND,
+    failureLog: "Failed to update item favorite:",
+  });
 }
 
 /**
@@ -294,35 +266,14 @@ export async function setItemPinned(
   itemId: string,
   isPinned: boolean,
 ): Promise<SetItemPinnedResult> {
-  const userId = await getSessionUserId();
-
-  if (!userId) {
-    return { success: false, error: SESSION_EXPIRED };
-  }
-
-  if (!isId(itemId)) {
-    return { success: false, error: NOT_FOUND };
-  }
-
-  const parsed = isPinnedSchema.safeParse(isPinned);
-
-  if (!parsed.success) {
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
-
-  try {
-    const result = await setItemPinnedRecord(itemId, userId, parsed.data);
-
-    if (result === null) {
-      return { success: false, error: NOT_FOUND };
-    }
-
-    return { success: true, data: { id: itemId, ...result } };
-  } catch (error) {
-    console.error("Failed to update item pin:", error);
-
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
+  return ownedMutation({
+    id: itemId,
+    value: isPinned,
+    schema: isPinnedSchema,
+    write: (userId, id, value) => setItemPinnedRecord(id, userId, value),
+    notFound: NOT_FOUND,
+    failureLog: "Failed to update item pin:",
+  });
 }
 
 /**
@@ -335,35 +286,14 @@ export async function setItemContent(
   itemId: string,
   content: string,
 ): Promise<SetItemContentResult> {
-  const userId = await getSessionUserId();
-
-  if (!userId) {
-    return { success: false, error: SESSION_EXPIRED };
-  }
-
-  if (!isId(itemId)) {
-    return { success: false, error: NOT_FOUND };
-  }
-
-  const parsed = itemContentSchema.safeParse(content);
-
-  if (!parsed.success) {
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
-
-  try {
-    const result = await setItemContentRecord(itemId, userId, parsed.data);
-
-    if (result === null) {
-      return { success: false, error: NOT_FOUND };
-    }
-
-    return { success: true, data: { id: itemId, ...result } };
-  } catch (error) {
-    console.error("Failed to update item content:", error);
-
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
+  return ownedMutation({
+    id: itemId,
+    value: content,
+    schema: itemContentSchema,
+    write: (userId, id, value) => setItemContentRecord(id, userId, value),
+    notFound: NOT_FOUND,
+    failureLog: "Failed to update item content:",
+  });
 }
 
 /**

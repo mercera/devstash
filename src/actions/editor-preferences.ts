@@ -7,6 +7,7 @@ import {
 } from "@/lib/editor-preferences";
 import { SESSION_EXPIRED, SOMETHING_WENT_WRONG } from "@/lib/messages";
 import { getSessionUserId } from "@/lib/session";
+import type { ActionResult } from "@/types/actions";
 
 /**
  * The editor preferences section on `/settings` saves every change through
@@ -14,9 +15,7 @@ import { getSessionUserId } from "@/lib/session";
  * every call.
  */
 
-export type UpdateEditorPreferencesResult =
-  | { success: true; data: EditorPreferences }
-  | { success: false; error: string };
+export type UpdateEditorPreferencesResult = ActionResult<EditorPreferences>;
 
 /**
  * Replaces the signed-in user's editor preferences. The whole set is sent on

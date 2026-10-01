@@ -9,6 +9,7 @@ import {
   updateCollection as updateCollectionRecord,
 } from "@/lib/db/collections";
 import { SESSION_EXPIRED, SOMETHING_WENT_WRONG } from "@/lib/messages";
+import { ownedMutation } from "@/lib/owned-mutation";
 import { getSessionUser, getSessionUserId } from "@/lib/session";
 import { checkCollectionLimit } from "@/lib/usage-limits";
 import { isFavoriteSchema } from "@/lib/validations/favorites";
@@ -19,6 +20,7 @@ import {
   type UpdateCollectionInput,
 } from "@/lib/validations/collections";
 import type { Collection } from "@/types";
+import type { ActionResult, FieldIssues, UpgradeRequired } from "@/types/actions";
 
 /**
  * Collection mutations for the New and Edit Collection dialogs, the delete
@@ -32,35 +34,21 @@ const NOT_FOUND = "This collection could not be found.";
 
 export type CreateCollectionField = keyof CreateCollectionInput;
 
-export type CreateCollectionResult =
-  | { success: true; data: Collection }
-  | {
-      success: false;
-      error: string;
-      /** Per-field validation messages, keyed by payload field. */
-      issues?: Partial<Record<CreateCollectionField, string[]>>;
-      /** Set when the Free plan refused it, so the UI can offer an upgrade. */
-      upgradeRequired?: true;
-    };
+export type CreateCollectionResult = ActionResult<
+  Collection,
+  FieldIssues<CreateCollectionField> & UpgradeRequired
+>;
 
 export type UpdateCollectionField = keyof UpdateCollectionInput;
 
-export type UpdateCollectionResult =
-  | { success: true; data: Collection }
-  | {
-      success: false;
-      error: string;
-      /** Per-field validation messages, keyed by payload field. */
-      issues?: Partial<Record<UpdateCollectionField, string[]>>;
-    };
+export type UpdateCollectionResult = ActionResult<
+  Collection,
+  FieldIssues<UpdateCollectionField>
+>;
 
-export type SetCollectionFavoriteResult =
-  | { success: true; data: { id: string; isFavorite: boolean } }
-  | { success: false; error: string };
+export type SetCollectionFavoriteResult = ActionResult<{ id: string; isFavorite: boolean }>;
 
-export type DeleteCollectionResult =
-  | { success: true; data: { id: string } }
-  | { success: false; error: string };
+export type DeleteCollectionResult = ActionResult<{ id: string }>;
 
 /**
  * Creates a collection for the signed-in user and returns it. The payload is
@@ -153,35 +141,14 @@ export async function setCollectionFavorite(
   collectionId: string,
   isFavorite: boolean,
 ): Promise<SetCollectionFavoriteResult> {
-  const userId = await getSessionUserId();
-
-  if (!userId) {
-    return { success: false, error: SESSION_EXPIRED };
-  }
-
-  if (!isId(collectionId)) {
-    return { success: false, error: NOT_FOUND };
-  }
-
-  const parsed = isFavoriteSchema.safeParse(isFavorite);
-
-  if (!parsed.success) {
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
-
-  try {
-    const result = await setCollectionFavoriteRecord(userId, collectionId, parsed.data);
-
-    if (result === null) {
-      return { success: false, error: NOT_FOUND };
-    }
-
-    return { success: true, data: { id: collectionId, ...result } };
-  } catch (error) {
-    console.error("Failed to update collection favorite:", error);
-
-    return { success: false, error: SOMETHING_WENT_WRONG };
-  }
+  return ownedMutation({
+    id: collectionId,
+    value: isFavorite,
+    schema: isFavoriteSchema,
+    write: setCollectionFavoriteRecord,
+    notFound: NOT_FOUND,
+    failureLog: "Failed to update collection favorite:",
+  });
 }
 
 /**

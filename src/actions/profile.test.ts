@@ -2,33 +2,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Server actions are tested with every I/O boundary mocked: the session
- * (`@/auth`), the database (`@/lib/prisma`), Stripe (`@/lib/billing`) and bcrypt. Nothing here reaches
- * Neon, and the 12-round hash cost is never paid.
+ * (`@/auth`), the user queries (`@/lib/db/user`), Stripe (`@/lib/billing`) and
+ * bcrypt. Nothing here reaches Neon, and the 12-round hash cost is never paid.
+ * The queries themselves are covered in `src/lib/db/user.test.ts`.
  */
 
-const mocks = vi.hoisted(() => {
-  const tx = {
-    item: { deleteMany: vi.fn() },
-    user: { delete: vi.fn() },
-    verificationToken: { deleteMany: vi.fn() },
-  };
-
-  return {
-    auth: vi.fn(),
-    signOut: vi.fn(),
-    cancelCustomerSubscriptions: vi.fn(),
-    compare: vi.fn(),
-    hashPassword: vi.fn(),
-    tx,
-    prisma: {
-      user: { findUnique: vi.fn(), update: vi.fn() },
-      $transaction: vi.fn(async (run: (client: typeof tx) => Promise<void>) => run(tx)),
-    },
-  };
-});
+const mocks = vi.hoisted(() => ({
+  auth: vi.fn(),
+  signOut: vi.fn(),
+  cancelCustomerSubscriptions: vi.fn(),
+  compare: vi.fn(),
+  hashPassword: vi.fn(),
+  getPasswordHash: vi.fn(),
+  setPasswordHash: vi.fn(),
+  getAccountForDeletion: vi.fn(),
+  deleteUserAccount: vi.fn(),
+}));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth, signOut: mocks.signOut }));
-vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
+vi.mock("@/lib/db/user", () => ({
+  getPasswordHash: mocks.getPasswordHash,
+  setPasswordHash: mocks.setPasswordHash,
+  getAccountForDeletion: mocks.getAccountForDeletion,
+  deleteUserAccount: mocks.deleteUserAccount,
+}));
 vi.mock("@/lib/password", () => ({ hashPassword: mocks.hashPassword }));
 vi.mock("@/lib/billing", () => ({
   cancelCustomerSubscriptions: mocks.cancelCustomerSubscriptions,
@@ -70,7 +67,7 @@ describe("changePassword", () => {
     const result = await changePassword({}, passwordChange);
 
     expect(result.error).toMatch(/session has expired/);
-    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.setPasswordHash).not.toHaveBeenCalled();
   });
 
   it("returns field issues for invalid input without touching the database", async () => {
@@ -81,45 +78,43 @@ describe("changePassword", () => {
 
     expect(result.issues?.currentPassword).toBeDefined();
     expect(result.issues?.password).toBeDefined();
-    expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mocks.getPasswordHash).not.toHaveBeenCalled();
   });
 
   it("refuses a GitHub-only account rather than setting a first password", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({ password: null });
+    mocks.getPasswordHash.mockResolvedValue(null);
 
     const result = await changePassword({}, passwordChange);
 
     expect(result.error).toMatch(/GitHub/);
-    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.setPasswordHash).not.toHaveBeenCalled();
   });
 
   it("rejects a wrong current password", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({ password: "stored-hash" });
+    mocks.getPasswordHash.mockResolvedValue("stored-hash");
     mocks.compare.mockResolvedValue(false);
 
     const result = await changePassword({}, passwordChange);
 
     expect(result.issues?.currentPassword).toEqual(["That is not your current password"]);
-    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.setPasswordHash).not.toHaveBeenCalled();
   });
 
   it("writes the new hash for the session user", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({ password: "stored-hash" });
+    mocks.getPasswordHash.mockResolvedValue("stored-hash");
     mocks.compare.mockResolvedValue(true);
     mocks.hashPassword.mockResolvedValue("new-hash");
 
     const result = await changePassword({}, passwordChange);
 
     expect(result).toEqual({ success: true });
+    expect(mocks.getPasswordHash).toHaveBeenCalledWith("user-1");
     expect(mocks.compare).toHaveBeenCalledWith("oldpassword", "stored-hash");
-    expect(mocks.prisma.user.update).toHaveBeenCalledWith({
-      where: { id: "user-1" },
-      data: { password: "new-hash" },
-    });
+    expect(mocks.setPasswordHash).toHaveBeenCalledWith("user-1", "new-hash");
   });
 
   it("returns a generic error when the database fails", async () => {
-    mocks.prisma.user.findUnique.mockRejectedValue(new Error("connection lost"));
+    mocks.getPasswordHash.mockRejectedValue(new Error("connection lost"));
 
     const result = await changePassword({}, passwordChange);
 
@@ -136,7 +131,7 @@ describe("deleteAccount", () => {
     const result = await deleteAccount({}, confirmed);
 
     expect(result.error).toMatch(/session has expired/);
-    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+    expect(mocks.deleteUserAccount).not.toHaveBeenCalled();
   });
 
   it.each(["", "delete", "DELETE "])(
@@ -145,44 +140,41 @@ describe("deleteAccount", () => {
       const result = await deleteAccount({}, formData({ confirmation }));
 
       expect(result.error).toBe("Type DELETE to confirm.");
-      expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+      expect(mocks.deleteUserAccount).not.toHaveBeenCalled();
     },
   );
 
   it("reports an account that no longer exists", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue(null);
+    mocks.getAccountForDeletion.mockResolvedValue(null);
 
     const result = await deleteAccount({}, confirmed);
 
     expect(result.error).toBe("This account no longer exists.");
-    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+    expect(mocks.deleteUserAccount).not.toHaveBeenCalled();
   });
 
-  it("deletes items before the user, sweeps link tokens, then signs out", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({ email: "a@b.io" });
+  it("deletes the session user's account, then signs out", async () => {
+    mocks.getAccountForDeletion.mockResolvedValue({
+      email: "a@b.io",
+      stripeCustomerId: null,
+    });
 
     await deleteAccount({}, confirmed);
 
-    const { tx } = mocks;
-
-    expect(tx.item.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
-    expect(tx.user.delete).toHaveBeenCalledWith({ where: { id: "user-1" } });
-    expect(tx.item.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.user.delete.mock.invocationCallOrder[0],
-    );
-    expect(tx.verificationToken.deleteMany).toHaveBeenCalledWith({
-      where: {
-        identifier: {
-          in: ["a@b.io", "email-verification:a@b.io", "password-reset:a@b.io"],
-        },
-      },
-    });
+    expect(mocks.getAccountForDeletion).toHaveBeenCalledWith("user-1");
+    expect(mocks.deleteUserAccount).toHaveBeenCalledWith("user-1", "a@b.io");
     expect(mocks.signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    expect(mocks.deleteUserAccount.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.signOut.mock.invocationCallOrder[0],
+    );
   });
 
   it("does not sign out when the delete fails", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({ email: "a@b.io" });
-    mocks.prisma.$transaction.mockRejectedValueOnce(new Error("constraint"));
+    mocks.getAccountForDeletion.mockResolvedValue({
+      email: "a@b.io",
+      stripeCustomerId: null,
+    });
+    mocks.deleteUserAccount.mockRejectedValueOnce(new Error("constraint"));
 
     const result = await deleteAccount({}, confirmed);
 
@@ -195,7 +187,7 @@ describe("deleteAccount with a Stripe customer", () => {
   const confirmed = formData({ confirmation: "DELETE" });
 
   it("cancels the subscriptions before deleting anything", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({
+    mocks.getAccountForDeletion.mockResolvedValue({
       email: "a@b.io",
       stripeCustomerId: "cus_1",
     });
@@ -204,13 +196,12 @@ describe("deleteAccount with a Stripe customer", () => {
 
     expect(mocks.cancelCustomerSubscriptions).toHaveBeenCalledWith("cus_1");
     expect(mocks.cancelCustomerSubscriptions.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.prisma.$transaction.mock.invocationCallOrder[0],
+      mocks.deleteUserAccount.mock.invocationCallOrder[0],
     );
-    expect(mocks.tx.user.delete).toHaveBeenCalled();
   });
 
   it("skips Stripe for an account with no customer", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({
+    mocks.getAccountForDeletion.mockResolvedValue({
       email: "a@b.io",
       stripeCustomerId: null,
     });
@@ -218,11 +209,11 @@ describe("deleteAccount with a Stripe customer", () => {
     await deleteAccount({}, confirmed);
 
     expect(mocks.cancelCustomerSubscriptions).not.toHaveBeenCalled();
-    expect(mocks.tx.user.delete).toHaveBeenCalled();
+    expect(mocks.deleteUserAccount).toHaveBeenCalled();
   });
 
   it("keeps the account when cancelling fails", async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({
+    mocks.getAccountForDeletion.mockResolvedValue({
       email: "a@b.io",
       stripeCustomerId: "cus_1",
     });
@@ -231,7 +222,7 @@ describe("deleteAccount with a Stripe customer", () => {
     const result = await deleteAccount({}, confirmed);
 
     expect(result.error).toMatch(/couldn't cancel your subscription/);
-    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+    expect(mocks.deleteUserAccount).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
   });
 });

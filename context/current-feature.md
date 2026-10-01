@@ -2,9 +2,22 @@
 
 ## Status
 
+In progress — Server Action Cleanup 2. Branch `refactor/actions-results-and-db`.
+
 ## Goals
 
+- Add a shared `ActionResult<T, Failure>` type in `src/types/actions.ts` and
+  turn the existing per-action result types into aliases of it
+- Add an `ownedMutation` helper and move `setItemFavorite`, `setItemPinned`,
+  `setItemContent` and `setCollectionFavorite` onto it
+- Move `src/actions/profile.ts`'s direct Prisma calls into
+  `src/lib/db/user.ts`, with tests there
+
 ## Notes
+
+- No behaviour change: messages, result shapes and log lines stay the same
+- The exported result type names stay, so no component changes
+- Follows Server Action Cleanup; the free-plan limit helper is still left out
 
 ## History
 

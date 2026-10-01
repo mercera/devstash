@@ -8,6 +8,7 @@ import {
 } from "@/lib/editor-preferences";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
+import { linkTokenIdentifiersFor } from "@/lib/tokens";
 import type { CurrentUser, ProfileUser } from "@/types";
 
 /**
@@ -97,4 +98,65 @@ export async function updateEditorPreferences(
   });
 
   return count > 0;
+}
+
+/**
+ * The user's password hash, or null when there is none to check against: a
+ * GitHub-only account, or a row that has gone.
+ */
+export async function getPasswordHash(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { password: true },
+  });
+
+  return user?.password ?? null;
+}
+
+/** Replaces the user's password hash. Throws when the row has gone. */
+export async function setPasswordHash(
+  userId: string,
+  passwordHash: string,
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: passwordHash },
+  });
+}
+
+/**
+ * What deleting an account needs before it starts: the address its link
+ * tokens are keyed on, and the Stripe customer to cancel. Null when the row
+ * has gone.
+ */
+export async function getAccountForDeletion(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, stripeCustomerId: true },
+  });
+}
+
+/**
+ * Deletes the user and everything they own, in one transaction. The order
+ * matters and mirrors `scripts/delete-users.ts`:
+ *
+ * - **Items first.** `Item.type` is `onDelete: Restrict`, so a user's own
+ *   custom `ItemType` cannot be cascaded away while their items still point at
+ *   it. Clearing the items removes that dependency; `ItemTag` rows cascade with
+ *   them.
+ * - **The user next.** Collections, tags, custom types, accounts and sessions
+ *   all cascade from the `User` row.
+ * - **Verification tokens by hand.** `VerificationToken` has no foreign key to
+ *   `User` — it is keyed on a free-text identifier — so nothing cascades it.
+ *   Both emailed-link flows namespace their identifiers, and the bare address
+ *   is swept too in case a magic-link provider is ever added.
+ */
+export async function deleteUserAccount(userId: string, email: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.item.deleteMany({ where: { userId } });
+    await tx.user.delete({ where: { id: userId } });
+    await tx.verificationToken.deleteMany({
+      where: { identifier: { in: linkTokenIdentifiersFor(email) } },
+    });
+  });
 }

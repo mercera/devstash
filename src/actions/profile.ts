@@ -7,14 +7,18 @@ import { SIGN_IN_PATH } from "@/auth.config";
 import { invalidInput } from "@/lib/action-helpers";
 import { cancelCustomerSubscriptions } from "@/lib/billing";
 import {
+  deleteUserAccount,
+  getAccountForDeletion,
+  getPasswordHash,
+  setPasswordHash,
+} from "@/lib/db/user";
+import {
   INVALID_INPUT,
   SESSION_EXPIRED,
   SOMETHING_WENT_WRONG,
 } from "@/lib/messages";
 import { hashPassword } from "@/lib/password";
-import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
-import { linkTokenIdentifiersFor } from "@/lib/tokens";
 import { changePasswordSchema } from "@/lib/validations/auth";
 import {
   DELETE_CONFIRMATION_WORD,
@@ -69,20 +73,17 @@ export async function changePassword(
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { password: true },
-    });
+    const passwordHash = await getPasswordHash(userId);
 
     // A GitHub-only account has no password to replace. The form is not
     // rendered for one, so reaching here means the request did not come from
     // the page — refuse rather than quietly setting a first password, which
     // would attach a credentials login to an OAuth account.
-    if (!user?.password) {
+    if (!passwordHash) {
       return { error: "This account signs in with GitHub and has no password." };
     }
 
-    const matches = await bcrypt.compare(parsed.data.currentPassword, user.password);
+    const matches = await bcrypt.compare(parsed.data.currentPassword, passwordHash);
 
     if (!matches) {
       return {
@@ -91,10 +92,7 @@ export async function changePassword(
       };
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { password: await hashPassword(parsed.data.password) },
-    });
+    await setPasswordHash(userId, await hashPassword(parsed.data.password));
   } catch (error) {
     console.error("Failed to change password:", error);
 
@@ -111,25 +109,14 @@ export interface DeleteAccountState {
 /**
  * Deletes the signed-in user and everything they own, then ends the session.
  *
- * The ordering matters and mirrors `scripts/delete-users.ts`:
+ * **Stripe goes first.** Any running subscription is cancelled immediately, or
+ * a deleted user would go on being charged. If that fails the account is kept:
+ * an orphaned subscription billing nobody is worse than a retry. The Stripe
+ * customer itself is kept for invoices. The data is then removed by
+ * `deleteUserAccount`, which documents its own ordering.
  *
- * - **Stripe before anything.** Any running subscription is cancelled
- *   immediately, or a deleted user would go on being charged. If that fails
- *   the account is kept: an orphaned subscription billing nobody is worse
- *   than a retry. The Stripe customer itself is kept for invoices.
- * - **Items first.** `Item.type` is `onDelete: Restrict`, so a user's own
- *   custom `ItemType` cannot be cascaded away while their items still point at
- *   it. Clearing the items removes that dependency; `ItemTag` rows cascade with
- *   them.
- * - **The user next.** Collections, tags, custom types, accounts and sessions
- *   all cascade from the `User` row.
- * - **Verification tokens by hand.** `VerificationToken` has no foreign key to
- *   `User` — it is keyed on a free-text identifier — so nothing cascades it.
- *   Both emailed-link flows namespace their identifiers, and the bare address
- *   is swept too in case a magic-link provider is ever added.
- *
- * `signOut` throws a redirect on success, so it runs after the transaction
- * rather than inside it.
+ * `signOut` throws a redirect on success, so it runs after the delete rather
+ * than inside the try block.
  */
 export async function deleteAccount(
   _prevState: DeleteAccountState,
@@ -153,10 +140,7 @@ export async function deleteAccount(
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true, stripeCustomerId: true },
-    });
+    const user = await getAccountForDeletion(userId);
 
     if (!user) {
       // The row is already gone; the session just outlived it.
@@ -176,13 +160,7 @@ export async function deleteAccount(
       }
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.item.deleteMany({ where: { userId } });
-      await tx.user.delete({ where: { id: userId } });
-      await tx.verificationToken.deleteMany({
-        where: { identifier: { in: linkTokenIdentifiersFor(user.email) } },
-      });
-    });
+    await deleteUserAccount(userId, user.email);
   } catch (error) {
     console.error("Failed to delete account:", error);
 
