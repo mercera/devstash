@@ -37,7 +37,7 @@ export function AiHeaderButton({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="xs" className="shrink-0">
+            <Button asChild variant="ghost" size="xs" className="hit-area-y shrink-0">
               <Link href={UPGRADE_PATH} aria-label={`${actionLabel}. ${PRO_TOOLTIP}`}>
                 <Crown className="text-amber-400" />
                 {label}
@@ -55,7 +55,7 @@ export function AiHeaderButton({
       type="button"
       variant="ghost"
       size="xs"
-      className="shrink-0"
+      className="hit-area-y shrink-0"
       aria-label={actionLabel}
       aria-busy={pending || undefined}
       disabled={pending}

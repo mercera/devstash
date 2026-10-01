@@ -102,7 +102,7 @@ export function ItemTagsField({ form, typeSlug, fields }: ItemTagsFieldProps) {
                 size="icon-xs"
                 aria-label={`Add tag ${tag}`}
                 onClick={() => accept(tag)}
-                className="ml-0.5 size-5 text-emerald-400 hover:text-emerald-300"
+                className="ml-0.5 text-emerald-400 hover:text-emerald-300"
               >
                 <Check />
               </Button>
@@ -112,7 +112,7 @@ export function ItemTagsField({ form, typeSlug, fields }: ItemTagsFieldProps) {
                 size="icon-xs"
                 aria-label={`Dismiss tag ${tag}`}
                 onClick={() => dismiss(tag)}
-                className="size-5 text-muted-foreground"
+                className="text-muted-foreground"
               >
                 <X />
               </Button>

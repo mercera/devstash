@@ -63,16 +63,22 @@ export function CollectionCard({
           </p>
         )}
 
-        <div className="flex items-center gap-2">
-          {collection.types.map((type) => (
-            <TypeIcon
-              key={type.id}
-              type={type}
-              label={type.name}
-              className={cn("size-4", getAccentTextClass(type.color))}
-            />
-          ))}
-        </div>
+        {collection.types.length > 0 ? (
+          <div className="flex items-center gap-2">
+            {collection.types.map((type) => (
+              <TypeIcon
+                key={type.id}
+                type={type}
+                label={type.name}
+                className={cn("size-4", getAccentTextClass(type.color))}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">
+            Empty. Add items from New Item or an item&apos;s Edit.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

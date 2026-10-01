@@ -59,7 +59,7 @@ export function FavoritesSection({ id, title, emptyText, sorts, rows }: Favorite
                 aria-pressed={sort === option}
                 onClick={() => setSort(option)}
                 className={cn(
-                  "rounded px-1.5 leading-5 text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  "hit-area-y rounded px-1.5 leading-5 text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
                   sort === option && "bg-accent text-foreground",
                 )}
               >

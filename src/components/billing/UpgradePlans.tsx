@@ -24,11 +24,11 @@ export function UpgradePlans() {
 
   return (
     <>
-      <div className="mb-10 flex justify-center">
+      <div className="flex justify-center">
         <BillingPeriodToggle value={period} onChange={setPeriod} />
       </div>
 
-      <div className="mx-auto grid w-full max-w-3xl gap-8 sm:grid-cols-2 sm:gap-5">
+      <div className="mx-auto grid w-full max-w-3xl gap-8 @2xl:grid-cols-2 @2xl:gap-5">
         <PlanCard
           plan={FREE_PLAN}
           price={FREE_PRICE_DISPLAY}

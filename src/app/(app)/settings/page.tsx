@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { Settings } from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
-import { EditorPreferencesProvider } from "@/components/editor/EditorPreferencesProvider";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 import { BillingCard, type CheckoutNotice } from "@/components/settings/BillingCard";
@@ -12,11 +11,11 @@ import { EditorPreferencesForm } from "@/components/settings/EditorPreferencesFo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSubscriptionSummary, syncCheckoutSession } from "@/lib/billing";
 import { getBillingUser, getUsageCounts } from "@/lib/db/billing";
-import { getEditorPreferences, getProfileUser } from "@/lib/db/user";
+import { getProfileUser } from "@/lib/db/user";
 import { getSessionUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Settings · DevStash",
+  title: "Settings | DevStash",
 };
 
 /**
@@ -26,11 +25,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * The account settings page: editor preferences, billing, change password and
- * delete account.
+ * delete account. Every action is session-scoped.
  *
- * Like `/profile`, it sits outside the `(app)` route group, so it has no
- * sidebar and the header carries a link back instead. Every action is
- * session-scoped.
+ * The editor form reads the preferences from the `(app)` layout's provider,
+ * which also feeds the editors, so this page does not load them itself.
  */
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const [userId, query] = await Promise.all([getSessionUserId(), searchParams]);
@@ -53,9 +51,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
     }
   }
 
-  const [user, editorPreferences, billingUser, usage] = await Promise.all([
+  const [user, billingUser, usage] = await Promise.all([
     getProfileUser(),
-    getEditorPreferences(userId),
     getBillingUser(userId),
     getUsageCounts(userId),
   ]);
@@ -71,21 +68,10 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       : null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-      <Link
-        href="/dashboard"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Back to dashboard
-      </Link>
+    <div className="flex flex-col gap-8">
+      <PageHeader title="Settings" icon={<Settings />} description="Manage your account." />
 
-      <div className="space-y-8">
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold">Settings</h1>
-          <p className="text-sm text-muted-foreground">Manage your account.</p>
-        </div>
-
+      <div className="grid items-start gap-6 @4xl:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Editor preferences</CardTitle>
@@ -94,9 +80,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <EditorPreferencesProvider initialPreferences={editorPreferences}>
-              <EditorPreferencesForm />
-            </EditorPreferencesProvider>
+            <EditorPreferencesForm />
           </CardContent>
         </Card>
 

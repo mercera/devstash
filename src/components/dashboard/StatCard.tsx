@@ -27,7 +27,7 @@ export function StatCard({ label, value, icon: Icon, color }: StatCardProps) {
         <p className="text-2xl leading-none font-semibold tabular-nums">
           {value}
         </p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{label}</p>
+        <p className="mt-1 text-xs leading-tight text-muted-foreground">{label}</p>
       </div>
     </Card>
   );

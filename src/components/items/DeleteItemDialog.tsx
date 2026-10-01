@@ -71,7 +71,7 @@ export function DeleteItemDialog({ item, onDeleted }: DeleteItemDialogProps) {
           variant="ghost"
           size="icon-sm"
           aria-label="Delete"
-          className="text-red-500 hover:bg-red-500/10 hover:text-red-500"
+          className="hit-area-y text-red-500 hover:bg-red-500/10 hover:text-red-500"
         >
           <Trash2 />
         </Button>

@@ -36,7 +36,7 @@ interface BillingCardProps {
  */
 export function BillingCard({ user, usage, subscription, notice }: BillingCardProps) {
   return (
-    <Card id="billing" className="scroll-mt-8">
+    <Card id="billing" className="scroll-mt-16">
       <CardHeader>
         <CardTitle className="text-base">Billing</CardTitle>
         <CardDescription>

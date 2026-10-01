@@ -29,7 +29,7 @@ export function TopBar({
 
   return (
     <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
-      <SidebarTrigger className="shrink-0" />
+      <SidebarTrigger className="hit-area shrink-0" />
 
       <GlobalSearch items={searchItems} collections={searchCollections} />
 

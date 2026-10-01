@@ -9,6 +9,8 @@ import { TypeIcon } from "@/components/items/TypeIcon";
 import { FileRow } from "@/components/items/FileRow";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Pagination } from "@/components/pagination/Pagination";
 import {
   getItemTypeBySlug,
@@ -29,7 +31,6 @@ import {
 } from "@/lib/pagination";
 import { getSessionUser, getSessionUserId } from "@/lib/session";
 import { canViewTypeSlug } from "@/lib/usage-limits";
-import { cn } from "@/lib/utils";
 
 /**
  * `generateMetadata` and the page both need the type, so the lookup is
@@ -65,10 +66,13 @@ export default async function ItemsByTypePage({
 
   if (type === null) notFound();
 
+  const typeIcon = <TypeIcon type={type} />;
+  const tileClassName = getAccentTileClass(type.color);
+
   if (type.isSystem && !canViewTypeSlug(type.slug, isPro)) {
     return (
       <div className="flex flex-col gap-8">
-        <h1 className="text-3xl font-semibold tracking-tight">{type.name}</h1>
+        <PageHeader title={type.name} icon={typeIcon} tileClassName={tileClassName} />
         <UpgradePrompt type={type} />
       </div>
     );
@@ -88,23 +92,13 @@ export default async function ItemsByTypePage({
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex items-center gap-3">
-        <span
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-lg",
-            getAccentTileClass(type.color),
-          )}
-        >
-          <TypeIcon type={type} className="size-5" />
-        </span>
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{type.name}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {total} {total === 1 ? "item" : "items"}
-          </p>
-        </div>
-        {createSlug && (
-          <div className="ml-auto">
+      <PageHeader
+        title={type.name}
+        icon={typeIcon}
+        tileClassName={tileClassName}
+        description={`${total} ${total === 1 ? "item" : "items"}`}
+        actions={
+          createSlug && (
             <NewItemDialog
               types={getCreatableTypes(itemTypes)}
               defaultTypeSlug={createSlug}
@@ -112,9 +106,9 @@ export default async function ItemsByTypePage({
               label={`New ${singularTypeName(createSlug)}`}
               variant="outline"
             />
-          </div>
-        )}
-      </header>
+          )
+        }
+      />
 
       {items.length > 0 && isFileList ? (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
@@ -123,7 +117,7 @@ export default async function ItemsByTypePage({
           ))}
         </ul>
       ) : items.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
           {items.map((item) =>
             isGallery ? (
               <ImageCard key={item.id} item={item} />
@@ -133,9 +127,7 @@ export default async function ItemsByTypePage({
           )}
         </div>
       ) : (
-        <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No {type.name.toLowerCase()} yet.
-        </p>
+        <EmptyState>No {type.name.toLowerCase()} yet.</EmptyState>
       )}
 
       <Pagination pathname={pathname} page={page} totalPages={totalPages} />

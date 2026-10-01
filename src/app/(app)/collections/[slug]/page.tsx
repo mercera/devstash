@@ -6,6 +6,8 @@ import { FolderOpen } from "lucide-react";
 import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/items/ItemCard";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Pagination } from "@/components/pagination/Pagination";
 import { getCollectionBySlug } from "@/lib/db/collections";
 import { getItemsByCollection } from "@/lib/db/items";
@@ -67,44 +69,41 @@ export default async function CollectionPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <FolderOpen className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-3xl font-semibold tracking-tight">
-            {collection.name}
-          </h1>
-          {collection.description && (
-            <p className="mt-1 text-muted-foreground">
-              {collection.description}
+      <PageHeader
+        title={collection.name}
+        icon={<FolderOpen />}
+        description={
+          <>
+            {collection.description && <p>{collection.description}</p>}
+            <p className="mt-1 text-sm">
+              {total} {total === 1 ? "item" : "items"}
             </p>
-          )}
-          <p className="mt-1 text-sm text-muted-foreground">
-            {total} {total === 1 ? "item" : "items"}
-          </p>
-        </div>
-        <CollectionActions
-          collection={{
-            id: collection.id,
-            name: collection.name,
-            slug: collection.slug,
-            description: collection.description,
-            isFavorite: collection.isFavorite,
-          }}
-        />
-      </header>
+          </>
+        }
+        actions={
+          <CollectionActions
+            collection={{
+              id: collection.id,
+              name: collection.name,
+              slug: collection.slug,
+              description: collection.description,
+              isFavorite: collection.isFavorite,
+            }}
+          />
+        }
+      />
 
       {items.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
           {items.map((item) => (
             <ItemCard key={item.id} item={item} />
           ))}
         </div>
       ) : (
-        <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No items in this collection yet.
-        </p>
+        <EmptyState>
+          No items in this collection yet. Add items to it from New Item or an
+          item&apos;s Edit.
+        </EmptyState>
       )}
 
       <Pagination pathname={pathname} page={page} totalPages={totalPages} />
