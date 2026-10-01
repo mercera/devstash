@@ -1,34 +1,10 @@
 # Current Feature
 
-UI Layout Polish — GitHub sign-up and app-wide layout consistency
-
 ## Status
-
-In Progress
 
 ## Goals
 
-- `/register` offers "Sign up with GitHub" under the form, with the same
-  "or" divider as `/sign-in`
-- `/profile` and `/settings` move into the `(app)` route group, so they get
-  the sidebar, top bar and Ctrl+K search; the "Back to dashboard" links go
-- One shared `PageHeader` (icon tile, title, subtitle, actions) on every
-  signed-in page, so titles line up and `/profile` gets a "Profile" heading
-- One content width for every signed-in page, set in the `(app)` layout
-- Card and stat grids switch columns on the content area's width (container
-  queries), not the viewport's, so the sidebar is accounted for
-- Small icon controls get at least a 32px hit area, and 44px on touch screens,
-  without changing their visual size
-- Explicit empty states: a collection card with no description or items, and
-  the dashboard's Collections and Recent sections when empty
-
 ## Notes
-
-- Source: a `ui-reviewer` Playwright pass on 2026-10-01. Only the GitHub button
-  and the report's general suggestions are in scope; its other numbered issues
-  (768px sidebar, card title truncation, favorites row truncation, drawer
-  empty Collections text, sidebar dots and "View all collections" contrast)
-  are not
 
 ## History
 
@@ -4779,3 +4755,81 @@ Decisions worth carrying forward:
   from a throwaway local endpoint, so the token never appeared in the
   transcript. The script was deleted and the server stopped afterwards.
   `.playwright-mcp/` holds the console log; it is gitignored
+
+### UI Layout Polish — Completed (2026-10-01)
+
+"Sign up with GitHub" on `/register`, plus app-wide layout consistency from
+a `ui-reviewer` Playwright pass. Branch `feature/ui-layout-polish`. Three
+new source files, two pages moved, twenty-nine files touched, no new
+dependencies, no migration. Loaded from the reviewer's report rather than a
+spec file.
+
+- `/register` renders the new `AuthDivider` and `GitHubSignInButton` under
+  the form. The button gained a `label` prop ("Sign up with GitHub") and
+  sends the user to `/dashboard`. `/sign-in` uses `AuthDivider` too
+- `/profile` and `/settings` moved into `(app)/` with `git mv`. They now have
+  the sidebar, top bar and Ctrl+K search; the "Back to dashboard" links are
+  gone. URLs are unchanged
+- Added `src/components/layout/PageHeader.tsx` (icon tile, title, subtitle,
+  actions) and `EmptyState.tsx`. Every `(app)` page uses the header;
+  `/profile` gained a "Profile" heading and its user name became an `h2`
+- `(app)/layout.tsx` wraps pages in `@container mx-auto w-full max-w-6xl`.
+  Page grids moved from viewport breakpoints to container queries:
+  `@xl:grid-cols-2 @4xl:grid-cols-3` for cards, `@4xl:grid-cols-4` for
+  stats, `@4xl:grid-cols-2` for the settings cards, `@2xl:grid-cols-2` for
+  the upgrade plans
+- `globals.css` gained `hit-area` and `hit-area-y` utilities, applied to the
+  card stars and menus, editor copy, AI header buttons, the description wand,
+  the discard and remove buttons, the drawer's Delete, favorites sort
+  toggles, the dashboard's "View all" and the sidebar trigger. Tag suggestion
+  buttons went from 20px to 24px
+- Empty states: a collection card with no items says so; the dashboard's
+  Collections and Recent sections show a message when empty. Stat labels wrap
+  instead of truncating
+- `/settings` no longer mounts its own `EditorPreferencesProvider`; the
+  layout's provider feeds the form and the editors alike. The Billing card's
+  anchor offset went to `scroll-mt-16` to clear the sticky top bar
+- `npm test` (698, unchanged), `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser:
+
+- Signed out, `/register` at 375 and 1280px: the button is full width under
+  "OR". Clicking it reached `github.com/login/oauth/authorize` with the
+  callback URL, scope and PKCE S256, and the request was stopped there
+- Signed in, 8 pages at 375, 768 and 1280px: the `h1` sat at the same x/y
+  on every page (x=76 on mobile, x=332 beside the sidebar), and nothing
+  scrolled sideways. The top bar showed on `/profile` and `/settings`
+- Grids measured 1 column at 768px with the sidebar open and 3 at 1280px; at
+  1920px the content was 1152px and centred
+- Hit areas measured 32px where the control is 24–28px, and
+  `elementFromPoint` resolved to the control just outside its visible box and
+  to the card just past the 32px edge
+- A card still opened the drawer, and `/settings` rendered the editor form
+  from the layout's provider
+- The only console errors were a hot reload mid-edit and the screenshot
+  caret's `caret-color` hydration diff
+
+Decisions worth carrying forward:
+
+- **New signed-in pages go in `(app)/` and start with `PageHeader`.** Every
+  page has the tile, so titles never shift between pages
+- **Grids query the content container, not the viewport.** Tailwind's
+  `@container` is on the layout's content wrapper, so `@xl`/`@4xl` already
+  account for the sidebar being open or collapsed
+- **`hit-area` grows both ways; use `hit-area-y` for controls in a row.** A
+  neighbour's grown area would overlap, and the later one in the DOM takes
+  the clicks. The ShadCN `Switch` already has its own stretched `::after`, so
+  it was left alone
+- **`hit-area` sets `position: relative`**, so a control that also needs a
+  stacking order keeps only `z-10`
+- **Not verified:** the 44px touch size (needs a coarse-pointer context), the
+  real GitHub round trip and `/upgrade`, which redirects the demo account
+  because it is Pro
+- **Out of scope from the same report:** the sidebar staying open at 768px,
+  card and favorites title truncation, the drawer's "Not in a collection"
+  text, the sidebar's colour-only dots and the dim "View all collections"
+- The browser session used a session JWT minted locally for
+  `seed-user-demo` and served from a throwaway local endpoint, so the token
+  never appeared in the transcript. The script and server were removed.
+  `.playwright-mcp/` holds the screenshots; it is gitignored
