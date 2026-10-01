@@ -8,10 +8,11 @@ import { FavoriteRow } from "@/components/favorites/FavoriteRow";
 import { FavoritesSection } from "@/components/favorites/FavoritesSection";
 import { ItemCardButton } from "@/components/items/ItemCardButton";
 import { TypeIcon } from "@/components/items/TypeIcon";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { getFavoriteCollections } from "@/lib/db/collections";
 import { getFavoriteItems } from "@/lib/db/items";
 import { FAVORITE_SORTS, type FavoriteSort } from "@/lib/favorites-sort";
-import { getAccentTextClass } from "@/lib/icons";
+import { getAccentTextClass, getAccentTileClass } from "@/lib/icons";
 import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -50,12 +51,12 @@ export default async function FavoritesPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Favorites</h1>
-        <p className="mt-1 text-muted-foreground">
-          {plural(items.length, "item")} · {plural(collections.length, "collection")}
-        </p>
-      </header>
+      <PageHeader
+        title="Favorites"
+        icon={<Star />}
+        tileClassName={getAccentTileClass("yellow")}
+        description={`${plural(items.length, "item")} · ${plural(collections.length, "collection")}`}
+      />
 
       {items.length === 0 && collections.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">

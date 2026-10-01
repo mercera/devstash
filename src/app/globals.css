@@ -155,6 +155,57 @@
 }
 
 /*
+ * Widens a small control's clickable area to at least 32px, and 44px on touch
+ * screens, without changing how it looks. The `::after` is centred on the
+ * control and never smaller than it.
+ *
+ * `hit-area` grows both ways, so use it only where no other control sits
+ * within that margin; a neighbour's area would overlap and the later one in
+ * the DOM would take the clicks. `hit-area-y` grows the height only, for
+ * controls set side by side in a row.
+ */
+@utility hit-area {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 2rem);
+    height: max(100%, 2rem);
+    translate: -50% -50%;
+  }
+
+  @media (pointer: coarse) {
+    &::after {
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+    }
+  }
+}
+
+@utility hit-area-y {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: max(100%, 2rem);
+    translate: 0 -50%;
+  }
+
+  @media (pointer: coarse) {
+    &::after {
+      height: max(100%, 2.75rem);
+    }
+  }
+}
+
+/*
  * Rendered Markdown in MarkdownEditor's Preview tab. A plain class rather than
  * utilities, since react-markdown emits bare elements with no class names.
  */

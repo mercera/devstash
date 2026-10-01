@@ -84,7 +84,7 @@ export function ItemDescriptionField({
             disabled={pending || nothingToSummarise}
             aria-label="Generate description"
             title={pending ? "Generating..." : label}
-            className="text-muted-foreground"
+            className="hit-area text-muted-foreground"
           >
             {pending ? <Loader2 className="animate-spin" /> : <WandSparkles />}
           </Button>

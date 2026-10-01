@@ -27,8 +27,9 @@ import type { EditableCollection } from "@/types";
  * Nothing opened them from a trigger either, so focus is handed back to the
  * three-dots button by hand when one closes.
  *
- * `relative z-10` lifts the button above the card's stretched link, so a click
- * on it opens the menu instead of the collection.
+ * `z-10` (with `hit-area`'s relative positioning) lifts the button above the
+ * card's stretched link, so a click on it opens the menu instead of the
+ * collection.
  */
 export function CollectionCardMenu({ collection }: { collection: EditableCollection }) {
   const router = useRouter();
@@ -54,7 +55,7 @@ export function CollectionCardMenu({ collection }: { collection: EditableCollect
             variant="ghost"
             size="icon-sm"
             aria-label={`Actions for ${collection.name}`}
-            className="relative z-10 -mt-1 -mr-2 text-muted-foreground"
+            className="hit-area z-10 -mt-1 -mr-2 text-muted-foreground"
           >
             <MoreHorizontal />
           </Button>

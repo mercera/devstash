@@ -44,9 +44,8 @@ export function useEditorPreferencesState(): EditorPreferencesContextValue {
  * starting from what the server read. The settings form updates the state as
  * soon as a value changes, so the change shows before the save returns.
  *
- * Mounted by the `(app)` layout, around every editor, and by `/settings`,
- * which sits outside that group. Each reads the stored value on the server,
- * so a save on one is picked up by the other on the next navigation.
+ * Mounted once, by the `(app)` layout, around every editor and the settings
+ * form alike, so a change on `/settings` reaches the editors without a reload.
  */
 export function EditorPreferencesProvider({
   initialPreferences,

@@ -67,7 +67,7 @@ export function EditorCopyButton({
       variant="ghost"
       size="icon-sm"
       aria-label={label}
-      className={className}
+      className={cn("hit-area", className)}
       disabled={value.trim() === ""}
       onClick={() => void copyToClipboard(value)}
     >

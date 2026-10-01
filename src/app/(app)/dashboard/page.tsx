@@ -2,12 +2,22 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Boxes, Clock, FolderOpen, Folders, Pin, Star } from "lucide-react";
+import {
+  Boxes,
+  Clock,
+  FolderOpen,
+  Folders,
+  LayoutDashboard,
+  Pin,
+  Star,
+} from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
 import { ItemCard } from "@/components/items/ItemCard";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { getCollectionStats, getRecentCollections } from "@/lib/db/collections";
 import { getItemStats, getPinnedItems, getRecentItems } from "@/lib/db/items";
 import {
@@ -46,14 +56,13 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-muted-foreground">
-          Your developer knowledge hub
-        </p>
-      </header>
+      <PageHeader
+        title="Dashboard"
+        icon={<LayoutDashboard />}
+        description="Your developer knowledge hub"
+      />
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 @4xl:grid-cols-4">
         <StatCard
           label="Items"
           value={itemStats.itemCount}
@@ -87,17 +96,21 @@ export default async function DashboardPage() {
           action={
             <Link
               href="/collections"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="hit-area text-sm text-muted-foreground hover:text-foreground"
             >
               View all
             </Link>
           }
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {collections.map((collection) => (
-            <CollectionCard key={collection.id} collection={collection} />
-          ))}
-        </div>
+        {collections.length > 0 ? (
+          <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
+            {collections.map((collection) => (
+              <CollectionCard key={collection.id} collection={collection} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState>No collections yet. Create one with New Collection.</EmptyState>
+        )}
       </section>
 
       {pinnedItems.length > 0 && (
@@ -113,11 +126,15 @@ export default async function DashboardPage() {
 
       <section>
         <SectionHeader title="Recent" icon={<Clock className="size-4" />} />
-        <div className="flex flex-col gap-3">
-          {recentItems.map((item) => (
-            <ItemCard key={item.id} item={item} />
-          ))}
-        </div>
+        {recentItems.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {recentItems.map((item) => (
+              <ItemCard key={item.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState>No items yet. Create one with New Item.</EmptyState>
+        )}
       </section>
     </div>
   );

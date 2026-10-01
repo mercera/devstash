@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Sparkles } from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
 import { UpgradePlans } from "@/components/billing/UpgradePlans";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { BILLING_PATH } from "@/lib/routes";
 import { getSessionUser } from "@/lib/session";
 
@@ -27,13 +29,12 @@ export default async function UpgradePage() {
   }
 
   return (
-    <div className="flex flex-col py-4">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Upgrade to Pro</h1>
-        <p className="mt-2 text-muted-foreground">
-          Unlimited items and collections, file and image uploads, and more.
-        </p>
-      </header>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Upgrade to Pro"
+        icon={<Sparkles />}
+        description="Unlimited items and collections, file and image uploads, and more."
+      />
 
       <UpgradePlans />
     </div>

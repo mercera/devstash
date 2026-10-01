@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Folders } from "lucide-react";
 
 import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Pagination } from "@/components/pagination/Pagination";
 import { getCollectionsPage } from "@/lib/db/collections";
 import {
@@ -40,23 +43,20 @@ export default async function CollectionsPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Collections</h1>
-        <p className="mt-1 text-muted-foreground">
-          {total} {total === 1 ? "collection" : "collections"}
-        </p>
-      </header>
+      <PageHeader
+        title="Collections"
+        icon={<Folders />}
+        description={`${total} ${total === 1 ? "collection" : "collections"}`}
+      />
 
       {collections.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
           {collections.map((collection) => (
             <CollectionCard key={collection.id} collection={collection} />
           ))}
         </div>
       ) : (
-        <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No collections yet. Create one with New Collection.
-        </p>
+        <EmptyState>No collections yet. Create one with New Collection.</EmptyState>
       )}
 
       <Pagination pathname={PATHNAME} page={page} totalPages={totalPages} />

@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AuthDivider } from "@/components/auth/AuthDivider";
+import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DASHBOARD_PATH } from "@/lib/routes";
 import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -13,7 +16,7 @@ export const metadata: Metadata = {
 export default async function RegisterPage() {
   // Someone already signed in has no use for a sign-up form.
   if (await getSessionUser()) {
-    redirect("/dashboard");
+    redirect(DASHBOARD_PATH);
   }
 
   return (
@@ -25,6 +28,10 @@ export default async function RegisterPage() {
 
       <CardContent className="space-y-5">
         <RegisterForm />
+
+        <AuthDivider />
+
+        <GitHubSignInButton callbackUrl={DASHBOARD_PATH} label="Sign up with GitHub" />
 
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}

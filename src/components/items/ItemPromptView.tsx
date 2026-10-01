@@ -154,7 +154,7 @@ function PromptSuggestion({
           variant="ghost"
           size="icon-xs"
           aria-label="Discard optimized prompt"
-          className="ml-auto"
+          className="hit-area ml-auto"
           disabled={busy}
           onClick={onDiscard}
         >

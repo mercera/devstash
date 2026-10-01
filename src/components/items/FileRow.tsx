@@ -71,7 +71,7 @@ export function FileRow({ item }: { item: ItemWithRelations }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          className="relative z-10 shrink-0"
+          className="hit-area z-10 shrink-0"
           asChild
         >
           <a

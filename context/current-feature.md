@@ -1,10 +1,34 @@
 # Current Feature
 
+UI Layout Polish — GitHub sign-up and app-wide layout consistency
+
 ## Status
+
+In Progress
 
 ## Goals
 
+- `/register` offers "Sign up with GitHub" under the form, with the same
+  "or" divider as `/sign-in`
+- `/profile` and `/settings` move into the `(app)` route group, so they get
+  the sidebar, top bar and Ctrl+K search; the "Back to dashboard" links go
+- One shared `PageHeader` (icon tile, title, subtitle, actions) on every
+  signed-in page, so titles line up and `/profile` gets a "Profile" heading
+- One content width for every signed-in page, set in the `(app)` layout
+- Card and stat grids switch columns on the content area's width (container
+  queries), not the viewport's, so the sidebar is accounted for
+- Small icon controls get at least a 32px hit area, and 44px on touch screens,
+  without changing their visual size
+- Explicit empty states: a collection card with no description or items, and
+  the dashboard's Collections and Recent sections when empty
+
 ## Notes
+
+- Source: a `ui-reviewer` Playwright pass on 2026-10-01. Only the GitHub button
+  and the report's general suggestions are in scope; its other numbered issues
+  (768px sidebar, card title truncation, favorites row truncation, drawer
+  empty Collections text, sidebar dots and "View all collections" contrast)
+  are not
 
 ## History
 

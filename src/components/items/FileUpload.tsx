@@ -256,6 +256,7 @@ function UploadPreview({
           type="button"
           variant="ghost"
           size="icon-sm"
+          className="hit-area-y"
           onClick={onRemove}
           disabled={disabled}
           aria-label={inFlight ? "Cancel upload" : `Remove ${kind === "image" ? "image" : "file"}`}
