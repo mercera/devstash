@@ -2,27 +2,9 @@
 
 ## Status
 
-In progress — Shared Components Cleanup. Branch `refactor/components-shared`.
-
 ## Goals
 
-From a `refactor-scanner` pass over `src/components`:
-
-- Use `src/lib/messages.ts` everywhere (forms, API routes, `src/lib/ai`) and add
-  `NETWORK_SAVE_FAILED`
-- Route helpers in `src/lib/routes.ts` (`getCollectionPath`, `getItemTypePath`,
-  `COLLECTIONS_PATH`, `FAVORITES_PATH`, `PROFILE_PATH`, `SETTINGS_PATH`) in
-  place of hardcoded paths
-- `AccentTile`, `StatusMarks` / `FavoriteStar`, `FavoriteToggleButton`,
-  `PendingButton`, `FormDialog` and `ConfirmDeleteDialog` in
-  `src/components/layout/`
-- `EmailLinkRequestForm` and `NewPasswordFields` in `src/components/auth/`
-
 ## Notes
-
-- No behaviour change intended; checked in the browser
-- Skipped from the scan: the shared save-and-toast hook (#8), and everything
-  the scanner listed as not worth it
 
 ## History
 
@@ -5014,3 +4996,92 @@ Decisions worth carrying forward:
 - **Still not built:** the free-plan limit helper shared by `createItem` and
   `createCollection`, and moving the shared messages into `src/lib/ai`, the API
   routes and the form components
+
+### Shared Components Cleanup — Completed (2026-10-01)
+
+The findings worth doing from a `refactor-scanner` pass over
+`src/components`. Branch `refactor/components-shared`. Eight new components, 57
+files changed, 270 fewer lines, no new dependencies, no migration. No intended
+behaviour change.
+
+- **Messages.** Every copy of the shared messages now imports from
+  `src/lib/messages.ts`: the forms, the API routes and `src/lib/ai`, which
+  closes the item left open by Server Action Cleanup 2. Added
+  `NETWORK_SAVE_FAILED` ("Could not save. Check your connection…")
+- **Routes.** `src/lib/routes.ts` gained `COLLECTIONS_PATH`, `FAVORITES_PATH`,
+  `PROFILE_PATH`, `SETTINGS_PATH`, `getCollectionPath(slug)` and
+  `getItemTypePath(slug)`; `BILLING_PATH` is built from `SETTINGS_PATH`. About
+  25 hardcoded paths in components, app pages and the auth pages now use them
+  (`SIGN_IN_PATH` and `REGISTER_PATH` on the auth pages' footer links)
+- **`src/components/layout/`:**
+  - `AccentTile`: the tinted icon tile, sizes `md`/`lg`/`xl`, used by 8
+    components including `PageHeader`
+  - `StatusMarks` and `FavoriteStar`, plus `FAVORITE_STAR_CLASS` in
+    `src/lib/icons.ts`
+  - `FavoriteToggleButton`, shared by the drawer, the collection page and the
+    item card star
+  - `PendingButton`, for every button with a spinner and a pending label;
+    `SubmitButton` is built on it
+  - `FormDialog`, the shell of New Item, New Collection and Edit Collection
+  - `ConfirmDeleteDialog`; `DeleteItemDialog` and `DeleteCollectionDialog` are
+    now thin wrappers
+- **`src/components/auth/`:** `EmailLinkRequestForm` (forgot password, resend
+  verification) and `NewPasswordFields` (reset, change and register)
+- `npm test` (715, unchanged), `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` pass; the route table is unchanged
+
+Verified in the browser as the demo user and signed out, with zero console
+errors or warnings:
+
+- Tiles measured 36/40/56px as before, and page titles still start at x=332
+- A throwaway note was created through New Item ("Creating..." shown),
+  favorited in the drawer (pressed, yellow, held after the save), then deleted:
+  Cancel kept the drawer open, Delete showed "Deleting..." and removed the card.
+  It was the only database write
+- The collection page's Edit and Delete dialogs opened and cancelled; from the
+  card menu, focus returned to the menu button and `body` kept pointer events
+- `/items/image`, `/items/file` and `/favorites` had no horizontal scroll
+- `/settings`, `/register`, `/forgot-password` and `/sign-in` showed the
+  expected fields and links; the delete-account confirm enabled only after
+  DELETE was typed
+
+Decisions worth carrying forward:
+
+- **New shared UI goes in `src/components/layout/`**, not a feature folder,
+  when more than one feature uses it
+- **`AccentTile` sizes only a direct-child icon** (`[&>svg]:`), so a badge
+  nested inside it, like the lock on `UpgradePrompt`, keeps its own size.
+  `PageHeader` used to size any descendant `svg`; every caller passes the icon
+  directly, so nothing changed
+- **`AccentTile` falls back to the neutral tile** and lets `className` win
+  through `tailwind-merge`, which is how `PageHeader` and the homepage's indigo
+  tile colour it
+- **`ConfirmDeleteDialog` works controlled or with its own trigger.** The item
+  dialog owns its trigger; the collection dialog is controlled from a button
+  or a menu item. The confirm is a plain button, never `AlertDialogAction`
+- **`FavoriteToggleButton` takes the state, not the save.** Callers keep their
+  own `useOptimisticToggle`, since each saves differently
+- **Small visible changes:** the drawer's Save button now shows a spinner like
+  the other saves, the decorative stars and pins are `aria-hidden`, and every
+  tile is `shrink-0`
+- **Skipped:** the shared save-and-toast hook. After the delete dialogs merged,
+  three forms shared the flow, and a hook with its types and
+  `onFailure`/`onPendingChange` plumbing would have been about as long as what
+  it removed. Also skipped what the scanner judged not worth it: merging
+  `ItemCard`/`ImageCard`/`FileRow`, the AI wand buttons,
+  `ItemFormField`/`AuthFormField`, and the Pro badge
+- **Not converted:** `RegisterForm`'s `/sign-in?registered=1` and the
+  verify-email route's `/sign-in?verified=1`. `SIGN_IN_PATH` lives in
+  `auth.config.ts`, and importing it into the client `RegisterForm` would pull
+  next-auth providers into the browser bundle
+- **The scanner read about 45 of the ~85 component files.** The homepage
+  sections, the editors and the settings, profile and search internals were
+  not audited
+- **Edit-by-script needs exact JSX braces.** A replacement of
+  `"/collections"` with `COLLECTIONS_PATH` turned `href="/collections"` into
+  `href=COLLECTIONS_PATH`, which `tsc` caught. Replace attribute values with
+  `{…}` explicitly
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  and served from a throwaway local endpoint, so the token never appeared in
+  the transcript. The script and both servers were removed afterwards.
+  `.playwright-mcp/` holds the console log; it is gitignored
