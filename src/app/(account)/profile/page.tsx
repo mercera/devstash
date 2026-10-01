@@ -74,7 +74,7 @@ export default async function ProfilePage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Usage</h2>
-        <div className="grid grid-cols-2 gap-4 @4xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 @2xl:grid-cols-4">
           <StatCard label="Items" value={itemStats.itemCount} icon={Boxes} color="blue" />
           <StatCard
             label="Collections"

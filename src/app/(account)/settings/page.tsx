@@ -27,8 +27,9 @@ export const dynamic = "force-dynamic";
  * The account settings page: editor preferences, billing, change password and
  * delete account. Every action is session-scoped.
  *
- * The editor form reads the preferences from the `(app)` layout's provider,
- * which also feeds the editors, so this page does not load them itself.
+ * The editor form reads the preferences from the account layout's provider,
+ * which also feeds the drawer's editors, so this page does not load them
+ * itself.
  */
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const [userId, query] = await Promise.all([getSessionUserId(), searchParams]);
@@ -71,7 +72,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
     <div className="flex flex-col gap-8">
       <PageHeader title="Settings" icon={<Settings />} description="Manage your account." />
 
-      <div className="grid items-start gap-6 @4xl:grid-cols-2">
+      <div className="flex flex-col gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Editor preferences</CardTitle>
