@@ -2,30 +2,9 @@
 
 ## Status
 
-In progress — Server Action Cleanup. Branch `refactor/actions-shared-helpers`.
-
 ## Goals
 
-- Read the session through `getSessionUser()` / `getSessionUserId()` in every
-  action instead of repeating `auth()` + `session?.user?.id`; drop
-  `requireUserId` from `src/actions/profile.ts`
-- Move the shared messages (`SESSION_EXPIRED`, `SOMETHING_WENT_WRONG`,
-  `INVALID_INPUT`) into `src/lib/messages.ts`
-- Share `isId` across the item and collection actions
-- Replace the repeated `parsed.error.flatten().fieldErrors` returns with an
-  `invalidInput(error)` helper on `z.flattenError` (`.flatten()` is deprecated
-  in Zod 4)
-- Fix the stale "demo-scoped reads" comment in `src/actions/profile.ts`
-
 ## Notes
-
-- No behaviour change: every message, result shape and status stays the same
-- Scope is `src/actions/` only; the same messages in `src/lib/ai`, the API
-  routes and the form components are left for a later pass
-- Found by a duplication scan of `src/actions/`. Not in scope from the same
-  scan: a generic owned-mutation helper for the toggle actions, a shared
-  `ActionResult<T>` type, a free-plan limit helper and moving `profile.ts`'s
-  Prisma calls into `src/lib/db/user.ts`
 
 ## History
 
@@ -4914,3 +4893,47 @@ Decisions worth carrying forward:
   and served from a throwaway local endpoint, so the token never appeared in
   the transcript. The script and server were removed. `.playwright-mcp/`
   holds the screenshots; it is gitignored
+
+### Server Action Cleanup — Completed (2026-10-01)
+
+Removed the duplicated session checks, messages and validation returns from
+`src/actions/`, found by a duplication scan of that folder. Branch
+`refactor/actions-shared-helpers`. Three new source files (one a test), six
+action files touched, no new dependencies, no migration. No behaviour change.
+
+- Every action reads the session through `getSessionUser()` /
+  `getSessionUserId()` from `src/lib/session.ts` instead of calling `auth()`.
+  `requireUserId` in `src/actions/profile.ts` is gone; `createItem` and
+  `createCollection` take `isPro` from `getSessionUser()`
+- Added `src/lib/messages.ts`: `SESSION_EXPIRED`, `SOMETHING_WENT_WRONG` and
+  `INVALID_INPUT`, used by all six action files
+- Added `src/lib/action-helpers.ts`:
+  - `isId`, moved out of `collections.ts` and now replacing five inline checks
+    in `items.ts`
+  - `invalidInput(error)`, which replaces seven copies of the validation
+    failure return
+- The stale "read-side getters are demo-scoped" comment in `profile.ts` was
+  rewritten
+- 9 unit tests in `src/lib/action-helpers.test.ts`. Suite 700 → 709. The
+  existing action tests passed unchanged
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged. Not checked in the browser
+
+Decisions worth carrying forward:
+
+- **New actions read the session through `src/lib/session.ts`.** It is cached
+  per request, and it still goes through `auth()`, so mocking `@/auth` in tests
+  keeps working
+- **Shared constants live in `src/lib/`, not in an action file.** A
+  `"use server"` module may only export async functions
+- **`invalidInput` uses `z.flattenError`.** `.flatten()` is deprecated in Zod 4.
+  The returned shape is the same. It returns `{ error, issues }` without
+  `success`, so it spreads into both the `{ success, … }` results and the
+  form-state shapes of the auth and profile actions
+- **Out of scope:** the same messages in `src/lib/ai`, the API routes and the
+  form components still have their own copies
+- **Also found by the scan and not built:**
+  - a generic owned-mutation helper for the four toggle actions
+  - a shared `ActionResult<T>` type
+  - a free-plan limit helper shared by `createItem` and `createCollection`
+  - moving `profile.ts`'s direct Prisma calls into `src/lib/db/user.ts`
