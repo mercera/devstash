@@ -4,6 +4,7 @@ import { startTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { NETWORK_SAVE_FAILED } from "@/lib/messages";
 import type { ActionResult } from "@/types/actions";
 
 interface UseOptimisticToggleOptions<T> {
@@ -16,8 +17,6 @@ interface UseOptimisticToggleOptions<T> {
   /** A toast to show after a successful save, given the state that was set. */
   successMessage?: (value: boolean) => string;
 }
-
-const NETWORK_ERROR = "Could not save. Check your connection and try again.";
 
 /**
  * A boolean flag (favorite, pin) that flips the moment it is clicked.
@@ -52,7 +51,7 @@ export function useOptimisticToggle<T>({
       } catch {
         // A server action rejects rather than returning when the request
         // itself fails.
-        result = { success: false, error: NETWORK_ERROR };
+        result = { success: false, error: NETWORK_SAVE_FAILED };
       }
 
       if (!result.success) {

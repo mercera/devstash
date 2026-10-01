@@ -13,6 +13,7 @@ import { getFavoriteCollections } from "@/lib/db/collections";
 import { getFavoriteItems } from "@/lib/db/items";
 import { FAVORITE_SORTS, type FavoriteSort } from "@/lib/favorites-sort";
 import { getAccentTextClass, getAccentTileClass } from "@/lib/icons";
+import { getCollectionPath } from "@/lib/routes";
 import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -115,7 +116,7 @@ export default async function FavoritesPage() {
                   date={collection.updatedAt}
                 >
                   <Link
-                    href={`/collections/${collection.slug}`}
+                    href={getCollectionPath(collection.slug)}
                     aria-label={`Open ${collection.name}`}
                     className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   />

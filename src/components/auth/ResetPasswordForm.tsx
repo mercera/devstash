@@ -3,11 +3,10 @@
 import { useActionState } from "react";
 
 import { resetPassword, type ResetPasswordState } from "@/actions/auth";
-import { AuthFormField } from "@/components/auth/AuthFormField";
 import { FormError } from "@/components/auth/FieldError";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
-import { PASSWORD_LENGTH_HINT } from "@/lib/validations/auth";
 
 const INITIAL_STATE: ResetPasswordState = {};
 
@@ -30,24 +29,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
       <FormError message={state.error} />
 
-      <AuthFormField
-        name="password"
-        label="New password"
-        type="password"
-        autoComplete="new-password"
-        issues={state.issues?.password}
-        hint={PASSWORD_LENGTH_HINT}
-        required
-      />
-
-      <AuthFormField
-        name="confirmPassword"
-        label="Confirm new password"
-        type="password"
-        autoComplete="new-password"
-        issues={state.issues?.confirmPassword}
-        required
-      />
+      <NewPasswordFields issues={state.issues} />
 
       <SubmitButton size="lg" className="w-full" pendingLabel="Updating...">
         Update password

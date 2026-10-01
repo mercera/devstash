@@ -6,7 +6,7 @@ import { AuthDivider } from "@/components/auth/AuthDivider";
 import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toSafeRedirect } from "@/lib/routes";
+import { REGISTER_PATH, toSafeRedirect } from "@/lib/routes";
 import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -97,7 +97,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
 
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-foreground hover:underline">
+          <Link href={REGISTER_PATH} className="font-medium text-foreground hover:underline">
             Create one
           </Link>
         </p>

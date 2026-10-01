@@ -1,12 +1,12 @@
-import { Pin } from "lucide-react";
-
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { ItemCardButton } from "@/components/items/ItemCardButton";
 import { ItemFavoriteButton } from "@/components/items/ItemFavoriteButton";
+import { AccentTile } from "@/components/layout/AccentTile";
+import { StatusMarks } from "@/components/layout/StatusMarks";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatShortDate } from "@/lib/format";
-import { getAccentBorderClass, getAccentTileClass } from "@/lib/icons";
+import { getAccentBorderClass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { ItemWithRelations } from "@/types";
 
@@ -21,21 +21,15 @@ export function ItemCard({ item }: { item: ItemWithRelations }) {
       {/* First in the DOM so Tab reaches Open before the favorite star. */}
       <ItemCardButton itemId={item.id} title={item.title} />
 
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-lg",
-          getAccentTileClass(item.type.color),
-        )}
-      >
-        <TypeIcon type={item.type} className="size-4.5" />
-      </span>
+      <AccentTile color={item.type.color}>
+        <TypeIcon type={item.type} />
+      </AccentTile>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
           <h3 className="truncate font-medium">{item.title}</h3>
-          {item.isPinned && (
-            <Pin className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
+          {/* The favorite is the interactive star on the right, not a mark. */}
+          <StatusMarks isPinned={item.isPinned} />
         </div>
 
         {item.description && (

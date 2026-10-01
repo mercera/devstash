@@ -24,11 +24,33 @@ export const DASHBOARD_PATH = "/dashboard";
 /** Where the homepage's sign-up buttons point. */
 export const REGISTER_PATH = "/register";
 
+/** Every collection, paginated. */
+export const COLLECTIONS_PATH = "/collections";
+
+/** The favorited items and collections. */
+export const FAVORITES_PATH = "/favorites";
+
+/** The account page: identity and usage. */
+export const PROFILE_PATH = "/profile";
+
+/** Account settings: editor, billing, password and account deletion. */
+export const SETTINGS_PATH = "/settings";
+
 /** The Billing card on `/settings`, where a Pro user manages their plan. */
-export const BILLING_PATH = "/settings#billing";
+export const BILLING_PATH = `${SETTINGS_PATH}#billing`;
 
 /** The plan picker, where every "Upgrade" prompt leads. */
 export const UPGRADE_PATH = "/upgrade";
+
+/** One collection's page. Collections are addressed by slug, not id. */
+export function getCollectionPath(slug: string): string {
+  return `${COLLECTIONS_PATH}/${slug}`;
+}
+
+/** One item type's list page. Types are addressed by their singular slug. */
+export function getItemTypePath(slug: string): string {
+  return `/items/${slug}`;
+}
 
 /** Stand-in origin for resolving a callback URL. Never contacted. */
 const PLACEHOLDER_ORIGIN = "http://devstash.invalid";

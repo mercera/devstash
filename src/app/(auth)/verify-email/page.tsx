@@ -108,7 +108,7 @@ export default async function VerifyEmailPage({ searchParams }: PageProps<"/veri
 
         <p className="text-center text-sm text-muted-foreground">
           Already verified?{" "}
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href={SIGN_IN_PATH} className="font-medium text-foreground hover:underline">
             Sign in
           </Link>
         </p>

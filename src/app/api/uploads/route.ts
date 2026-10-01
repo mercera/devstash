@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { isFileUrlInUse } from "@/lib/db/items";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import { createUploadKey, deleteUpload, getOwnedUploadKey, putUpload } from "@/lib/r2";
 import {
   UPLOAD_RULES,
@@ -17,7 +18,6 @@ type UploadResponse =
 type DiscardResponse = { success: true } | { success: false; error: string };
 
 const SIGN_IN = "Sign in to upload files.";
-const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
 const UPLOADS_REQUIRE_PRO =
   "File and image uploads are a Pro feature. Upgrade to Pro to upload.";
 

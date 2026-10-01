@@ -2,11 +2,10 @@ import Link from "next/link";
 import { Check, Lock } from "lucide-react";
 
 import { TypeIcon } from "@/components/items/TypeIcon";
+import { AccentTile } from "@/components/layout/AccentTile";
 import { Button } from "@/components/ui/button";
-import { getAccentTileClass } from "@/lib/icons";
 import { PRO_PLAN, PRO_PRICES, formatPrice } from "@/lib/plans";
 import { UPGRADE_PATH, DASHBOARD_PATH } from "@/lib/routes";
-import { cn } from "@/lib/utils";
 import type { ItemType } from "@/types";
 
 interface UpgradePromptProps {
@@ -20,17 +19,12 @@ interface UpgradePromptProps {
 export function UpgradePrompt({ type }: UpgradePromptProps) {
   return (
     <section className="mx-auto flex w-full max-w-md flex-col items-center gap-6 rounded-xl border bg-card p-8 text-center">
-      <span
-        className={cn(
-          "relative flex size-14 items-center justify-center rounded-xl",
-          getAccentTileClass(type.color),
-        )}
-      >
-        <TypeIcon type={type} className="size-7" />
+      <AccentTile color={type.color} size="xl" className="relative">
+        <TypeIcon type={type} />
         <span className="absolute -right-1.5 -bottom-1.5 flex size-6 items-center justify-center rounded-full border bg-background">
           <Lock className="size-3 text-muted-foreground" />
         </span>
-      </span>
+      </AccentTile>
 
       <div className="space-y-2">
         <h2 className="text-xl font-semibold tracking-tight">

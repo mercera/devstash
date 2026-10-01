@@ -14,13 +14,12 @@ import {
   DatesSection,
   Section,
 } from "@/components/items/ItemSections";
+import { AccentTile } from "@/components/layout/AccentTile";
 import { Badge } from "@/components/ui/badge";
 import { SheetTitle } from "@/components/ui/sheet";
-import { getAccentTileClass } from "@/lib/icons";
 import { getItemTypeFields } from "@/lib/item-fields";
 import { canOptimizeType } from "@/lib/validations/ai";
 import { formatFileSize } from "@/lib/uploads";
-import { cn } from "@/lib/utils";
 import type { ItemDetail, ItemDetailPatch } from "@/types";
 
 interface ItemDetailViewProps {
@@ -47,14 +46,9 @@ export function ItemDetailView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-start gap-3 p-6 pr-12">
-        <span
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-lg",
-            getAccentTileClass(item.type.color),
-          )}
-        >
-          <TypeIcon type={item.type} className="size-5" />
-        </span>
+        <AccentTile color={item.type.color} size="lg">
+          <TypeIcon type={item.type} />
+        </AccentTile>
         <div className="flex min-w-0 flex-col gap-2">
           <SheetTitle className="text-lg font-semibold break-words">
             {item.title}

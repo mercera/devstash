@@ -1,14 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-
-import { requestPasswordResetEmail, type EmailLinkRequestState } from "@/actions/auth";
-import { AuthFormField } from "@/components/auth/AuthFormField";
-import { FormNotice } from "@/components/auth/FieldError";
-import { SubmitButton } from "@/components/auth/SubmitButton";
-import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
-
-const INITIAL_STATE: EmailLinkRequestState = {};
+import { requestPasswordResetEmail } from "@/actions/auth";
+import { EmailLinkRequestForm } from "@/components/auth/EmailLinkRequestForm";
 
 interface ForgotPasswordFormProps {
   /** Prefills the field when the address is already known, e.g. from an expired link. */
@@ -21,30 +14,11 @@ export function ForgotPasswordForm({
   defaultEmail,
   submitLabel = "Send reset link",
 }: ForgotPasswordFormProps) {
-  const [state, formAction] = useActionState(requestPasswordResetEmail, INITIAL_STATE);
-
-  useRateLimitToast(state);
-
   return (
-    <form action={formAction} className="space-y-4">
-      <FormNotice message={state.message} />
-
-      <AuthFormField
-        name="email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        placeholder="you@example.com"
-        // The action echoes the submitted value back, so a re-render after a
-        // failed attempt keeps what was typed rather than the original prefill.
-        defaultValue={state.email ?? defaultEmail}
-        issues={state.error ? [state.error] : undefined}
-        required
-      />
-
-      <SubmitButton size="lg" className="w-full" pendingLabel="Sending...">
-        {submitLabel}
-      </SubmitButton>
-    </form>
+    <EmailLinkRequestForm
+      action={requestPasswordResetEmail}
+      defaultEmail={defaultEmail}
+      submitLabel={submitLabel}
+    />
   );
 }

@@ -120,3 +120,6 @@ const ACCENT_TILE: Record<AccentColor, string> = {
 export function getAccentTileClass(color: AccentColor): string {
   return ACCENT_TILE[color];
 }
+
+/** A filled yellow star: how a favorite is marked everywhere. */
+export const FAVORITE_STAR_CLASS = "fill-yellow-400 text-yellow-400";

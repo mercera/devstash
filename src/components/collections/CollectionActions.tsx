@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Star, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { setCollectionFavorite } from "@/actions/collections";
 import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
 import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
+import { FavoriteToggleButton } from "@/components/layout/FavoriteToggleButton";
 import { Button } from "@/components/ui/button";
 import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
-import { cn } from "@/lib/utils";
+import { COLLECTIONS_PATH, getCollectionPath } from "@/lib/routes";
 import type { Collection, EditableCollection } from "@/types";
 
 /**
@@ -31,29 +32,26 @@ export function CollectionActions({ collection }: { collection: EditableCollecti
 
   function handleSaved(saved: Collection) {
     if (saved.slug !== collection.slug) {
-      router.replace(`/collections/${saved.slug}`);
+      router.replace(getCollectionPath(saved.slug));
     }
     router.refresh();
   }
 
   function handleDeleted() {
-    router.replace("/collections");
+    router.replace(COLLECTIONS_PATH);
     router.refresh();
   }
 
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <Button
-        variant="ghost"
+      <FavoriteToggleButton
         size="sm"
         aria-label="Favorite"
-        aria-pressed={favorite.value}
-        onClick={favorite.toggle}
-        className={cn(favorite.value && "text-yellow-400 hover:text-yellow-400")}
+        pressed={favorite.value}
+        onToggle={favorite.toggle}
       >
-        <Star className={cn(favorite.value && "fill-yellow-400")} />
         <span className="hidden sm:inline">Favorite</span>
-      </Button>
+      </FavoriteToggleButton>
       <Button variant="ghost" size="sm" aria-label="Edit" onClick={() => setEditOpen(true)}>
         <Pencil />
         <span className="hidden sm:inline">Edit</span>

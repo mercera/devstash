@@ -12,12 +12,12 @@ import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { MarkdownPreview } from "@/components/items/MarkdownPreview";
 import { Button } from "@/components/ui/button";
 import { useAiRequest } from "@/hooks/use-ai-request";
+import { NETWORK_SAVE_FAILED } from "@/lib/messages";
 import { canOptimizeType } from "@/lib/validations/ai";
 import type { ItemDetail, ItemDetailPatch, PromptOptimization } from "@/types";
 
 const OPTIMIZE_PATH = "/api/ai/optimize-prompt";
 const ALREADY_GOOD = "This prompt already looks good. No changes suggested.";
-const NETWORK_ERROR = "Could not save. Check your connection and try again.";
 
 interface Suggestion {
   prompt: string;
@@ -69,7 +69,7 @@ export function ItemPromptView({ item, onSaved }: ItemPromptViewProps) {
         result = await setItemContent(item.id, prompt);
       } catch {
         // A server action rejects rather than returning when the request fails.
-        result = { success: false, error: NETWORK_ERROR };
+        result = { success: false, error: NETWORK_SAVE_FAILED };
       }
 
       if (!result.success) {

@@ -30,6 +30,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { getAccentTextClass } from "@/lib/icons";
+import { getCollectionPath } from "@/lib/routes";
 import { searchCollections, searchItems } from "@/lib/search";
 import type { SearchCollection, SearchItem } from "@/types";
 
@@ -97,7 +98,7 @@ export function GlobalSearch({ items, collections }: GlobalSearchProps) {
 
   function selectCollection(slug: string) {
     setOpen(false);
-    router.push(`/collections/${slug}`);
+    router.push(getCollectionPath(slug));
   }
 
   // Runs once the palette has unmounted. Radix then restores focus to wherever

@@ -1,19 +1,18 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { CreateCollectionResult, UpdateCollectionResult } from "@/actions/collections";
 import { ItemFormField } from "@/components/items/ItemFormField";
+import { PendingButton } from "@/components/layout/PendingButton";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useActionErrorToast } from "@/hooks/use-action-error-toast";
+import { SOMETHING_WENT_WRONG } from "@/lib/messages";
 import type { Collection } from "@/types";
-
-const SAVE_FAILED = "Something went wrong. Please try again.";
 
 type CollectionFormResult = CreateCollectionResult | UpdateCollectionResult;
 
@@ -74,7 +73,7 @@ export function CollectionForm({
         toast.success(successMessage);
         onSaved(result.data);
       } catch {
-        toast.error(SAVE_FAILED);
+        toast.error(SOMETHING_WENT_WRONG);
       } finally {
         onPendingChange(false);
       }
@@ -114,10 +113,14 @@ export function CollectionForm({
         <Button type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending || name.trim() === ""}>
-          {isPending && <Loader2 className="animate-spin" />}
-          {isPending ? pendingLabel : submitLabel}
-        </Button>
+        <PendingButton
+          type="submit"
+          pending={isPending}
+          pendingLabel={pendingLabel}
+          disabled={name.trim() === ""}
+        >
+          {submitLabel}
+        </PendingButton>
       </DialogFooter>
     </form>
   );

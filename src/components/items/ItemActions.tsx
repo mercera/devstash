@@ -1,9 +1,10 @@
 "use client";
 
-import { Copy, Download, Pencil, Pin, Star } from "lucide-react";
+import { Copy, Download, Pencil, Pin } from "lucide-react";
 
 import { setItemFavorite, setItemPinned } from "@/actions/items";
 import { DeleteItemDialog } from "@/components/items/DeleteItemDialog";
+import { FavoriteToggleButton } from "@/components/layout/FavoriteToggleButton";
 import { Button } from "@/components/ui/button";
 import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -45,16 +46,9 @@ export function ItemActions({ item, onEdit, onSaved, onDeleted }: ItemActionsPro
 
   return (
     <div className="flex items-center gap-1 border-b px-4 pb-4">
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-pressed={favorite.value}
-        onClick={favorite.toggle}
-        className={cn(favorite.value && "text-yellow-400 hover:text-yellow-400")}
-      >
-        <Star className={cn(favorite.value && "fill-yellow-400")} />
+      <FavoriteToggleButton size="sm" pressed={favorite.value} onToggle={favorite.toggle}>
         Favorite
-      </Button>
+      </FavoriteToggleButton>
       <Button variant="ghost" size="sm" aria-pressed={pin.value} onClick={pin.toggle}>
         <Pin className={cn(pin.value && "fill-current")} />
         Pin

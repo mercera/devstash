@@ -1,9 +1,7 @@
 "use client";
 
-import { Star } from "lucide-react";
-
 import { setItemFavorite } from "@/actions/items";
-import { Button } from "@/components/ui/button";
+import { FavoriteToggleButton } from "@/components/layout/FavoriteToggleButton";
 import { useOptimisticToggle } from "@/hooks/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 
@@ -30,20 +28,16 @@ export function ItemFavoriteButton({ itemId, title, isFavorite }: ItemFavoriteBu
   });
 
   return (
-    <Button
-      variant="ghost"
+    <FavoriteToggleButton
       size="icon-xs"
       aria-label={`Favorite ${title}`}
-      aria-pressed={favorite.value}
-      onClick={favorite.toggle}
+      pressed={favorite.value}
+      onToggle={favorite.toggle}
       className={cn(
         "hit-area z-10 -my-1 shrink-0",
-        favorite.value
-          ? "text-yellow-400 hover:text-yellow-400"
-          : "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+        !favorite.value &&
+          "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
       )}
-    >
-      <Star className={cn(favorite.value && "fill-yellow-400")} />
-    </Button>
+    />
   );
 }

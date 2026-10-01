@@ -5,8 +5,8 @@ import { useActionState } from "react";
 import { changePassword, type ChangePasswordState } from "@/actions/profile";
 import { AuthFormField } from "@/components/auth/AuthFormField";
 import { FormError, FormNotice } from "@/components/auth/FieldError";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
 import { SubmitButton } from "@/components/auth/SubmitButton";
-import { PASSWORD_LENGTH_HINT } from "@/lib/validations/auth";
 
 const INITIAL_STATE: ChangePasswordState = {};
 
@@ -39,24 +39,7 @@ export function ChangePasswordForm() {
         required
       />
 
-      <AuthFormField
-        name="password"
-        label="New password"
-        type="password"
-        autoComplete="new-password"
-        issues={state.issues?.password}
-        hint={PASSWORD_LENGTH_HINT}
-        required
-      />
-
-      <AuthFormField
-        name="confirmPassword"
-        label="Confirm new password"
-        type="password"
-        autoComplete="new-password"
-        issues={state.issues?.confirmPassword}
-        required
-      />
+      <NewPasswordFields issues={state.issues} />
 
       <SubmitButton className="w-full sm:w-auto" pendingLabel="Updating...">
         Update password

@@ -24,6 +24,7 @@ import {
   DASHBOARD_COLLECTIONS_LIMIT,
   DASHBOARD_RECENT_ITEMS_LIMIT,
 } from "@/lib/pagination";
+import { COLLECTIONS_PATH } from "@/lib/routes";
 import { getSessionUserId } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -95,7 +96,7 @@ export default async function DashboardPage() {
           variant="primary"
           action={
             <Link
-              href="/collections"
+              href={COLLECTIONS_PATH}
               className="hit-area text-sm text-muted-foreground hover:text-foreground"
             >
               View all

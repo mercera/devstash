@@ -11,8 +11,9 @@ import {
 
 import { Reveal } from "@/components/home/Reveal";
 import { Section, SectionHeader } from "@/components/home/Section";
+import { AccentTile } from "@/components/layout/AccentTile";
 import { Card } from "@/components/ui/card";
-import { getAccentTileClass, getAccentTopBorderClass } from "@/lib/icons";
+import { getAccentTopBorderClass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { AccentColor } from "@/types";
 
@@ -89,14 +90,13 @@ export function FeaturesSection() {
                 accent ? getAccentTopBorderClass(accent) : "border-t-indigo-500",
               )}
             >
-              <span
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-lg",
-                  accent ? getAccentTileClass(accent) : "bg-indigo-500/10 text-indigo-400",
-                )}
+              <AccentTile
+                color={accent ?? undefined}
+                size="lg"
+                className={accent ? undefined : "bg-indigo-500/10 text-indigo-400"}
               >
-                <Icon className="size-5" />
-              </span>
+                <Icon />
+              </AccentTile>
               <h3 className="mt-4 mb-2 text-lg font-semibold">{title}</h3>
               <p className="text-muted-foreground">{description}</p>
             </Card>

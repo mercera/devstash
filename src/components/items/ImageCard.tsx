@@ -1,11 +1,9 @@
-import { Pin, Star } from "lucide-react";
-
 import { TypeIcon } from "@/components/items/TypeIcon";
 import { ItemCardButton } from "@/components/items/ItemCardButton";
+import { AccentTile } from "@/components/layout/AccentTile";
+import { StatusMarks } from "@/components/layout/StatusMarks";
 import { Card } from "@/components/ui/card";
 import { formatShortDate } from "@/lib/format";
-import { getAccentTileClass } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 import type { ItemWithRelations } from "@/types";
 
 /**
@@ -28,26 +26,16 @@ export function ImageCard({ item }: { item: ItemWithRelations }) {
           />
         ) : (
           <div className="flex size-full items-center justify-center">
-            <span
-              className={cn(
-                "flex size-10 items-center justify-center rounded-lg",
-                getAccentTileClass(item.type.color),
-              )}
-            >
-              <TypeIcon type={item.type} className="size-5" />
-            </span>
+            <AccentTile color={item.type.color} size="lg">
+              <TypeIcon type={item.type} />
+            </AccentTile>
           </div>
         )}
       </div>
 
       <div className="flex items-center gap-1.5 px-4 py-3">
         <h3 className="truncate font-medium">{item.title}</h3>
-        {item.isPinned && (
-          <Pin className="size-3.5 shrink-0 text-muted-foreground" />
-        )}
-        {item.isFavorite && (
-          <Star className="size-3.5 shrink-0 fill-yellow-400 text-yellow-400" />
-        )}
+        <StatusMarks isPinned={item.isPinned} isFavorite={item.isFavorite} />
         <time
           dateTime={item.updatedAt.toISOString()}
           className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground"

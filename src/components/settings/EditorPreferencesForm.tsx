@@ -21,6 +21,7 @@ import {
   EDITOR_THEMES,
   type EditorPreferences,
 } from "@/lib/editor-preferences";
+import { NETWORK_SAVE_FAILED } from "@/lib/messages";
 
 /** One id, so a burst of changes replaces its toast rather than stacking them. */
 const TOAST_ID = "editor-preferences";
@@ -46,7 +47,7 @@ function useAutoSavedPreferences() {
     // A network failure rejects rather than returning a result.
     const result = await updateEditorPreferences(next).catch(() => ({
       success: false as const,
-      error: "Could not save. Check your connection and try again.",
+      error: NETWORK_SAVE_FAILED,
     }));
 
     if (result.success) {

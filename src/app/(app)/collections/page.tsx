@@ -14,13 +14,13 @@ import {
   getTotalPages,
   parsePageParam,
 } from "@/lib/pagination";
+import { COLLECTIONS_PATH } from "@/lib/routes";
 import { getSessionUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Collections | DevStash",
 };
 
-const PATHNAME = "/collections";
 
 /** The signed-in user's collections, a page at a time, most recently updated first. */
 export default async function CollectionsPage({
@@ -39,7 +39,7 @@ export default async function CollectionsPage({
   const { rows: collections, total } = await getCollectionsPage(userId, page);
   const totalPages = getTotalPages(total, COLLECTIONS_PER_PAGE);
 
-  if (page > totalPages) redirect(getPageHref(PATHNAME, totalPages));
+  if (page > totalPages) redirect(getPageHref(COLLECTIONS_PATH, totalPages));
 
   return (
     <div className="flex flex-col gap-8">
@@ -59,7 +59,7 @@ export default async function CollectionsPage({
         <EmptyState>No collections yet. Create one with New Collection.</EmptyState>
       )}
 
-      <Pagination pathname={PATHNAME} page={page} totalPages={totalPages} />
+      <Pagination pathname={COLLECTIONS_PATH} page={page} totalPages={totalPages} />
     </div>
   );
 }

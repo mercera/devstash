@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { PROFILE_PATH, SETTINGS_PATH } from "@/lib/routes";
 import type { CurrentUser } from "@/types";
 
 /**
@@ -47,13 +48,13 @@ export function UserMenu({ user }: { user: CurrentUser }) {
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
       >
         <DropdownMenuItem asChild>
-          <Link href="/profile">
+          <Link href={PROFILE_PATH}>
             <User />
             Profile
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/settings">
+          <Link href={SETTINGS_PATH}>
             <Settings />
             Settings
           </Link>

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
 
 import { CollectionCardMenu } from "@/components/collections/CollectionCardMenu";
 import { TypeIcon } from "@/components/items/TypeIcon";
+import { FavoriteStar } from "@/components/layout/StatusMarks";
 import {
   Card,
   CardAction,
@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getAccentBorderClass, getAccentTextClass } from "@/lib/icons";
+import { getCollectionPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { CollectionCardData } from "@/types";
 
@@ -39,14 +40,12 @@ export function CollectionCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
           <Link
-            href={`/collections/${collection.slug}`}
+            href={getCollectionPath(collection.slug)}
             className="truncate outline-none after:absolute after:inset-0 after:rounded-xl hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
           >
             {collection.name}
           </Link>
-          {collection.isFavorite && (
-            <Star className="size-3.5 shrink-0 fill-yellow-400 text-yellow-400" />
-          )}
+          {collection.isFavorite && <FavoriteStar />}
         </CardTitle>
         <CardDescription className="text-xs">
           {collection.itemCount} items

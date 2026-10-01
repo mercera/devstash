@@ -1,8 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
+import { AccentTile } from "@/components/layout/AccentTile";
 import { Card } from "@/components/ui/card";
-import { getAccentTileClass } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 import type { AccentColor } from "@/types";
 
 interface StatCardProps {
@@ -15,14 +14,9 @@ interface StatCardProps {
 export function StatCard({ label, value, icon: Icon, color }: StatCardProps) {
   return (
     <Card className="flex-row items-center gap-3 px-4">
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-lg",
-          getAccentTileClass(color),
-        )}
-      >
-        <Icon className="size-4.5" />
-      </span>
+      <AccentTile color={color}>
+        <Icon />
+      </AccentTile>
       <div className="min-w-0">
         <p className="text-2xl leading-none font-semibold tabular-nums">
           {value}
