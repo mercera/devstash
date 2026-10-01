@@ -1,8 +1,9 @@
 "use server";
 
-import { auth } from "@/auth";
 import { getOrCreateStripeCustomer } from "@/lib/billing";
 import { getBillingUser } from "@/lib/db/billing";
+import { SESSION_EXPIRED, SOMETHING_WENT_WRONG } from "@/lib/messages";
+import { getSessionUserId } from "@/lib/session";
 import { getPriceId, getStripe } from "@/lib/stripe";
 import { getBaseUrl } from "@/lib/tokens";
 import { billingPeriodSchema } from "@/lib/validations/billing";
@@ -13,9 +14,6 @@ import { billingPeriodSchema } from "@/lib/validations/billing";
  * signed-in user.
  */
 
-const SESSION_EXPIRED = "Your session has expired. Sign in again to continue.";
-const SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
-
 export type BillingRedirectResult =
   | { success: true; data: { url: string } }
   | { success: false; error: string };
@@ -23,8 +21,7 @@ export type BillingRedirectResult =
 export async function createCheckoutSession(
   period: unknown,
 ): Promise<BillingRedirectResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };
@@ -78,8 +75,7 @@ export async function createCheckoutSession(
 }
 
 export async function createBillingPortalSession(): Promise<BillingRedirectResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
 
   if (!userId) {
     return { success: false, error: SESSION_EXPIRED };

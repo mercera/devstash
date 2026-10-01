@@ -2,9 +2,30 @@
 
 ## Status
 
+In progress — Server Action Cleanup. Branch `refactor/actions-shared-helpers`.
+
 ## Goals
 
+- Read the session through `getSessionUser()` / `getSessionUserId()` in every
+  action instead of repeating `auth()` + `session?.user?.id`; drop
+  `requireUserId` from `src/actions/profile.ts`
+- Move the shared messages (`SESSION_EXPIRED`, `SOMETHING_WENT_WRONG`,
+  `INVALID_INPUT`) into `src/lib/messages.ts`
+- Share `isId` across the item and collection actions
+- Replace the repeated `parsed.error.flatten().fieldErrors` returns with an
+  `invalidInput(error)` helper on `z.flattenError` (`.flatten()` is deprecated
+  in Zod 4)
+- Fix the stale "demo-scoped reads" comment in `src/actions/profile.ts`
+
 ## Notes
+
+- No behaviour change: every message, result shape and status stays the same
+- Scope is `src/actions/` only; the same messages in `src/lib/ai`, the API
+  routes and the form components are left for a later pass
+- Found by a duplication scan of `src/actions/`. Not in scope from the same
+  scan: a generic owned-mutation helper for the toggle actions, a shared
+  `ActionResult<T>` type, a free-plan limit helper and moving `profile.ts`'s
+  Prisma calls into `src/lib/db/user.ts`
 
 ## History
 
