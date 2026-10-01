@@ -4,13 +4,13 @@ import { startTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-type ToggleResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "@/types/actions";
 
 interface UseOptimisticToggleOptions<T> {
   /** The stored state, as last rendered by the server or the drawer. */
   value: boolean;
   /** The server action, called with the state to set. */
-  save: (value: boolean) => Promise<ToggleResult<T>>;
+  save: (value: boolean) => Promise<ActionResult<T>>;
   /** Runs after a successful save, before the refresh. */
   onSaved?: (data: T) => void;
   /** A toast to show after a successful save, given the state that was set. */
@@ -45,7 +45,7 @@ export function useOptimisticToggle<T>({
     startTransition(async () => {
       setOptimistic(next);
 
-      let result: ToggleResult<T>;
+      let result: ActionResult<T>;
 
       try {
         result = await save(next);

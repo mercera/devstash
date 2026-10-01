@@ -7,6 +7,7 @@ import { getSessionUserId } from "@/lib/session";
 import { getPriceId, getStripe } from "@/lib/stripe";
 import { getBaseUrl } from "@/lib/tokens";
 import { billingPeriodSchema } from "@/lib/validations/billing";
+import type { ActionResult } from "@/types/actions";
 
 /**
  * Billing actions for the Billing card on `/settings`. Each returns a
@@ -14,9 +15,7 @@ import { billingPeriodSchema } from "@/lib/validations/billing";
  * signed-in user.
  */
 
-export type BillingRedirectResult =
-  | { success: true; data: { url: string } }
-  | { success: false; error: string };
+export type BillingRedirectResult = ActionResult<{ url: string }>;
 
 export async function createCheckoutSession(
   period: unknown,
