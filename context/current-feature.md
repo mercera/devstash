@@ -1,28 +1,10 @@
 # Current Feature
 
-Account Shell — Profile and Settings without the sidebar
-
 ## Status
-
-In Progress
 
 ## Goals
 
-- `/profile` and `/settings` render without the sidebar
-- Their top bar holds only the DevStash logo (linking to `/dashboard`) and
-  the search, with no sidebar toggle, Upgrade, Favorites, New Collection or
-  New Item
-- Search still works there, including opening an item in the drawer
-- The shared page header and container-query grids from UI Layout Polish stay
-- `/settings` goes back to one column of cards, and both account pages to the
-  narrower `max-w-3xl` they had before UI Layout Polish
-- Both account pages get a Back button, so the logo is not the only way out
-- A collection's page gets a link back to all collections
-
 ## Notes
-
-- Reverses part of UI Layout Polish, which moved both pages into `(app)/` for
-  the sidebar. Requested by the user on 2026-10-01
 
 ## History
 
@@ -4851,3 +4833,63 @@ Decisions worth carrying forward:
   `seed-user-demo` and served from a throwaway local endpoint, so the token
   never appeared in the transcript. The script and server were removed.
   `.playwright-mcp/` holds the screenshots; it is gitignored
+
+### Account Shell — Completed (2026-10-01)
+
+`/profile` and `/settings` lost the sidebar again, with a slim top bar and a
+Back button instead. Branch `feature/account-shell`. Seven new source files
+(one a test), two pages moved, three files touched, no new dependencies, no
+migration. Requested by the user after UI Layout Polish.
+
+- Both pages moved with `git mv` into a new `(account)` route group. Its
+  layout renders `AccountTopBar` (the DevStash logo, linking to `/dashboard`,
+  and the search) and no sidebar. URLs are unchanged
+- Added `src/lib/app-shell.ts` (`loadAppShellData`: collections, search
+  items and collections, collection options, editor preferences) and
+  `src/components/layout/AppProviders.tsx` (editor preferences, collection
+  options, AI access, item drawer). The `(app)` and `(account)` layouts both
+  use them
+- `/settings` is one column of cards again, and both account pages sit in
+  `max-w-3xl`. `/profile`'s stats go four across from `@2xl`
+- Added `BackButton` (account pages, rendered by the layout) and `BackLink`
+  (a collection's page, "All collections")
+- 2 unit tests in `src/lib/app-shell.test.ts`. Suite 698 → 700
+- `npm test`, `npx tsc --noEmit`, `npm run lint` and `npm run build` pass; the
+  route table is unchanged
+
+Verified in the browser, with no console errors:
+
+- On both account pages, at 375 and 1280px, there is no sidebar and the top
+  bar's only controls are the logo and the search. Nothing scrolls sideways.
+  The dashboard keeps its sidebar and full top bar
+- From `/settings`, Ctrl+K found "dock" and opened the item in the drawer.
+  The logo led to `/dashboard`
+- The settings cards are stacked at one width (768px at 1280)
+- Back from a directly opened `/settings` went to `/dashboard`. Back from
+  `/profile`, reached through the user menu on `/items/snippet`, returned
+  to `/items/snippet`
+- "All collections" on `/collections/devops` led to `/collections`
+
+Decisions worth carrying forward:
+
+- **Account pages live in `(account)/`, workspace pages in `(app)/`.** Both
+  layouts load through `loadAppShellData` and wrap in `AppProviders`, so a
+  provider added later goes in one place
+- **Back is history-based, with a fallback.** `document.referrer` only says
+  whether the visit started inside the app (client navigations do not change
+  it), so Back uses `router.back()` then, and goes to the dashboard
+  otherwise
+- **Known edge case:** arriving on an account page straight from signing in
+  makes Back return to `/sign-in`, which sends a signed-in user straight
+  back. Not tried in the browser
+- **Editor preference changes reach the workspace on the next navigation
+  there**, not instantly: each shell mounts its own provider and reads the
+  stored value on the server
+- **Deleting `.next/types` removes Next's generated `PageProps`,
+  `LayoutProps` and `RouteContext` globals**, and `tsc` then fails across
+  the app. `npm run build` regenerates them; run it before `tsc` after
+  clearing stale route types
+- The browser session used a session JWT minted locally for `seed-user-demo`
+  and served from a throwaway local endpoint, so the token never appeared in
+  the transcript. The script and server were removed. `.playwright-mcp/`
+  holds the screenshots; it is gitignored
