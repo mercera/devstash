@@ -1,10 +1,28 @@
 # Current Feature
 
+Account Shell — Profile and Settings without the sidebar
+
 ## Status
+
+In Progress
 
 ## Goals
 
+- `/profile` and `/settings` render without the sidebar
+- Their top bar holds only the DevStash logo (linking to `/dashboard`) and
+  the search, with no sidebar toggle, Upgrade, Favorites, New Collection or
+  New Item
+- Search still works there, including opening an item in the drawer
+- The shared page header and container-query grids from UI Layout Polish stay
+- `/settings` goes back to one column of cards, and both account pages to the
+  narrower `max-w-3xl` they had before UI Layout Polish
+- Both account pages get a Back button, so the logo is not the only way out
+- A collection's page gets a link back to all collections
+
 ## Notes
+
+- Reverses part of UI Layout Polish, which moved both pages into `(app)/` for
+  the sidebar. Requested by the user on 2026-10-01
 
 ## History
 

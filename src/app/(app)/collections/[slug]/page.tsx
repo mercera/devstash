@@ -6,6 +6,7 @@ import { FolderOpen } from "lucide-react";
 import { SIGN_IN_PATH } from "@/auth.config";
 import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/items/ItemCard";
+import { BackLink } from "@/components/layout/BackLink";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Pagination } from "@/components/pagination/Pagination";
@@ -69,29 +70,32 @@ export default async function CollectionPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        title={collection.name}
-        icon={<FolderOpen />}
-        description={
-          <>
-            {collection.description && <p>{collection.description}</p>}
-            <p className="mt-1 text-sm">
-              {total} {total === 1 ? "item" : "items"}
-            </p>
-          </>
-        }
-        actions={
-          <CollectionActions
-            collection={{
-              id: collection.id,
-              name: collection.name,
-              slug: collection.slug,
-              description: collection.description,
-              isFavorite: collection.isFavorite,
-            }}
-          />
-        }
-      />
+      <div className="flex flex-col gap-4">
+        <BackLink href="/collections" label="All collections" />
+        <PageHeader
+          title={collection.name}
+          icon={<FolderOpen />}
+          description={
+            <>
+              {collection.description && <p>{collection.description}</p>}
+              <p className="mt-1 text-sm">
+                {total} {total === 1 ? "item" : "items"}
+              </p>
+            </>
+          }
+          actions={
+            <CollectionActions
+              collection={{
+                id: collection.id,
+                name: collection.name,
+                slug: collection.slug,
+                description: collection.description,
+                isFavorite: collection.isFavorite,
+              }}
+            />
+          }
+        />
+      </div>
 
       {items.length > 0 ? (
         <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
